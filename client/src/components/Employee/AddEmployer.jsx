@@ -1,22 +1,37 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Input, Textarea } from '../ui/Input'; 
 import { Button } from '../ui/Button';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Save } from 'lucide-react';
 
-export function AddEmployerPage({ onNavigate, onSave }) {
+export function AddEmployerPage({ onNavigate, onSave, initialData = null, isEdit = false }) {
+  // Initialize form with existing data if isEdit is true, otherwise empty
   const [formData, setFormData] = useState({
-    employerName: '',
-    country: '',
-    contact: '',
-    address: '',
-    notes: '',
+    employerName: initialData?.employerName || '',
+    country: initialData?.country || '',
+    contact: initialData?.contact || '',
+    address: initialData?.address || '',
+    notes: initialData?.notes || '',
+    status: initialData?.status || 'active', // Default to active for new employers
   });
 
-  // State for error messages
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // If initialData changes (e.g., selecting a different employer to edit), update form
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        employerName: initialData.employerName || '',
+        country: initialData.country || '',
+        contact: initialData.contact || '',
+        address: initialData.address || '',
+        notes: initialData.notes || '',
+        status: initialData.status || 'active',
+      });
+    }
+  }, [initialData]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -24,10 +39,8 @@ export function AddEmployerPage({ onNavigate, onSave }) {
     setLoading(true);
 
     try {
-      // Pass formData to onSave and handle response
       await onSave(formData);
     } catch (err) {
-      // If the backend or parent function throws an error, catch it here
       setError(err.message || "Something went wrong while saving.");
     } finally {
       setLoading(false);
@@ -35,15 +48,12 @@ export function AddEmployerPage({ onNavigate, onSave }) {
   };
 
   const handleChange = (field, value) => {
-    // Clear error when user starts typing again
     if (error) setError(null);
 
-    // Validation for Contact Field: Only allow numbers, +, -, (), and spaces
+    // Validation for Contact Field
     if (field === 'contact') {
       const phoneRegex = /^[0-9+\-() ]*$/;
-      if (value !== '' && !phoneRegex.test(value)) {
-        return; // Block the update if invalid characters are typed
-      }
+      if (value !== '' && !phoneRegex.test(value)) return;
     }
 
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -51,6 +61,7 @@ export function AddEmployerPage({ onNavigate, onSave }) {
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <button 
           type="button" 
@@ -60,14 +71,17 @@ export function AddEmployerPage({ onNavigate, onSave }) {
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Add New Employer</h1>
-          <p className="text-gray-500">Register a new company to the directory</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isEdit ? "Edit Employer" : "Add New Employer"}
+          </h1>
+          <p className="text-gray-500">
+            {isEdit ? `Updating information for ${formData.employerName}` : "Register a new company to the directory"}
+          </p>
         </div>
       </div>
 
-      {/* Error Message Display */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-3">
           <AlertCircle size={20} />
           <p className="text-sm font-medium">{error}</p>
         </div>
@@ -96,13 +110,27 @@ export function AddEmployerPage({ onNavigate, onSave }) {
               />
             </div>
 
-            <Input 
-              label="Contact Details" 
-              placeholder="e.g. +971 50 123 4567"
-              value={formData.contact} 
-              onChange={(e) => handleChange('contact', e.target.value)} 
-              required 
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input 
+                label="Contact Details" 
+                placeholder="e.g. +971 50 123 4567"
+                value={formData.contact} 
+                onChange={(e) => handleChange('contact', e.target.value)} 
+                required 
+              />
+              {/* Only show Status dropdown if editing */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">Status</label>
+                <select 
+                  className="w-full h-10 px-3 py-2 bg-white border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.status}
+                  onChange={(e) => handleChange('status', e.target.value)}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
             
             <Textarea 
               label="Address" 
@@ -125,7 +153,7 @@ export function AddEmployerPage({ onNavigate, onSave }) {
                 disabled={loading}
                 className="flex-1 bg-blue-600 text-white hover:bg-blue-700 h-11"
               >
-                {loading ? "Saving..." : "Save Employer"}
+                {loading ? "Saving..." : (isEdit ? "Update Employer" : "Save Employer")}
               </Button>
               <Button 
                 type="button" 

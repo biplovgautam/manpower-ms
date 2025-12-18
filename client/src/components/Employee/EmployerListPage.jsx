@@ -1,22 +1,16 @@
 "use client";
 import React, { useState } from 'react';
 import { 
-  Building2, 
-  Globe, 
-  MapPin, 
-  Phone, 
-  Search, 
-  Plus 
+  Building2, Globe, MapPin, Phone, Search, Plus, Edit2, Trash2 
 } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 
-export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer }) {
+export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer, onDelete }) {
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filter logic using 'employerName' to match your Backend Schema
     const filtered = employers.filter(emp =>
         (emp.employerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (emp.country || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -24,7 +18,6 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
 
     return (
         <div className="space-y-6">
-            {/* Header Section */}
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900">Employers Management</h1>
@@ -38,19 +31,16 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                 </Button>
             </div>
 
-            {/* Table Card */}
             <Card>
                 <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <div className="relative flex-1 max-w-sm">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                            <Input
-                                placeholder="Search by name or country..."
-                                className="pl-10"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
+                    <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                        <Input
+                            placeholder="Search by name or country..."
+                            className="pl-10"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -61,8 +51,8 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                     <th className="py-4 px-4">Company Name</th>
                                     <th className="py-4 px-4">Location</th>
                                     <th className="py-4 px-4">Contact</th>
-                                    <th className="py-4 px-4">Address</th>
                                     <th className="py-4 px-4">Status</th>
+                                    <th className="py-4 px-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
@@ -71,11 +61,11 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                         <tr 
                                             key={employer._id} 
                                             onClick={() => onSelectEmployer(employer)}
-                                            className="hover:bg-gray-50 transition-colors cursor-pointer"
+                                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
                                         >
                                             <td className="py-4 px-4 font-medium text-gray-900">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100">
                                                         <Building2 size={16} />
                                                     </div>
                                                     {employer.employerName}
@@ -87,28 +77,46 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                                                 </div>
                                             </td>
                                             <td className="py-4 px-4 text-gray-600">
-                                                <div className="flex items-center gap-2">
-                                                    <Phone size={14} className="text-gray-400" />
-                                                    {employer.contact}
-                                                </div>
-                                            </td>
-                                            <td className="py-4 px-4 text-gray-600">
-                                                <div className="flex items-center gap-2">
-                                                    <MapPin size={14} className="text-gray-400" />
-                                                    <span className="truncate max-w-[200px]">{employer.address}</span>
-                                                </div>
+                                                {employer.contact}
                                             </td>
                                             <td className="py-4 px-4">
                                                 <Badge variant={employer.status === 'active' || !employer.status ? 'success' : 'default'}>
                                                     {employer.status || 'Active'}
                                                 </Badge>
                                             </td>
+                                            <td className="py-4 px-4 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Prevents row click
+                                                            onSelectEmployer(employer);
+                                                            onNavigate('edit');
+                                                        }}
+                                                    >
+                                                        <Edit2 size={16} />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation(); // Prevents row click
+                                                            onDelete(employer._id);
+                                                        }}
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </Button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))
                                 ) : (
                                     <tr>
                                         <td colSpan="5" className="py-10 text-center text-gray-500">
-                                            No employers found in the database.
+                                            No employers found.
                                         </td>
                                     </tr>
                                 )}

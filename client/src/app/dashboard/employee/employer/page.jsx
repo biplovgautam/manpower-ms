@@ -8,7 +8,7 @@ import { EmployerDetailsPage } from '../../../../components/Employee/EmployerDet
 
 export default function EmployersPage() {
     const router = useRouter();
-    const [view, setView] = useState('list'); // views: 'list', 'add', 'details'
+    const [view, setView] = useState('list'); // views: 'list', 'add', 'details', 'edit'
     const [employers, setEmployers] = useState([]);
     const [selectedEmployer, setSelectedEmployer] = useState(null);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
@@ -36,12 +36,6 @@ export default function EmployersPage() {
         }
     };
 
-    // Triggered when a row is clicked in the list
-    const handleSelectEmployer = (employer) => {
-        setSelectedEmployer(employer);
-        setView('details');
-    };
-
     const handleSave = async (formData) => {
         const token = localStorage.getItem('token');
         const res = await fetch('http://localhost:5000/api/employers', {
@@ -54,13 +48,51 @@ export default function EmployersPage() {
         });
         
         const result = await res.json();
-
         if (res.ok && result.success) {
             fetchEmployers(token);
             setView('list');
         } else {
-            // Throwing error so AddEmployerPage can catch and display it
             throw new Error(result.error || "Failed to save employer");
+        }
+    };
+
+    const handleUpdate = async (formData) => {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`http://localhost:5000/api/employers/${selectedEmployer._id}`, {
+            method: 'PUT',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify(formData)
+        });
+        
+        const result = await res.json();
+        if (res.ok && result.success) {
+            fetchEmployers(token);
+            setView('list');
+            setSelectedEmployer(null);
+        } else {
+            throw new Error(result.error || "Failed to update employer");
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this employer?")) return;
+
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`http://localhost:5000/api/employers/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (res.ok) {
+                fetchEmployers(token);
+                setView('list');
+            }
+        } catch (error) {
+            console.error("Delete failed:", error);
         }
     };
 
@@ -71,12 +103,15 @@ export default function EmployersPage() {
             currentPath="/dashboard/employee/employer" 
             onLogout={() => { localStorage.clear(); router.push('/login'); }}
         >
-            {/* View Switcher */}
             {view === 'list' && (
                 <EmployerListPage 
                     employers={employers} 
                     onNavigate={setView} 
-                    onSelectEmployer={handleSelectEmployer} 
+                    onSelectEmployer={(emp) => {
+                        setSelectedEmployer(emp);
+                        setView('details');
+                    }} 
+                    onDelete={handleDelete}
                 />
             )}
 
@@ -87,10 +122,20 @@ export default function EmployersPage() {
                 />
             )}
 
+            {view === 'edit' && (
+                <AddEmployerPage 
+                    onNavigate={() => setView('list')} 
+                    onSave={handleUpdate} 
+                    initialData={selectedEmployer}
+                    isEdit={true}
+                />
+            )}
+
             {view === 'details' && (
                 <EmployerDetailsPage 
                     employer={selectedEmployer} 
-                    onNavigate={() => setView('list')} 
+                    onNavigate={setView} 
+                    onDelete={handleDelete}
                 />
             )}
         </DashboardLayout>
