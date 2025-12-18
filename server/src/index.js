@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const authRoutes = require('./routes/auth'); // NEW: Import Routes
+const employerRoutes = require('./routes/employerRoutes');
 
 // Load environment variables from .env file
 dotenv.config();
@@ -27,6 +28,7 @@ app.use(express.json());
 // Application Routes (Middleware)
 // ----------------------------------------------------
 app.use('/api/auth', authRoutes);
+app.use('/api/employers', employerRoutes);
 
 
 // Database Connection (MOVED UP)
