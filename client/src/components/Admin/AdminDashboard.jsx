@@ -1,19 +1,31 @@
 'use client';
 
-import React, { useState } from 'react';
 import axios from 'axios';
-import { 
-  Building2, Users, UserCircle, Briefcase, Clock, 
-  AlertCircle, FileText, Plus, Edit, Trash2, Check, X 
+import {
+  AlertCircle,
+  Briefcase,
+  Building2,
+  Check,
+  Clock,
+  Edit,
+  FileText, Plus,
+  Trash2,
+  UserCircle,
+  Users,
+  X
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
-import { Input } from './ui/Input';
-import { 
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, 
-  BarChart, Bar, XAxis, YAxis, Legend, LabelList 
+import { useState } from 'react';
+import {
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip
 } from 'recharts';
+import { Button } from '../ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import { Input } from '../ui/Input';
 
 // ---------------- Mock Data (Keeping UI Pretty) ----------------
 const mockAdminStats = {
@@ -31,7 +43,7 @@ const mockAdminStats = {
 
 const COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#6366F1'];
 
-export function AdminDashboard({ onNavigate = () => {} }) {
+export function AdminDashboard({ onNavigate = () => { } }) {
   // --- States for Notes (From your original file) ---
   const [notes, setNotes] = useState([]);
   const [newNote, setNewNote] = useState('');
@@ -105,15 +117,15 @@ export function AdminDashboard({ onNavigate = () => {} }) {
 
   return (
     <div className="p-6 space-y-8 max-w-[1600px] mx-auto">
-      
+
       {/* ---------------- Header Section ---------------- */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Admin Dashboard</h1>
           <p className="text-gray-500 mt-1">Welcome back! Here is what is happening today.</p>
         </div>
-        <Button 
-          onClick={() => setIsModalOpen(true)} 
+        <Button
+          onClick={() => setIsModalOpen(true)}
           className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 flex items-center gap-2 px-6 py-6 rounded-xl transition-all active:scale-95"
         >
           <Plus className="h-5 w-5" />
@@ -146,52 +158,52 @@ export function AdminDashboard({ onNavigate = () => {} }) {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
+
             <form onSubmit={handleAddEmployee} className="p-8 space-y-5">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700 ml-1">Full Name</label>
-                <Input 
-                  placeholder="John Doe" 
+                <Input
+                  placeholder="John Doe"
                   className="rounded-xl h-12"
                   value={employeeData.fullName}
-                  onChange={(e) => setEmployeeData({...employeeData, fullName: e.target.value})}
-                  required 
+                  onChange={(e) => setEmployeeData({ ...employeeData, fullName: e.target.value })}
+                  required
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700 ml-1">Email Address</label>
-                <Input 
-                  type="email" 
-                  placeholder="john@company.com" 
+                <Input
+                  type="email"
+                  placeholder="john@company.com"
                   className="rounded-xl h-12"
                   value={employeeData.email}
-                  onChange={(e) => setEmployeeData({...employeeData, email: e.target.value})}
-                  required 
+                  onChange={(e) => setEmployeeData({ ...employeeData, email: e.target.value })}
+                  required
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700 ml-1">Password</label>
-                <Input 
-                  type="password" 
-                  placeholder="••••••••" 
+                <Input
+                  type="password"
+                  placeholder="••••••••"
                   className="rounded-xl h-12"
                   value={employeeData.password}
-                  onChange={(e) => setEmployeeData({...employeeData, password: e.target.value})}
-                  required 
+                  onChange={(e) => setEmployeeData({ ...employeeData, password: e.target.value })}
+                  required
                 />
               </div>
-              
+
               <div className="pt-4 flex gap-3">
-                <Button 
-                  type="button" 
-                  variant="ghost" 
+                <Button
+                  type="button"
+                  variant="ghost"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 h-12 rounded-xl"
                 >
                   Cancel
                 </Button>
-                <Button 
-                  type="submit" 
+                <Button
+                  type="submit"
                   disabled={loading}
                   className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-bold"
                 >
@@ -216,19 +228,19 @@ export function AdminDashboard({ onNavigate = () => {} }) {
           <CardContent className="h-[350px] p-6">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie 
+                <Pie
                   data={[
                     { name: 'Deployed', value: mockAdminStats.workersDeployed },
                     { name: 'Processing', value: mockAdminStats.workersInProcessing },
                     { name: 'Rejected', value: mockAdminStats.workersRejected },
                     { name: 'Pending', value: mockAdminStats.workersPending }
-                  ]} 
+                  ]}
                   innerRadius={80} outerRadius={120} paddingAngle={8} dataKey="value"
                 >
                   {COLORS.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                 </Pie>
                 <Tooltip />
-                <Legend verticalAlign="bottom" height={36}/>
+                <Legend verticalAlign="bottom" height={36} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -244,15 +256,15 @@ export function AdminDashboard({ onNavigate = () => {} }) {
           </CardHeader>
           <CardContent className="p-6 space-y-4 flex-1">
             <div className="flex gap-2">
-              <Input 
-                value={newNote} 
-                onChange={(e) => setNewNote(e.target.value)} 
-                placeholder="Type a new update..." 
+              <Input
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Type a new update..."
                 className="rounded-xl bg-gray-50 border-none h-12"
               />
               <Button onClick={addNote} className="bg-indigo-600 rounded-xl h-12 px-6">Add</Button>
             </div>
-            
+
             <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2">
               {notes.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">No notes yet</div>

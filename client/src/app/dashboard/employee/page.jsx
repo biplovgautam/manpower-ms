@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../components/DashboardLayout';
-import { EmployeeDashboard } from '../../../components/EmployeeDashboard';
+import { EmployeeDashboard } from '../../../components/Employee/EmployeeDashboard';
 
 export default function EmployeePage() {
     const router = useRouter();

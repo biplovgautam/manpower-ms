@@ -9,9 +9,9 @@ import {
     Users
 } from 'lucide-react';
 import React, { useState } from 'react';
-import { Badge } from './ui/Badge';
-import { Button } from './ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/Card';
+import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 
 // Helper Component for Stats
 function StatCard({ title, value, icon, onClick, gradient = 'from-blue-500 to-blue-600' }) {
