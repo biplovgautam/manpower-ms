@@ -10,7 +10,7 @@ const { protect } = require('../middleware/auth');
 
 // Define routes
 router.route('/')
-  .get(getEmployers) // Public or private depending on your needs
-  .post(protect, createEmployer); // Only authenticated users can add
+  .get(protect, getEmployers) // Added protect here
+  .post(protect, createEmployer);
 
 module.exports = router;
