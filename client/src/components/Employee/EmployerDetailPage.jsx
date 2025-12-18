@@ -16,9 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from '../ui/table';
-import { ArrowLeft, Building2, Calendar, Mail, MapPin, Phone, Users } from 'lucide-react';
+import { ArrowLeft, Building2, Calendar, Edit, Mail, MapPin, Phone, Trash2, Users } from 'lucide-react';
 
-export function EmployerDetailsPage({ employer, onNavigate }) {
+export function EmployerDetailsPage({ employer, onNavigate, onDelete }) {
   // Handle empty state
   if (!employer) {
     return (
@@ -79,8 +79,23 @@ export function EmployerDetailsPage({ employer, onNavigate }) {
             </div>
           </div>
         </div>
+        
+        {/* Action Buttons */}
         <div className="flex gap-2">
-          <Button variant="outline">Edit Details</Button>
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => onNavigate('edit')} // This triggers the edit form
+          >
+            <Edit size={16} /> Edit Details
+          </Button>
+          <Button 
+            variant="ghost" 
+            className="text-red-600 hover:text-red-700 hover:bg-red-50 flex items-center gap-2"
+            onClick={() => onDelete(employer._id)}
+          >
+            <Trash2 size={16} /> Delete
+          </Button>
           <Button className="bg-blue-600 text-white">Create Job Demand</Button>
         </div>
       </div>
