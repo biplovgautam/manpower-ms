@@ -6,7 +6,7 @@ const {
     updateJobDemand,
     deleteJobDemand,
     getEmployerJobDemands
-} = require('../controllers/jobDemandController');
+} = require('../controllers/JobDemandController');
 const { protect } = require('../middleware/auth');
 
 router.route('/')

@@ -2,7 +2,6 @@ import {
   ArrowUpRight,
   Briefcase,
   Clock,
-  Filter,
   Plus,
   Search,
   Users
@@ -24,7 +23,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../ui/Table';
+} from '../ui/table';
 
 export function JobDemandListPage({
   jobDemands = [],
@@ -65,9 +64,6 @@ export function JobDemandListPage({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="hidden sm:flex border-gray-200">
-            <Filter size={18} className="mr-2" /> Filter
-          </Button>
           <Button
             onClick={() => onNavigate('/employee/create-job-demand')}
             className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 transition-all active:scale-95 px-6"
