@@ -1,12 +1,34 @@
 "use client";
-import React, { useState } from 'react';
-import { 
-  Building2, Globe, MapPin, Phone, Search, Plus, Edit2, Trash2 
+import {
+    ArrowUpRight,
+    Building2,
+    Edit2,
+    Filter,
+    Globe,
+    MapPin,
+    Phone,
+    Plus,
+    Search,
+    Trash2
 } from 'lucide-react';
-import { Card, CardContent, CardHeader } from '../ui/Card';
-import { Input } from '../ui/Input';
-import { Button } from '../ui/Button';
+import { useState } from 'react';
 import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle
+} from '../ui/Card';
+import { Input } from '../ui/Input';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '../ui/Table';
 
 export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer, onDelete }) {
     const [searchTerm, setSearchTerm] = useState('');
@@ -17,81 +39,112 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
     );
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
+        <div className="space-y-8 animate-in fade-in duration-500">
+            {/* 1. Enhanced Page Header */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-bold text-gray-900">Employers Management</h1>
-                    <p className="text-gray-500">View and manage all registered hiring companies</p>
+                    <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Employers</h1>
+                    <p className="text-gray-500 mt-2 text-lg">
+                        Central directory of all registered hiring partners and organizations.
+                    </p>
                 </div>
-                <Button 
-                    onClick={() => onNavigate('add')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
-                >
-                    <Plus size={18} /> Add New Employer
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button variant="outline" className="hidden sm:flex border-gray-200">
+                        <Filter size={18} className="mr-2" /> Filter
+                    </Button>
+                    <Button
+                        onClick={() => onNavigate('add')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 transition-all active:scale-95 px-6"
+                    >
+                        <Plus size={20} className="mr-2" /> Add Employer
+                    </Button>
+                </div>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <div className="relative flex-1 max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <Input
-                            placeholder="Search by name or country..."
-                            className="pl-10"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+            {/* 2. Main Data Table */}
+            <Card className="border-none shadow-xl shadow-gray-100 overflow-hidden bg-white">
+                <CardHeader className="bg-white border-b px-6 py-5">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <CardTitle className="text-lg font-bold text-gray-800">
+                            Partner Inventory
+                        </CardTitle>
+                        <div className="relative w-full sm:w-96 group">
+                            <Search
+                                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"
+                                size={18}
+                            />
+                            <Input
+                                placeholder="Search by name or country..."
+                                className="pl-10 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b text-sm font-semibold text-gray-600 uppercase">
-                                    <th className="py-4 px-4">Company Name</th>
-                                    <th className="py-4 px-4">Location</th>
-                                    <th className="py-4 px-4">Contact</th>
-                                    <th className="py-4 px-4">Status</th>
-                                    <th className="py-4 px-4 text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y">
+                        <Table>
+                            <TableHeader className="bg-gray-50/50">
+                                <TableRow>
+                                    <TableHead className="w-[350px] py-4 pl-6 text-xs uppercase font-bold text-gray-500">Employer Profile</TableHead>
+                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Operational Region</TableHead>
+                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Primary Contact</TableHead>
+                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Status</TableHead>
+                                    <TableHead className="text-right pr-6 text-xs uppercase font-bold text-gray-500">Manage</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
                                 {filtered.length > 0 ? (
                                     filtered.map((employer) => (
-                                        <tr 
-                                            key={employer._id} 
+                                        <TableRow
+                                            key={employer._id}
                                             onClick={() => onSelectEmployer(employer)}
-                                            className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                                            className="group hover:bg-blue-50/30 cursor-pointer transition-all border-b border-gray-50"
                                         >
-                                            <td className="py-4 px-4 font-medium text-gray-900">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100">
-                                                        <Building2 size={16} />
+                                            <TableCell className="py-4 pl-6">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 font-bold group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                                        <Building2 size={18} />
                                                     </div>
-                                                    {employer.employerName}
+                                                    <div>
+                                                        <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                                            {employer.employerName}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500 flex items-center mt-0.5">
+                                                            <MapPin size={12} className="mr-1" /> {employer.address || 'Headquarters'}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                            </td>
-                                            <td className="py-4 px-4 text-gray-600">
-                                                <div className="flex items-center gap-2">
-                                                    <Globe size={14} /> {employer.country}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center text-sm text-gray-600 font-medium">
+                                                    <Globe size={14} className="mr-2 text-gray-400" />
+                                                    {employer.country}
                                                 </div>
-                                            </td>
-                                            <td className="py-4 px-4 text-gray-600">
-                                                {employer.contact}
-                                            </td>
-                                            <td className="py-4 px-4">
-                                                <Badge variant={employer.status === 'active' || !employer.status ? 'success' : 'default'}>
-                                                    {employer.status || 'Active'}
+                                            </TableCell>
+                                            <TableCell className="text-sm text-gray-600">
+                                                <div className="flex items-center">
+                                                    <Phone size={14} className="mr-2 text-blue-500" />
+                                                    {employer.contact}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge
+                                                    variant={employer.status === 'active' || !employer.status ? 'success' : 'secondary'}
+                                                    className="rounded-md px-2.5 py-0.5 text-[11px] font-bold border-none"
+                                                >
+                                                    {(employer.status || 'Active').toUpperCase()}
                                                 </Badge>
-                                            </td>
-                                            <td className="py-4 px-4 text-right">
-                                                <div className="flex justify-end gap-2">
+                                            </TableCell>
+                                            <TableCell className="text-right pr-6">
+                                                <div className="flex justify-end gap-1">
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                        className="text-blue-600 hover:bg-blue-100 rounded-full h-9 w-9 p-0"
                                                         onClick={(e) => {
-                                                            e.stopPropagation(); // Prevents row click
+                                                            e.stopPropagation();
                                                             onSelectEmployer(employer);
                                                             onNavigate('edit');
                                                         }}
@@ -101,27 +154,36 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                        className="text-red-600 hover:bg-red-50 rounded-full h-9 w-9 p-0"
                                                         onClick={(e) => {
-                                                            e.stopPropagation(); // Prevents row click
+                                                            e.stopPropagation();
                                                             onDelete(employer._id);
                                                         }}
                                                     >
                                                         <Trash2 size={16} />
                                                     </Button>
+                                                    <div className="ml-2 flex items-center opacity-0 group-hover:opacity-100 transition-all text-gray-300">
+                                                        <ArrowUpRight size={18} />
+                                                    </div>
                                                 </div>
-                                            </td>
-                                        </tr>
+                                            </TableCell>
+                                        </TableRow>
                                     ))
                                 ) : (
-                                    <tr>
-                                        <td colSpan="5" className="py-10 text-center text-gray-500">
-                                            No employers found.
-                                        </td>
-                                    </tr>
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="py-20 text-center bg-gray-50/50">
+                                            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm text-gray-300 mb-4">
+                                                <Search size={32} />
+                                            </div>
+                                            <h3 className="text-gray-900 font-bold text-lg">No partners found</h3>
+                                            <p className="text-gray-500 max-w-xs mx-auto mt-2 text-sm">
+                                                Try adjusting your search or filters to find the employer you are looking for.
+                                            </p>
+                                        </TableCell>
+                                    </TableRow>
                                 )}
-                            </tbody>
-                        </table>
+                            </TableBody>
+                        </Table>
                     </div>
                 </CardContent>
             </Card>
