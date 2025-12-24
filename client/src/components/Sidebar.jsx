@@ -33,7 +33,7 @@ export function Sidebar({ role, onLogout }) {
         // Linked to the new Job Demand backend/frontend structure
         { path: '/dashboard/employee/job-demand', label: 'Job Demands', icon: Briefcase },
         // Linked to the Worker Management backend/frontend structure
-        { path: '/dashboard/employee/workers', label: 'Workers', icon: UserCircle },
+        { path: '/dashboard/employee/worker', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/employee/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/employee/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
@@ -60,27 +60,25 @@ export function Sidebar({ role, onLogout }) {
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 scrollbar-track-transparent">
                 {links.map((link) => {
                     const Icon = link.icon;
-                    
+
                     // Logic: Highlighting logic that works with nested routes like /workers/add
-                    const isActive = link.exact 
-                        ? pathname === link.path 
+                    const isActive = link.exact
+                        ? pathname === link.path
                         : pathname.startsWith(link.path);
 
                     return (
                         <Link
                             key={link.path}
                             href={link.path}
-                            className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
-                                isActive
-                                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
-                                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
+                            className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${isActive
+                                ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100'
+                                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                                }`}
                         >
-                            <Icon 
-                                size={19} 
-                                className={`transition-colors duration-200 ${
-                                    isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
-                                }`} 
+                            <Icon
+                                size={19}
+                                className={`transition-colors duration-200 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'
+                                    }`}
                             />
                             <span className="flex-1">{link.label}</span>
                             {isActive && (

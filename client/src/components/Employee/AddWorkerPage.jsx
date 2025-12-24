@@ -1,119 +1,123 @@
-import React, { useState } from 'react'
+"use client";
+import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '../../components/ui/Button';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-} from '../../components/ui/Card'
-import { Input, Textarea } from '../../components/ui/Input'
-import { Select } from '../../components/ui/Select'
-import { Button } from '../../components/ui/Button'
-import { ArrowLeft, Upload } from 'lucide-react'
+} from '../../components/ui/Card';
+import { Input, Textarea } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
 
 export function AddWorkerPage({
-  employers,
-  jobDemands,
-  subAgents,
-  onNavigate
+  employers = [],
+  jobDemands = [],
+  subAgents = [],
+  onNavigate,
+  onSave, // Added to handle the actual save logic from parent
+  initialData = null,
+  isEdit = false
 }) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    dob: '',
-    passportNumber: '',
-    contact: '',
-    address: '',
-    country: 'Nepal',
-    employerId: employers[0]?._id || '',
-    jobDemandId: jobDemands[0]?._id || '',
-    subAgentId: subAgents[0]?.id || '',
-    status: 'pending',
-    currentStage: 'interview',
-    notes: '',
+    name: initialData?.name || '',
+    dob: initialData?.dob || '',
+    passportNumber: initialData?.passportNumber || '',
+    contact: initialData?.contact || '',
+    address: initialData?.address || '',
+    country: initialData?.country || 'Nepal',
+    employerId: initialData?.employerId || employers[0]?._id || '',
+    jobDemandId: initialData?.jobDemandId || jobDemands[0]?._id || '',
+    subAgentId: initialData?.subAgentId || subAgents[0]?.id || '',
+    status: initialData?.status || 'pending',
+    currentStage: initialData?.currentStage || 'interview',
+    notes: initialData?.notes || '',
     documents: [],
-  })
+  });
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
-    }))
-  }
+    }));
+  };
 
   const handleFileChange = (e) => {
     if (e.target.files) {
-      handleChange('documents', Array.from(e.target.files))
+      handleChange('documents', Array.from(e.target.files));
     }
-  }
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-
-    // Using FormData to handle file uploads + text fields
-    const data = new FormData()
-    
-    // Append text fields
-    Object.keys(formData).forEach(key => {
-      if (key !== 'documents') {
-        data.append(key, formData[key])
-      }
-    })
-
-    // Append files
-    formData.documents.forEach((file) => {
-      data.append('documents', file)
-    })
+    e.preventDefault();
+    setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/workers/add', {
-        method: 'POST',
-        body: data, // No JSON.stringify needed for FormData
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log('Worker saved:', result)
-        onNavigate('/employee/workers')
+      // If you are using the onSave prop from the parent (recommended)
+      if (onSave) {
+        await onSave(formData);
       } else {
-        const errorData = await response.json()
-        alert(`Error: ${errorData.message}`)
+        // Fallback to direct API call if onSave isn't passed
+        const data = new FormData();
+        Object.keys(formData).forEach(key => {
+          if (key !== 'documents') data.append(key, formData[key]);
+        });
+        formData.documents.forEach((file) => data.append('documents', file));
+
+        const response = await fetch('http://localhost:5000/api/workers/add', {
+          method: 'POST',
+          body: data,
+        });
+
+        if (response.ok) {
+          onNavigate('list');
+        } else {
+          const errorData = await response.json();
+          alert(`Error: ${errorData.message}`);
+        }
       }
     } catch (error) {
-      console.error('Submission failed:', error)
-      alert('Failed to connect to server')
+      console.error('Submission failed:', error);
+      alert('Failed to save worker');
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   // Filter job demands by selected employer
   const filteredJobDemands = formData.employerId
     ? jobDemands.filter((jd) => jd.employerId === formData.employerId)
-    : jobDemands
+    : jobDemands;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex items-center gap-4">
         <button
-          onClick={() => onNavigate('/employee/workers')}
+          type="button"
+          onClick={() => onNavigate('list')}
           className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Add New Worker</h1>
-          <p className="text-gray-600 mt-2">Register a new worker for recruitment</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isEdit ? "Edit Worker" : "Add New Worker"}
+          </h1>
+          <p className="text-gray-600 mt-2">
+            {isEdit ? `Updating information for ${formData.name}` : "Register a new worker for recruitment"}
+          </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Personal Information */}
-        <Card>
-          <CardHeader>
+        <Card className="border-none shadow-lg">
+          <CardHeader className="border-b border-gray-50">
             <CardTitle>Personal Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
                 label="Full Name"
@@ -161,24 +165,24 @@ export function AddWorkerPage({
         </Card>
 
         {/* Assignment Information */}
-        <Card>
-          <CardHeader>
+        <Card className="border-none shadow-lg">
+          <CardHeader className="border-b border-gray-50">
             <CardTitle>Assignment Details</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 label="Assign to Employer"
                 options={employers.map((emp) => ({
                   value: emp._id,
-                  label: `${emp.name} (${emp.country})`,
+                  label: `${emp.employerName || emp.name} (${emp.country})`,
                 }))}
                 value={formData.employerId}
                 onChange={(e) => {
-                  const empId = e.target.value
-                  handleChange('employerId', empId)
-                  const firstMatchingJob = jobDemands.find(jd => jd.employerId === empId)
-                  if (firstMatchingJob) handleChange('jobDemandId', firstMatchingJob._id)
+                  const empId = e.target.value;
+                  handleChange('employerId', empId);
+                  const firstMatchingJob = jobDemands.find(jd => jd.employerId === empId);
+                  if (firstMatchingJob) handleChange('jobDemandId', firstMatchingJob._id);
                 }}
                 required
               />
@@ -195,7 +199,7 @@ export function AddWorkerPage({
               <Select
                 label="Assign to Sub-Agent"
                 options={subAgents.map((sa) => ({
-                  value: sa.id,
+                  value: sa.id || sa._id,
                   label: sa.name,
                 }))}
                 value={formData.subAgentId}
@@ -216,11 +220,11 @@ export function AddWorkerPage({
         </Card>
 
         {/* Documents */}
-        <Card>
-          <CardHeader>
+        <Card className="border-none shadow-lg">
+          <CardHeader className="border-b border-gray-50">
             <CardTitle>Documents & Notes</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="pt-6 space-y-4">
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">Upload Documents</label>
               <input
@@ -236,22 +240,22 @@ export function AddWorkerPage({
               )}
             </div>
             <Textarea
-              label="Notes"
+              label="Internal Notes"
               value={formData.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
             />
           </CardContent>
         </Card>
 
-        <div className="flex gap-3">
-          <Button type="submit" className="flex-1" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Add Worker'}
+        <div className="flex gap-3 pt-4">
+          <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white h-11" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : (isEdit ? 'Update Worker' : 'Add Worker')}
           </Button>
-          <Button type="button" variant="outline" className="flex-1" onClick={() => onNavigate('/employee/workers')}>
+          <Button type="button" variant="outline" className="flex-1 h-11" onClick={() => onNavigate('list')}>
             Cancel
           </Button>
         </div>
       </form>
     </div>
-  )
+  );
 }

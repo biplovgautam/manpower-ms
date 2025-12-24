@@ -78,13 +78,38 @@ export default function JobDemandsPage() {
 
             const result = await res.json();
             if (res.ok && result.success) {
-                await fetchJobDemands(token); // Refresh list
+                await fetchJobDemands(token);
                 setView('list');
             } else {
                 alert(result.error || "Failed to save job demand");
             }
         } catch (error) {
             console.error("Save error:", error);
+        }
+    };
+
+    const handleUpdate = async (formData) => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/${selectedJobDemand._id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const result = await res.json();
+            if (res.ok && result.success) {
+                await fetchJobDemands(token);
+                setView('list');
+                setSelectedJobDemand(null);
+            } else {
+                alert(result.error || "Failed to update job demand");
+            }
+        } catch (error) {
+            console.error("Update error:", error);
         }
     };
 
@@ -101,7 +126,6 @@ export default function JobDemandsPage() {
             if (res.ok) {
                 fetchJobDemands(token);
                 setView('list');
-                setSelectedJobDemand(null);
             }
         } catch (error) {
             console.error("Delete failed:", error);
@@ -141,6 +165,16 @@ export default function JobDemandsPage() {
                                 employers={employers}
                                 onNavigate={handleNavigate}
                                 onSave={handleSave}
+                            />
+                        )}
+
+                        {view === 'edit' && (
+                            <CreateJobDemandPage
+                                employers={employers}
+                                initialData={selectedJobDemand}
+                                isEditing={true}
+                                onNavigate={handleNavigate}
+                                onSave={handleUpdate}
                             />
                         )}
 

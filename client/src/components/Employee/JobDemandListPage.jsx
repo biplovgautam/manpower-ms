@@ -1,20 +1,18 @@
+"use client";
 import {
   ArrowUpRight,
   Briefcase,
-  Clock,
+  Calendar,
+  Pencil,
   Plus,
   Search,
-  Users
+  Trash2,
+  X
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '../ui/Card';
+import { Card, CardContent } from '../ui/Card';
 import { Input } from '../ui/Input';
 import {
   Table,
@@ -29,6 +27,7 @@ export function JobDemandListPage({
   jobDemands = [],
   onNavigate,
   onSelectJobDemand,
+  onDelete
 }) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -42,187 +41,166 @@ export function JobDemandListPage({
     }
   };
 
-  const filteredJobDemands = jobDemands.filter((jd) => {
-    const jobTitle = jd.jobTitle || '';
-    const employerName = jd.employerId?.employerName || jd.employerName || '';
-    return (
-      jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      employerName.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  });
-
-  const totalWorkers = filteredJobDemands.reduce((acc, curr) => acc + (curr.requiredWorkers || 0), 0);
+  const filtered = useMemo(() => {
+    return jobDemands.filter((jd) => {
+      const jobTitle = jd.jobTitle || '';
+      const employerName = jd.employerId?.employerName || jd.employerName || '';
+      return (
+        jobTitle.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        employerName.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    });
+  }, [jobDemands, searchTerm]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* 1. Enhanced Page Header */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6 antialiased">
+
+      {/* 1. Header - Matches Employer Page exactly */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-6 border-gray-100">
         <div>
-          <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Job Demands</h1>
-          <p className="text-gray-500 mt-2 text-lg">
-            Monitor and manage active recruitment requirements.
+          <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Job Demands</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Central directory of all recruitment requirements and hiring quotas.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button
-            onClick={() => onNavigate('/employee/create-job-demand')}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 transition-all active:scale-95 px-6"
+            onClick={() => onNavigate('create')}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all active:scale-95"
           >
-            <Plus size={20} className="mr-2" />
+            <Plus size={18} className="mr-2" />
             Create Demand
           </Button>
         </div>
       </div>
 
-      {/* 2. Quick Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-none shadow-sm bg-blue-50/50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-600 rounded-xl text-white">
-              <Briefcase size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Total Demands</p>
-              <p className="text-2xl font-bold text-gray-900">{filteredJobDemands.length}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-emerald-50/50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-emerald-600 rounded-xl text-white">
-              <Users size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider">Total Positions</p>
-              <p className="text-2xl font-bold text-gray-900">{totalWorkers}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-none shadow-sm bg-orange-50/50">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-orange-600 rounded-xl text-white">
-              <Clock size={24} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-orange-600 uppercase tracking-wider">Closing Soon</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {filteredJobDemands.filter(jd => jd.status === 'open').length} Active
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* 2. Integrated Search Bar */}
+      <div className="relative max-w-md group">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
+        <Input
+          placeholder="Search by job title or employer..."
+          className="pl-10 h-11 bg-white border-slate-200 shadow-sm focus:ring-2 focus:ring-indigo-100 transition-all"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {/* 3. Main Data Table */}
-      <Card className="border-none shadow-xl shadow-gray-100 overflow-hidden bg-white">
-        <CardHeader className="bg-white border-b px-6 py-5">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <CardTitle className="text-lg font-bold text-gray-800">
-              Demand Inventory
-            </CardTitle>
-            <div className="relative w-full sm:w-96 group">
-              <Search
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"
-                size={18}
-              />
-              <Input
-                type="text"
-                placeholder="Search job titles, companies..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all"
-              />
-            </div>
-          </div>
-        </CardHeader>
-
+      <Card className="border-slate-200 shadow-sm overflow-hidden bg-white rounded-xl">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-gray-50/50">
-                <TableRow>
-                  <TableHead className="w-[300px] py-4 pl-6 text-xs uppercase font-bold text-gray-500">Employer & Job</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-gray-500 text-center">Quota</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-gray-500">Status</TableHead>
-                  <TableHead className="text-xs uppercase font-bold text-gray-500">Deadline</TableHead>
-                  <TableHead className="text-right pr-6 text-xs uppercase font-bold text-gray-500">Action</TableHead>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow className="border-b border-slate-100">
+                  <TableHead className="py-4 pl-6 text-[11px] uppercase font-bold text-slate-500 tracking-wider">Job Profile</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-500 tracking-wider text-center">Quota</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">Status</TableHead>
+                  <TableHead className="text-[11px] uppercase font-bold text-slate-500 tracking-wider">Deadline</TableHead>
+                  <TableHead className="text-right pr-6 text-[11px] uppercase font-bold text-slate-500 tracking-wider">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredJobDemands.map((jd) => (
-                  <TableRow
-                    key={jd._id}
-                    className="group hover:bg-blue-50/30 cursor-pointer transition-all border-b border-gray-50"
-                    onClick={() => onSelectJobDemand(jd)}
-                  >
-                    <TableCell className="py-4 pl-6">
-                      <div>
-                        <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                          {jd.jobTitle}
+                {filtered.length > 0 ? (
+                  filtered.map((jd) => (
+                    <TableRow
+                      key={jd._id}
+                      onClick={() => onSelectJobDemand(jd)}
+                      className="group hover:bg-indigo-50/30 cursor-pointer transition-colors border-b border-slate-50 last:border-0"
+                    >
+                      <TableCell className="py-5 pl-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                            <Briefcase size={18} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                              {jd.jobTitle}
+                            </p>
+                            <p className="text-xs text-slate-500 flex items-center mt-0.5 font-medium">
+                              {jd.employerId?.employerName || jd.employerName}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-center">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                          {jd.requiredWorkers}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <Badge
+                          variant={getStatusVariant(jd.status)}
+                          className="rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-tighter border-none"
+                        >
+                          {jd.status || 'Open'}
+                        </Badge>
+                      </TableCell>
+
+                      <TableCell className="text-sm text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} className="text-slate-400" />
+                          {jd.deadline ? new Date(jd.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end gap-4 items-center">
+                          {/* Edit Icon */}
+                          <button
+                            className="text-slate-400 hover:text-indigo-600 transition-colors p-1"
+                            title="Edit Demand"
+                            onClick={() => onNavigate('edit', jd)}
+                          >
+                            <Pencil size={18} />
+                          </button>
+
+                          {/* Delete Icon */}
+                          <button
+                            className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                            title="Delete Demand"
+                            onClick={() => onDelete(jd._id)}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+
+                          {/* Detail Arrow */}
+                          <div className="text-slate-300 group-hover:text-indigo-600 transition-colors">
+                            <ArrowUpRight size={18} />
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-24 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mb-4">
+                          <Search size={32} className="text-slate-200" />
+                        </div>
+                        <h3 className="text-slate-900 font-semibold text-lg">No demands found</h3>
+                        <p className="text-slate-500 max-w-xs mx-auto mt-1 text-sm">
+                          Try adjusting your search or create a new job demand.
                         </p>
-                        <p className="text-sm text-gray-500 flex items-center mt-0.5">
-                          {jd.employerId?.employerName || jd.employerName || 'Unknown Employer'}
-                        </p>
                       </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="inline-flex items-center justify-center bg-gray-100 text-gray-700 h-8 w-12 rounded-lg font-bold text-sm">
-                        {jd.requiredWorkers}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={getStatusVariant(jd.status)}
-                        className="rounded-md px-2.5 py-0.5 text-[11px] font-bold border-none"
-                      >
-                        {jd.status?.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center text-sm text-gray-600 font-medium">
-                        <CalendarIcon date={jd.deadline} />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-all text-blue-600 hover:bg-blue-100 rounded-full"
-                      >
-                        <ArrowUpRight size={18} />
-                      </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
-
-          {filteredJobDemands.length === 0 && (
-            <div className="py-20 text-center bg-gray-50/50">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm text-gray-300 mb-4">
-                <Search size={32} />
-              </div>
-              <h3 className="text-gray-900 font-bold text-lg">No matches found</h3>
-              <p className="text-gray-500 max-w-xs mx-auto mt-2">
-                We couldn't find any job demands matching your current search criteria.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-// Helper Mini-Component for Dates
-function CalendarIcon({ date }) {
-  if (!date) return <span className="text-gray-300">—</span>;
-  const d = new Date(date);
-  return (
-    <span className="flex flex-col">
-      <span className="text-gray-900">{d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-      <span className="text-[10px] text-gray-400 uppercase">{d.getFullYear()}</span>
-    </span>
   );
 }
