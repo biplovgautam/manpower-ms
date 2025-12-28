@@ -17,9 +17,9 @@ import { useState } from 'react';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Input } from '../ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
-export function EmployeesListPage({ employees = [], onAddEmployee, isLoading }) {
+export function EmployeesListPage({ employees = [], onAddEmployee, onSelect, isLoading }) {
     const [search, setSearch] = useState('');
 
     const filtered = employees.filter(e =>
@@ -147,7 +147,8 @@ export function EmployeesListPage({ employees = [], onAddEmployee, isLoading }) 
                                     filtered.map((emp) => (
                                         <TableRow
                                             key={emp._id}
-                                            className="group hover:bg-blue-50/30 transition-all border-b border-gray-50 last:border-none"
+                                            onClick={() => onSelect(emp)}
+                                            className="group hover:bg-blue-50/30 transition-all border-b border-gray-50 last:border-none cursor-pointer"
                                         >
                                             <TableCell className="py-5 pl-8">
                                                 <div className="flex items-center gap-4">
@@ -187,6 +188,10 @@ export function EmployeesListPage({ employees = [], onAddEmployee, isLoading }) 
                                                     variant="ghost"
                                                     size="sm"
                                                     className="opacity-0 group-hover:opacity-100 transition-all text-blue-600 hover:bg-blue-100 rounded-xl"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation(); // Prevents triggering the row's onClick twice
+                                                        onSelect(emp);
+                                                    }}
                                                 >
                                                     <ArrowUpRight size={18} />
                                                 </Button>

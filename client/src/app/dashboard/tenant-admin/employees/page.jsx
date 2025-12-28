@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { AddEmployeeForm } from '../../../../components/Admin/AddEmployeeForm';
+import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage'; // Import the new page
 import { EmployeesListPage } from '../../../../components/Admin/EmployeesListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 
@@ -14,6 +15,7 @@ export default function AdminEmployeesPage() {
     const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [view, setView] = useState('list');
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
 
     const fetchEmployees = useCallback(async () => {
         const token = localStorage.getItem('token');
@@ -36,25 +38,51 @@ export default function AdminEmployeesPage() {
     }, [fetchEmployees]);
 
     useEffect(() => {
-        setView(action === 'add' ? 'add' : 'list');
+        if (action === 'add') {
+            setView('add');
+        } else {
+            // Keep 'detail' view if we are already there, otherwise 'list'
+            setView(prev => prev === 'detail' ? 'detail' : 'list');
+        }
     }, [action]);
+
+    const handleSelectEmployee = (emp) => {
+        setSelectedEmployee(emp);
+        setView('detail');
+    };
+
+    const handleBackToList = () => {
+        setView('list');
+        setSelectedEmployee(null);
+        router.push('/dashboard/tenant-admin/employees');
+    };
 
     return (
         <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/employees">
             <div className="py-6">
-                {view === 'add' ? (
+                {view === 'add' && (
                     <AddEmployeeForm
-                        onBack={() => router.push('/dashboard/tenant-admin/employees')}
+                        onBack={handleBackToList}
                         onSuccess={() => {
-                            router.push('/dashboard/tenant-admin/employees');
+                            handleBackToList();
                             fetchEmployees();
                         }}
                     />
-                ) : (
+                )}
+
+                {view === 'detail' && (
+                    <EmployeeDetailsPage
+                        employee={selectedEmployee}
+                        onBack={handleBackToList}
+                    />
+                )}
+
+                {view === 'list' && (
                     <EmployeesListPage
                         employees={employees}
                         isLoading={isLoading}
                         onAddEmployee={() => router.push('/dashboard/tenant-admin/employees?action=add')}
+                        onSelect={handleSelectEmployee}
                     />
                 )}
             </div>
