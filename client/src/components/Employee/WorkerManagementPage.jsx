@@ -7,16 +7,12 @@ import {
   TableHead, 
   TableHeader, 
   TableRow 
-} from '../ui/Table';
+} from '../ui/table';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-<<<<<<< HEAD
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-=======
 import { Badge } from '../ui/Badge';
 import { Search, Plus, User, FileText, ArrowUpRight } from 'lucide-react';
->>>>>>> 6506cad3f1e3cacb460bce9b462b546d497310ed
 
 export function WorkerManagementPage({ 
   workers = [], 
