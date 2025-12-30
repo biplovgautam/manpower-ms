@@ -23,7 +23,7 @@ export function Sidebar({ role, onLogout }) {
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
         { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
-        { path: '/dashboard/tenant-admin/subagent', label: 'Sub Agents', icon: UserCheck },
+        { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
         { path: '/settings', label: 'Settings', icon: Settings },
     ];

@@ -1,38 +1,15 @@
 const Worker = require('../models/Worker');
 
-/**
- * ADD WORKER
- */
 exports.addWorker = async (req, res) => {
   try {
-    const {
-      name,
-      dob,
-      passportNumber,
-      contact,
-      address,
-      country,
-      employerId,
-      jobDemandId,
-      subAgentId,
-      status,
-      currentStage,
-      notes,
-    } = req.body;
+    const { passportNumber, dob, country, status, currentStage } = req.body;
 
     const existingWorker = await Worker.findOne({ passportNumber });
     if (existingWorker) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'Passport number already exists.' });
+      return res.status(400).json({ success: false, message: 'Passport already exists.' });
     }
 
-    const documentFiles = req.files
-      ? req.files.map((file) => ({
-          name: file.originalname,
-          path: file.path,
-        }))
-      : [];
+    const documentFiles = req.files ? req.files.map(f => ({ name: f.originalname, path: f.path })) : [];
 
     const defaultTimeline = [
       { stage: 'interview', status: 'pending', date: new Date() },
@@ -42,42 +19,28 @@ exports.addWorker = async (req, res) => {
     ];
 
     const newWorker = new Worker({
-      name,
+      ...req.body,
       dob: new Date(dob),
-      passportNumber,
-      contact,
-      address,
       country: country || 'Nepal',
-      employerId,
-      jobDemandId,
-      subAgentId,
       status: status || 'pending',
       currentStage: currentStage || 'interview',
-      notes,
       documents: documentFiles,
       stageTimeline: defaultTimeline,
     });
 
     await newWorker.save();
-
-    res.status(201).json({
-      success: true,
-      message: 'Worker registered successfully',
-      data: newWorker,
-    });
+    res.status(201).json({ success: true, message: 'Worker registered', data: newWorker });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * GET ALL WORKERS
- */
 exports.getAllWorkers = async (req, res) => {
   try {
     const workers = await Worker.find()
-      .populate('employerId', 'name')
-      .populate('jobDemandId', 'title')
+      .populate('employerId', 'name employerName companyName') // Added companyName just in case
+      .populate('subAgentId', 'name agentName')
+      .populate('jobDemandId', 'title jobTitle')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, data: workers });
@@ -86,37 +49,16 @@ exports.getAllWorkers = async (req, res) => {
   }
 };
 
-/**
- * UPDATE WORKER (WITH FILE SUPPORT)
- */
 exports.updateWorker = async (req, res) => {
   try {
     const { id } = req.params;
-
     const updateData = { ...req.body };
 
-    if (req.body.dob) {
-      updateData.dob = new Date(req.body.dob);
-    }
+    if (req.body.dob) updateData.dob = new Date(req.body.dob);
 
-    if (req.files && req.files.length > 0) {
-      const newDocs = req.files.map((file) => ({
-        name: file.originalname,
-        path: file.path,
-      }));
-
-      updateData.$push = {
-        documents: { $each: newDocs },
-      };
-    }
-
-    const updatedWorker = await Worker.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true }
-    )
-      .populate('employerId', 'name')
-      .populate('jobDemandId', 'title');
+    const updatedWorker = await Worker.findByIdAndUpdate(id, updateData, { new: true })
+      .populate('employerId', 'name employerName companyName') // MUST populate here too
+      .populate('subAgentId', 'name agentName');
 
     res.status(200).json({ success: true, data: updatedWorker });
   } catch (error) {

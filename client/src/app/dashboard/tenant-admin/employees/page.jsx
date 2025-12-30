@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { AddEmployeeForm } from '../../../../components/Admin/AddEmployeeForm';
-import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage'; // Import the new page
+import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage';
 import { EmployeesListPage } from '../../../../components/Admin/EmployeesListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 
@@ -40,11 +40,10 @@ export default function AdminEmployeesPage() {
     useEffect(() => {
         if (action === 'add') {
             setView('add');
-        } else {
-            // Keep 'detail' view if we are already there, otherwise 'list'
-            setView(prev => prev === 'detail' ? 'detail' : 'list');
+        } else if (!selectedEmployee) {
+            setView('list');
         }
-    }, [action]);
+    }, [action, selectedEmployee]);
 
     const handleSelectEmployee = (emp) => {
         setSelectedEmployee(emp);
@@ -59,7 +58,8 @@ export default function AdminEmployeesPage() {
 
     return (
         <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/employees">
-            <div className="py-6">
+            {/* min-h-screen ensures the page can scroll down to the tables */}
+            <div className="min-h-screen w-full py-6 px-4 md:px-8">
                 {view === 'add' && (
                     <AddEmployeeForm
                         onBack={handleBackToList}

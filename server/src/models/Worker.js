@@ -10,7 +10,7 @@ const WorkerSchema = new mongoose.Schema({
 
   employerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employer',
+    ref: 'Employer', // Matches your Employer model name
     required: true,
   },
   jobDemandId: {
@@ -18,7 +18,11 @@ const WorkerSchema = new mongoose.Schema({
     ref: 'JobDemand',
     required: true,
   },
-  subAgentId: { type: String },
+  // CHANGED: From String to ObjectId for population
+  subAgentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'SubAgent'
+  },
 
   status: {
     type: String,
@@ -26,9 +30,7 @@ const WorkerSchema = new mongoose.Schema({
     default: 'pending',
     lowercase: true,
   },
-
   currentStage: { type: String, default: 'interview' },
-
   documents: [
     {
       name: String,
@@ -36,7 +38,6 @@ const WorkerSchema = new mongoose.Schema({
       uploadedAt: { type: Date, default: Date.now },
     },
   ],
-
   stageTimeline: [
     {
       stage: String,
@@ -49,7 +50,6 @@ const WorkerSchema = new mongoose.Schema({
       notes: String,
     },
   ],
-
   notes: String,
   createdBy: { type: String, default: 'emp1' },
 }, { timestamps: true });

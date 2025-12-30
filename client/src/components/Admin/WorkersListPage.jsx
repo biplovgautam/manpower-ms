@@ -1,118 +1,123 @@
 "use client";
 
 import {
+    AlertCircle,
     Building2,
     CheckCircle,
     Clock,
-    Layers,
-    RefreshCw,
     Search,
-    UserCheck,
     Users
 } from 'lucide-react';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import {
+    Card,
+    CardContent,
+    CardHeader,
+    CardTitle
+} from '../ui/Card';
 import { Input } from '../ui/Input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '../ui/table';
 
 export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
 
+    // --- Stats Calculation ---
     const stats = {
         total: workers.length,
-        active: workers.filter(w => w.status?.toLowerCase() === 'active' || !w.status).length,
-        processing: workers.filter(w => w.status?.toLowerCase() === 'processing').length,
+        active: workers.filter(w => w.status?.toLowerCase() === 'active').length,
+        processing: workers.filter(w => ['processing', 'pending'].includes(w.status?.toLowerCase())).length,
+        unassigned: workers.filter(w => !w.employerId).length
     };
 
+    // --- Filtering Logic ---
     const filteredWorkers = workers.filter((worker) => {
         const name = worker.name || "";
         const passport = worker.passportNumber || "";
-        return name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            passport.toLowerCase().includes(searchTerm.toLowerCase());
+        const employerName = worker.employerId?.name || worker.employerId?.employerName || "";
+
+        const matchesSearch =
+            name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            passport.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            employerName.toLowerCase().includes(searchTerm.toLowerCase());
+
+        const matchesStatus =
+            statusFilter === 'all' || worker.status?.toLowerCase() === statusFilter.toLowerCase();
+
+        return matchesSearch && matchesStatus;
     });
 
     const getStatusVariant = (status) => {
         switch (status?.toLowerCase()) {
             case 'active': return 'success';
             case 'processing': return 'warning';
-            case 'completed': return 'info';
-            case 'rejected': return 'secondary';
-            default: return 'success';
+            case 'pending': return 'secondary';
+            default: return 'outline';
         }
     };
 
     return (
-        <div className="space-y-8 animate-in fade-in duration-500">
-            {/* 1. Page Header */}
-            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 px-1">
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* 1. Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Workers</h1>
-                    <p className="text-gray-500 mt-2 text-lg">
-                        Manage documentation and recruitment status for all candidates.
-                    </p>
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Workers</h1>
+                    <p className="text-gray-500 mt-1">Monitor recruitment pipeline and worker assignments.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <Button variant="outline" onClick={onRefresh} className="border-gray-200">
-                        <RefreshCw size={18} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} /> Sync Data
-                    </Button>
-                </div>
+
             </div>
 
-            {/* 2. Quick Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="border-none shadow-sm bg-blue-50/50">
-                    <CardContent className="p-6 flex items-center gap-4">
-                        <div className="p-3 bg-blue-600 rounded-xl text-white shadow-lg shadow-blue-200">
-                            <Users size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Total Workers</p>
-                            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm bg-emerald-50/50">
-                    <CardContent className="p-6 flex items-center gap-4">
-                        <div className="p-3 bg-emerald-600 rounded-xl text-white shadow-lg shadow-emerald-200">
-                            <CheckCircle size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider">Active Status</p>
-                            <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-none shadow-sm bg-orange-50/50">
-                    <CardContent className="p-6 flex items-center gap-4">
-                        <div className="p-3 bg-orange-600 rounded-xl text-white shadow-lg shadow-orange-200">
-                            <Clock size={24} />
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-orange-600 uppercase tracking-wider">Processing</p>
-                            <p className="text-2xl font-bold text-gray-900">{stats.processing}</p>
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* 2. Stats Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <QuickStat cardTitle="Total Workers" value={stats.total} icon={<Users className="text-blue-600" />} bgColor="bg-blue-50" />
+                <QuickStat cardTitle="Active Status" value={stats.active} icon={<CheckCircle className="text-emerald-600" />} bgColor="bg-emerald-50" />
+                <QuickStat cardTitle="Processing" value={stats.processing} icon={<Clock className="text-orange-600" />} bgColor="bg-orange-50" />
+                <QuickStat cardTitle="Unassigned" value={stats.unassigned} icon={<AlertCircle className="text-rose-600" />} bgColor="bg-rose-50" />
             </div>
 
-            {/* 3. Main Data Table */}
-            <Card className="border-none shadow-xl shadow-gray-100 overflow-hidden bg-white">
-                <CardHeader className="bg-white border-b px-6 py-5">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            {/* 3. Table Card */}
+            <Card className="border-none shadow-sm bg-white overflow-hidden">
+                <CardHeader className="pb-4 border-b border-gray-50">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         <CardTitle className="text-lg font-bold text-gray-800">
-                            Worker Inventory
+                            Worker List ({filteredWorkers.length})
                         </CardTitle>
-                        <div className="relative w-full sm:w-96 group">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors" size={18} />
-                            <Input
-                                type="text"
-                                placeholder="Search by name or passport..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 bg-gray-50 border-gray-100 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all font-medium"
-                            />
+
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full lg:w-auto">
+                            {/* Status Tabs */}
+                            <div className="flex flex-wrap gap-1 bg-gray-100/80 p-1 rounded-xl">
+                                {['all', 'active', 'processing', 'pending'].map((status) => (
+                                    <button
+                                        key={status}
+                                        onClick={() => setStatusFilter(status)}
+                                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === status
+                                            ? 'bg-white text-blue-600 shadow-sm'
+                                            : 'text-gray-500 hover:text-gray-700'
+                                            }`}
+                                    >
+                                        {status.toUpperCase()}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Search */}
+                            <div className="relative w-full sm:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <Input
+                                    placeholder="Search name or passport..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 bg-gray-50 border-gray-200 rounded-xl text-sm focus:bg-white transition-all"
+                                />
+                            </div>
                         </div>
                     </div>
                 </CardHeader>
@@ -122,76 +127,56 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
                         <Table>
                             <TableHeader className="bg-gray-50/50">
                                 <TableRow>
-                                    <TableHead className="py-4 pl-6 text-xs uppercase font-bold text-gray-500">Worker Identity</TableHead>
-                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Passport</TableHead>
-                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Employer</TableHead>
-                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Sub-Agent</TableHead>
-                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Stage</TableHead>
-                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Status</TableHead>
+                                    <TableHead className="pl-6 font-semibold text-gray-600">Worker Identity</TableHead>
+                                    <TableHead className="font-semibold text-gray-600">Passport</TableHead>
+                                    <TableHead className="font-semibold text-gray-600">Status</TableHead>
+                                    <TableHead className="font-semibold text-gray-600">Stage</TableHead>
+                                    <TableHead className="font-semibold text-gray-600">Employer</TableHead>
+                                    <TableHead className="font-semibold text-gray-600">Contact</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredWorkers.length > 0 ? (
-                                    filteredWorkers.map((worker) => {
-                                        const subAgentName = worker.subAgent?.name || worker.subAgentName;
-                                        const employerName = worker.employer?.employerName || worker.employerName;
-
-                                        return (
-                                            <TableRow
-                                                key={worker._id || worker.id}
-                                                className="group hover:bg-blue-50/30 cursor-pointer transition-all border-b border-gray-50"
-                                                onClick={() => onSelect(worker)}
-                                            >
-                                                <TableCell className="py-4 pl-6">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-xs group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                                            {worker.name?.substring(0, 2).toUpperCase() || '??'}
-                                                        </div>
-                                                        <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors whitespace-nowrap">
-                                                            {worker.name}
-                                                        </p>
+                                {isLoading ? (
+                                    <TableRow><TableCell colSpan={6} className="h-40 text-center text-gray-400 italic">Fetching data...</TableCell></TableRow>
+                                ) : filteredWorkers.length > 0 ? (
+                                    filteredWorkers.map((worker) => (
+                                        <TableRow
+                                            key={worker._id}
+                                            onClick={() => onSelect(worker)}
+                                            className="cursor-pointer hover:bg-blue-50/30 border-b border-gray-100 transition-colors group"
+                                        >
+                                            <TableCell className="pl-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">
+                                                        {worker.name?.charAt(0)}
                                                     </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="text-sm text-gray-600 font-mono font-medium">
-                                                        {worker.passportNumber}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className={`flex items-center text-sm ${employerName ? 'text-gray-700 font-bold' : 'text-gray-300 italic'}`}>
-                                                        <Building2 size={14} className={`mr-2 ${employerName ? 'text-blue-500' : 'text-gray-300'}`} />
-                                                        {employerName || 'Unassigned'}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className={`flex items-center text-sm ${subAgentName ? 'text-gray-700 font-medium' : 'text-gray-300 italic'}`}>
-                                                        <UserCheck size={14} className={`mr-2 ${subAgentName ? 'text-blue-500' : 'text-gray-300'}`} />
-                                                        {subAgentName || 'Unassigned'}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center text-sm text-blue-600 font-bold whitespace-nowrap">
-                                                        <Layers size={14} className="mr-2 opacity-70" />
-                                                        {worker.currentStage || 'Initial'}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge
-                                                        variant={getStatusVariant(worker.status)}
-                                                        className="rounded-md px-2.5 py-0.5 text-[11px] font-bold border-none"
-                                                    >
-                                                        {(worker.status || 'Active').toUpperCase()}
-                                                    </Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })
+                                                    <span className="font-bold text-gray-900">{worker.name}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="font-mono text-sm text-gray-500">{worker.passportNumber}</TableCell>
+                                            <TableCell>
+                                                <Badge variant={getStatusVariant(worker.status)} className="capitalize px-2 py-0.5 text-[10px]">
+                                                    {worker.status}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md capitalize">
+                                                    {worker.currentStage}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <Building2 size={14} className={worker.employerId ? "text-blue-500" : "text-gray-300"} />
+                                                    <span className={worker.employerId ? "font-medium text-gray-700" : "italic text-gray-400"}>
+                                                        {worker.employerId?.name || worker.employerId?.employerName || "Unassigned"}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-sm text-gray-600">{worker.contact}</TableCell>
+                                        </TableRow>
+                                    ))
                                 ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="py-20 text-center text-gray-400">
-                                            No workers found matching your search.
-                                        </TableCell>
-                                    </TableRow>
+                                    <TableRow><TableCell colSpan={6} className="h-40 text-center text-gray-400">No results found.</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -199,5 +184,24 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+// --- Helper Component for Stats ---
+function QuickStat({ cardTitle, value, icon, bgColor }) {
+    return (
+        <Card className="border-none shadow-sm overflow-hidden">
+            <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">{cardTitle}</p>
+                        <p className="text-2xl font-black text-gray-900 mt-1">{value}</p>
+                    </div>
+                    <div className={`p-3 rounded-2xl ${bgColor}`}>
+                        {React.cloneElement(icon, { size: 24 })}
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
