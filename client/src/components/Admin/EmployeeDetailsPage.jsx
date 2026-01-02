@@ -1,14 +1,8 @@
 "use client";
 import {
-    ArrowLeft,
-    Briefcase,
-    Building2,
-    Calendar,
-    Loader2, Mail,
-    MapPin,
-    Phone,
+    ArrowLeft, Briefcase, Building2,
+    Loader2,
     TrendingUp,
-    User,
     Users
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -22,36 +16,31 @@ export function EmployeeDetailsPage({ employee, onBack }) {
     const fetchAllData = useCallback(async () => {
         const token = localStorage.getItem('token');
         const headers = { 'Authorization': `Bearer ${token}` };
-
         try {
             setIsLoading(true);
-
             const [empRes, jobRes, workerRes] = await Promise.all([
                 fetch('http://localhost:5000/api/employers', { headers }),
                 fetch('http://localhost:5000/api/job-demands', { headers }),
-                fetch('http://localhost:5000/api/workers', { headers })
+                fetch(`http://localhost:5000/api/workers?createdBy=${employee._id}`, { headers })
             ]);
 
             const empsJson = await empRes.json();
             const jobsJson = await jobRes.json();
             const workersJson = await workerRes.json();
 
-            // Unified Filtering Logic for all three datasets
-            const filterByCreator = (jsonResponse) => {
-                const list = jsonResponse.data || jsonResponse.workers || jsonResponse.jobDemands || [];
+            const filterByCreator = (jsonResponse, listKey) => {
+                const list = jsonResponse.data || jsonResponse[listKey] || [];
                 return list.filter(item => {
-                    const creatorId = item.createdBy?._id || item.createdBy ||
-                        item.assignedTo?._id || item.assignedTo;
+                    const creatorId = item.createdBy?._id || item.createdBy || item.assignedTo?._id || item.assignedTo;
                     return String(creatorId) === String(employee._id);
                 });
             };
 
             setData({
-                employers: filterByCreator(empsJson),
-                jobs: filterByCreator(jobsJson),
-                workers: filterByCreator(workersJson)
+                employers: filterByCreator(empsJson, 'employers'),
+                jobs: filterByCreator(jobsJson, 'jobDemands'),
+                workers: workersJson.data || []
             });
-
         } catch (err) {
             console.error("DATA FETCH ERROR:", err);
         } finally {
@@ -63,162 +52,221 @@ export function EmployeeDetailsPage({ employee, onBack }) {
         if (employee?._id) fetchAllData();
     }, [fetchAllData, employee._id]);
 
+    // Calculate dynamic success rate based on workers status
+    const calculateSuccessRate = () => {
+        if (data.workers.length === 0) return "0%";
+        const placed = data.workers.filter(w =>
+            w.status?.toLowerCase() === 'placed' || w.status?.toLowerCase() === 'active'
+        ).length;
+        return `${Math.round((placed / data.workers.length) * 100)}%`;
+    };
+
     if (isLoading) return (
         <div className="flex flex-col items-center justify-center p-20 gap-4">
             <Loader2 className="animate-spin text-blue-600" size={32} />
-            <p className="text-gray-500 font-medium">Fetching associated records...</p>
+            <p className="text-gray-500 font-medium tracking-tight">Loading employee data...</p>
         </div>
     );
 
     return (
-        <div className="space-y-6 pb-12 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex items-center gap-4">
-                <button onClick={onBack} className="p-2 bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition-all">
-                    <ArrowLeft size={20} />
+        <div className="max-w-[1600px] mx-auto space-y-6 pb-12 animate-in fade-in duration-500">
+            {/* Page Title & Back Button */}
+            <div className="flex flex-col gap-1">
+                <button onClick={onBack} className="flex items-center text-slate-500 hover:text-blue-600 transition-colors text-sm font-medium group w-fit">
+                    <ArrowLeft size={16} className="mr-1 group-hover:-translate-x-1 transition-transform" />
+                    Back to directory
                 </button>
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-900">{employee.fullName}</h1>
-                    <p className="text-slate-500">Employee Statistics & History</p>
-                </div>
+                <h1 className="text-2xl font-bold text-slate-900">{employee.fullName || "Unnamed Employee"}</h1>
+                <p className="text-xs text-slate-500">Employee profile and performance</p>
             </div>
 
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <StatCard label="Employers Added" value={data.employers.length} icon={<Building2 />} color="blue" />
-                <StatCard label="Job Demands" value={data.jobs.length} icon={<Briefcase />} color="purple" />
-                <StatCard label="Workers Managed" value={data.workers.length} icon={<Users />} color="green" />
-                <StatCard label="Success Rate" value="87%" icon={<TrendingUp />} color="yellow" />
+            {/* Top Stat Cards - All Dynamic */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <StatCard label="Employers Added" value={data.employers.length} icon={<Building2 size={20} />} color="blue" />
+                <StatCard label="Job Demands" value={data.jobs.length} icon={<Briefcase size={20} />} color="purple" />
+                <StatCard label="Workers Managed" value={data.workers.length} icon={<Users size={20} />} color="green" />
+                <StatCard label="Success Rate" value={calculateSuccessRate()} icon={<TrendingUp size={20} />} color="yellow" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Personal Information - Using actual employee props */}
+                <Card className="border border-slate-200 shadow-sm">
+                    <CardHeader className="pb-2 border-b border-slate-50">
+                        <CardTitle className="text-sm font-bold text-slate-700">Personal Information</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                        <InfoBox label="Full Name" value={employee.fullName} />
+                        <InfoBox label="Email Address" value={employee.email} />
+                        <InfoBox label="Contact Number" value={employee.contactNumber || "—"} />
+                        <InfoBox label="Address" value={employee.address || "—"} />
+                        <InfoBox label="Role / Designation" value={employee.role || "Employee"} />
+                        <InfoBox label="Join Date" value={employee.createdAt ? new Date(employee.createdAt).toLocaleDateString() : "—"} />
+                    </CardContent>
+                </Card>
 
-                {/* Sidebar: Personal Information */}
-                <div className="space-y-6">
-                    <Card className="border-none shadow-sm">
-                        <CardHeader className="bg-slate-50/50 border-b">
-                            <CardTitle className="text-sm font-bold flex items-center gap-2">
-                                <User size={16} className="text-blue-600" /> Personal Information
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-5 pt-5">
-                            <InfoItem label="Full Name" value={employee.fullName} icon={<User size={14} />} />
-                            <InfoItem label="Email Address" value={employee.email} icon={<Mail size={14} />} />
-                            <InfoItem label="Contact Number" value={employee.contactNumber || 'N/A'} icon={<Phone size={14} />} />
-                            <InfoItem label="Address" value={employee.address || 'N/A'} icon={<MapPin size={14} />} />
-                            <InfoItem label="Join Date" value={new Date(employee.joinDate).toLocaleDateString()} icon={<Calendar size={14} />} />
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Main Tables */}
-                <div className="lg:col-span-2 space-y-6">
-
-                    {/* Job Demands Table */}
-                    <Card className="border-none shadow-sm overflow-hidden border-l-4 border-l-purple-500">
-                        <CardHeader className="bg-slate-50/50 border-b">
-                            <CardTitle className="text-base font-bold flex items-center gap-2 text-purple-700">
-                                <Briefcase size={18} /> Job Demands Created
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader className="bg-slate-50/30">
-                                    <TableRow>
-                                        <TableHead className="pl-6 font-bold">Job Title</TableHead>
-                                        <TableHead className="font-bold">Status</TableHead>
-                                        <TableHead className="text-right pr-6 font-bold">Created Date</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {data.jobs.length > 0 ? data.jobs.map((job) => (
-                                        <TableRow key={job._id}>
-                                            <TableCell className="pl-6 font-semibold text-slate-800">{job.jobTitle}</TableCell>
-                                            <TableCell>
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${job.status === 'open' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                                                    }`}>
-                                                    {job.status || 'Unknown'}
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right pr-6 text-slate-400 text-xs">
-                                                {new Date(job.createdAt).toLocaleDateString()}
-                                            </TableCell>
-                                        </TableRow>
-                                    )) : (
-                                        <TableRow><TableCell colSpan={3} className="text-center py-10 text-slate-400 italic">No job demands found.</TableCell></TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-
-                    {/* Employers Table */}
-                    <Card className="border-none shadow-sm overflow-hidden border-l-4 border-l-blue-500">
-                        <CardHeader className="bg-slate-50/50 border-b">
-                            <CardTitle className="text-base font-bold flex items-center gap-2 text-blue-700">
-                                <Building2 size={18} /> Employers Added
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <Table>
-                                <TableHeader className="bg-slate-50/30">
-                                    <TableRow>
-                                        <TableHead className="pl-6 font-bold">Company Name</TableHead>
-                                        <TableHead className="font-bold">Country</TableHead>
-                                        <TableHead className="text-right pr-6 font-bold">Contact</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {data.employers.map((emp) => (
-                                        <TableRow key={emp._id}>
-                                            <TableCell className="pl-6 font-semibold">{emp.employerName}</TableCell>
-                                            <TableCell>{emp.country}</TableCell>
-                                            <TableCell className="text-right pr-6 text-slate-500 font-mono">{emp.contact}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {data.employers.length === 0 && (
-                                        <TableRow><TableCell colSpan={3} className="text-center py-10 text-slate-400 italic">No employers registered.</TableCell></TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-
-                </div>
+                {/* Performance Summary - Calculated from state */}
+                <Card className="border border-slate-200 shadow-sm">
+                    <CardHeader className="pb-2 border-b border-slate-50">
+                        <CardTitle className="text-sm font-bold text-slate-700">Performance Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 pt-6">
+                        <PerformanceRow
+                            label="Workers Placed"
+                            value={data.workers.filter(w => w.status?.toLowerCase() === 'placed').length}
+                            color="text-green-600"
+                            bgColor="bg-green-50/50"
+                        />
+                        <PerformanceRow
+                            label="Pending Applications"
+                            value={data.workers.filter(w => w.status?.toLowerCase() === 'pending').length}
+                            color="text-blue-600"
+                            bgColor="bg-blue-50/50"
+                        />
+                        <PerformanceRow
+                            label="Total Created Records"
+                            value={data.employers.length + data.jobs.length + data.workers.length}
+                            color="text-purple-600"
+                            bgColor="bg-purple-50/50"
+                        />
+                    </CardContent>
+                </Card>
             </div>
+
+            {/* Employers Added Table */}
+            <Card className="border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-white">
+                    <h3 className="text-sm font-bold text-slate-800 tracking-tight">Employers Added by This Employee</h3>
+                </div>
+                <Table>
+                    <TableHeader className="bg-slate-50/50">
+                        <TableRow>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500">Employer Name</TableHead>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500">Country</TableHead>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500 text-right">Added On</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {data.employers.length > 0 ? data.employers.map(emp => (
+                            <TableRow key={emp._id} className="hover:bg-slate-50/50">
+                                <TableCell className="text-sm font-medium text-slate-700">{emp.employerName}</TableCell>
+                                <TableCell className="text-sm text-slate-600">{emp.country || "—"}</TableCell>
+                                <TableCell className="text-sm text-slate-500 text-right">{new Date(emp.createdAt).toLocaleDateString()}</TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow><TableCell colSpan={3} className="text-center py-8 text-slate-400">No employers found</TableCell></TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </Card>
+
+            {/* Recent Job Demands Created */}
+            <Card className="border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-white">
+                    <h3 className="text-sm font-bold text-slate-800 tracking-tight">Recent Job Demands Created</h3>
+                </div>
+                <div className="divide-y divide-slate-100">
+                    {data.jobs.length > 0 ? data.jobs.map(job => (
+                        <div key={job._id} className="p-4 hover:bg-slate-50 transition-colors flex items-start gap-3">
+                            <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${job.status === 'open' ? 'bg-green-500' :
+                                    job.status === 'in-progress' ? 'bg-blue-500' : 'bg-slate-400'
+                                }`} />
+                            <div>
+                                <p className="text-sm font-semibold text-slate-800">
+                                    {job.jobTitle} - <span className="text-slate-500 font-normal">{job.employerId?.employerName || 'Direct Demand'}</span>
+                                </p>
+                                <div className="flex gap-4 mt-1">
+                                    <p className="text-[11px] text-slate-500">
+                                        Required: <span className="font-bold text-slate-700">{job.requiredWorkers || job.noOfWorkers || 0}</span>
+                                    </p>
+                                    <p className="text-[11px] text-slate-500">
+                                        Status: <span className="font-bold capitalize text-slate-700">{job.status || "—"}</span>
+                                    </p>
+                                    <p className="text-[11px] text-slate-400 italic">
+                                        Created {new Date(job.createdAt).toLocaleDateString()}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )) : (
+                        <div className="p-8 text-center text-slate-400 text-sm">No job demands found</div>
+                    )}
+                </div>
+            </Card>
+
+            {/* Workers Managed Table */}
+            <Card className="border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 bg-white">
+                    <h3 className="text-sm font-bold text-slate-800 tracking-tight">Managed Workers Portfolio</h3>
+                </div>
+                <Table>
+                    <TableHeader className="bg-slate-50/50">
+                        <TableRow>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500">Worker Name</TableHead>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500">Passport</TableHead>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500">Status</TableHead>
+                            <TableHead className="text-[11px] uppercase font-bold text-slate-500 text-right">Added Date</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {data.workers.length > 0 ? data.workers.map(worker => (
+                            <TableRow key={worker._id} className="hover:bg-slate-50/50">
+                                <TableCell className="text-sm font-bold text-slate-800">{worker.name || worker.fullName}</TableCell>
+                                <TableCell className="text-xs font-mono text-slate-500 uppercase tracking-tighter">{worker.passportNumber || "—"}</TableCell>
+                                <TableCell>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${worker.status?.toLowerCase() === 'placed' || worker.status?.toLowerCase() === 'active'
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-slate-100 text-slate-600'
+                                        }`}>
+                                        {worker.status || "Pending"}
+                                    </span>
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-500 text-right">{new Date(worker.createdAt).toLocaleDateString()}</TableCell>
+                            </TableRow>
+                        )) : (
+                            <TableRow><TableCell colSpan={4} className="text-center py-8 text-slate-400">No managed workers found</TableCell></TableRow>
+                        )}
+                    </TableBody>
+                </Table>
+            </Card>
         </div>
     );
 }
 
-// UI Helpers
+// Re-usable UI Helpers
 function StatCard({ label, value, icon, color }) {
-    const themes = {
-        blue: "bg-blue-50 text-blue-600",
-        purple: "bg-purple-50 text-purple-600",
-        green: "bg-green-50 text-green-600",
-        yellow: "bg-yellow-50 text-yellow-600"
+    const colors = {
+        blue: "text-blue-600 bg-blue-50",
+        purple: "text-purple-600 bg-purple-50",
+        green: "text-green-600 bg-green-50",
+        yellow: "text-amber-600 bg-amber-50"
     };
     return (
-        <Card className="border-none shadow-sm transition-transform hover:scale-[1.02]">
-            <CardContent className="flex items-center justify-between p-6">
+        <Card className="border border-slate-100 shadow-sm">
+            <CardContent className="p-5 flex items-center justify-between">
                 <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{label}</p>
-                    <p className="text-3xl font-black text-slate-800 mt-1">{value}</p>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-tight">{label}</p>
+                    <p className="text-2xl font-black text-slate-800 leading-none mt-1">{value}</p>
                 </div>
-                <div className={`p-4 rounded-2xl ${themes[color]}`}>{icon}</div>
+                <div className={`p-3 rounded-xl ${colors[color]}`}>{icon}</div>
             </CardContent>
         </Card>
     );
 }
 
-function InfoItem({ label, value, icon }) {
+function InfoBox({ label, value }) {
     return (
-        <div className="flex items-start gap-3">
-            <div className="mt-0.5 p-1.5 bg-slate-100 rounded text-slate-500">{icon}</div>
-            <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{label}</p>
-                <p className="text-sm font-bold text-slate-700 leading-tight">{value}</p>
-            </div>
+        <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{label}</p>
+            <p className="text-sm font-semibold text-slate-800 mt-1">{value || "—"}</p>
+        </div>
+    );
+}
+
+function PerformanceRow({ label, value, color, bgColor }) {
+    return (
+        <div className={`p-4 rounded-xl ${bgColor} flex flex-col`}>
+            <p className="text-[10px] font-bold text-slate-500 uppercase">{label}</p>
+            <p className={`text-xl font-black mt-1 ${color}`}>{value}</p>
         </div>
     );
 }

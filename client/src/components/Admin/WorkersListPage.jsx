@@ -5,6 +5,7 @@ import {
     Building2,
     CheckCircle,
     Clock,
+    Phone,
     Search,
     Users
 } from 'lucide-react';
@@ -26,7 +27,7 @@ import {
     TableRow,
 } from '../ui/table';
 
-export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }) {
+export function WorkersListPage({ workers = [], isLoading, onSelect }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -72,7 +73,6 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
                     <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Workers</h1>
                     <p className="text-gray-500 mt-1">Monitor recruitment pipeline and worker assignments.</p>
                 </div>
-
             </div>
 
             {/* 2. Stats Grid */}
@@ -127,10 +127,10 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
                         <Table>
                             <TableHeader className="bg-gray-50/50">
                                 <TableRow>
-                                    <TableHead className="pl-6 font-semibold text-gray-600">Worker Identity</TableHead>
+                                    <TableHead className="pl-6 font-semibold text-gray-600">Name</TableHead>
                                     <TableHead className="font-semibold text-gray-600">Passport</TableHead>
                                     <TableHead className="font-semibold text-gray-600">Status</TableHead>
-                                    <TableHead className="font-semibold text-gray-600">Stage</TableHead>
+                                    <TableHead className="font-semibold text-gray-600">Current Stage</TableHead>
                                     <TableHead className="font-semibold text-gray-600">Employer</TableHead>
                                     <TableHead className="font-semibold text-gray-600">Contact</TableHead>
                                 </TableRow>
@@ -161,7 +161,7 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-blue-600 font-semibold text-xs bg-blue-50 px-2 py-1 rounded-md capitalize">
-                                                    {worker.currentStage}
+                                                    {worker.currentStage?.replace(/_/g, ' ')}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
@@ -172,7 +172,12 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
                                                     </span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-sm text-gray-600">{worker.contact}</TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                                    <Phone size={14} className="text-gray-400" />
+                                                    {worker.contact || "N/A"}
+                                                </div>
+                                            </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
@@ -187,7 +192,6 @@ export function WorkersListPage({ workers = [], isLoading, onSelect, onRefresh }
     );
 }
 
-// --- Helper Component for Stats ---
 function QuickStat({ cardTitle, value, icon, bgColor }) {
     return (
         <Card className="border-none shadow-sm overflow-hidden">
