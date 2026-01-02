@@ -8,9 +8,10 @@ const WorkerSchema = new mongoose.Schema({
   address: { type: String, required: true },
   country: { type: String, default: 'Nepal' },
 
+  // Relational IDs
   employerId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Employer', // Matches your Employer model name
+    ref: 'Employer',
     required: true,
   },
   jobDemandId: {
@@ -18,19 +19,32 @@ const WorkerSchema = new mongoose.Schema({
     ref: 'JobDemand',
     required: true,
   },
-  // CHANGED: From String to ObjectId for population
   subAgentId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'SubAgent'
+    ref: 'User', // Changed to User if sub-agents are in your User model
   },
 
+  // SCRUM-10: Multi-tenant ownership
+  companyId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Company',
+    required: true
+  },
+
+  // models/Worker.js
   status: {
     type: String,
-    enum: ['pending', 'processing', 'active'],
+    // ADD 'active' HERE
+    enum: ['pending', 'processing', 'deployed', 'cancelled', 'active'],
     default: 'pending',
     lowercase: true,
   },
-  currentStage: { type: String, default: 'interview' },
+  currentStage: {
+    type: String,
+    enum: ['interview', 'medical', 'training', 'visa', 'flight'],
+    default: 'interview'
+  },
+
   documents: [
     {
       name: String,
@@ -38,6 +52,7 @@ const WorkerSchema = new mongoose.Schema({
       uploadedAt: { type: Date, default: Date.now },
     },
   ],
+
   stageTimeline: [
     {
       stage: String,
@@ -51,7 +66,21 @@ const WorkerSchema = new mongoose.Schema({
     },
   ],
   notes: String,
-  createdBy: { type: String, default: 'emp1' },
+
+  // Tracking fields for the "Workers Managed" count
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
 }, { timestamps: true });
+
+// Indexing for faster counts in the Employee List
+WorkerSchema.index({ createdBy: 1 });
+WorkerSchema.index({ companyId: 1 });
 
 module.exports = mongoose.model('Worker', WorkerSchema);

@@ -1,6 +1,6 @@
 const User = require('../models/User');
 const Company = require('../models/Company');
-const Employer = require('../models/Employers'); // Import your other models
+const Employer = require('../models/Employers');
 const JobDemand = require('../models/JobDemand');
 const Worker = require('../models/Worker');
 const { StatusCodes } = require('http-status-codes');
@@ -52,7 +52,7 @@ const login = async (req, res) => {
 
     const token = user.createJWT();
     res.status(StatusCodes.OK).json({
-        user: { fullName: user.fullName, email: user.email, role: user.role, companyId: user.companyId },
+        user: { fullName: user.fullName, email: user.email, role: user.role, companyId: user.companyId, userId: user._id },
         token
     });
 };
@@ -74,31 +74,46 @@ const registerEmployee = async (req, res) => {
     res.status(StatusCodes.CREATED).json({ msg: 'Employee registered', employee });
 };
 
-// --- UPDATED: Fetching counts for the table ---
 const getAllEmployees = async (req, res) => {
-    // 1. Get all employees belonging to the admin's company
-    const employees = await User.find({
-        companyId: req.user.companyId,
-        role: 'employee'
-    }).select('-password').lean();
+    try {
+        const mongoose = require('mongoose');
+        const adminCompanyId = new mongoose.Types.ObjectId(req.user.companyId);
 
-    // 2. Map through each employee and count their activities in other collections
-    const employeesWithStats = await Promise.all(employees.map(async (emp) => {
-        const [employersCount, demandsCount, workersCount] = await Promise.all([
-            Employer.countDocuments({ createdBy: emp._id }),
-            JobDemand.countDocuments({ createdBy: emp._id }),
-            Worker.countDocuments({ assignedTo: emp._id }) // Adjust field names based on your schemas
-        ]);
+        // 1. Get all employees for this company
+        const employees = await User.find({
+            companyId: adminCompanyId,
+            role: 'employee'
+        }).select('-password').lean();
 
-        return {
-            ...emp,
-            employersAdded: employersCount,
-            jobDemandsCreated: demandsCount,
-            workersManaged: workersCount
-        };
-    }));
+        // 2. Map through employees and attach counts
+        const employeesWithStats = await Promise.all(employees.map(async (emp) => {
+            const targetId = new mongoose.Types.ObjectId(emp._id);
 
-    res.status(StatusCodes.OK).json({ employees: employeesWithStats });
+            const [employersCount, demandsCount, workersCount] = await Promise.all([
+                Employer.countDocuments({ createdBy: targetId }),
+                JobDemand.countDocuments({ createdBy: targetId }),
+                // Counts workers where this employee is either the creator OR the manager
+                Worker.countDocuments({
+                    companyId: adminCompanyId,
+                    $or: [
+                        { createdBy: targetId },
+                        { assignedTo: targetId }
+                    ]
+                })
+            ]);
+
+            return {
+                ...emp,
+                employersAdded: employersCount,
+                jobDemandsCreated: demandsCount,
+                workersManaged: workersCount // This is the key field for your UI
+            };
+        }));
+
+        res.status(StatusCodes.OK).json({ success: true, data: employeesWithStats });
+    } catch (error) {
+        console.error("Error in getAllEmployees:", error);
+        res.status(500).json({ success: false, msg: "Failed to fetch stats" });
+    }
 };
-
 module.exports = { register, login, registerEmployee, getAllEmployees };
