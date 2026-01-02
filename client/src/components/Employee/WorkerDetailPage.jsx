@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/Table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Calendar, Download, Mail, Phone, MapPin, FileText, Check } from 'lucide-react';
 
 export function WorkerDetailsPage({ worker, onNavigate, onUpdateWorkerStage }) {
