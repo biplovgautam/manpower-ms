@@ -5,12 +5,14 @@ import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { EmployerListPage } from '../../../../components/Employee/EmployerListPage';
 import { AddEmployerPage } from '../../../../components/Employee/AddEmployer';
 import { EmployerDetailsPage } from '../../../../components/Employee/EmployerDetailPage';
+import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 
 export default function EmployersPage() {
     const router = useRouter();
-    const [view, setView] = useState('list'); // views: 'list', 'add', 'details', 'edit'
+    const [view, setView] = useState('list'); // views: 'list', 'add', 'details', 'edit', 'createDemand'
     const [employers, setEmployers] = useState([]);
     const [selectedEmployer, setSelectedEmployer] = useState(null);
+    const [isLoadingDetails, setIsLoadingDetails] = useState(false);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
 
     useEffect(() => {
@@ -36,106 +38,107 @@ export default function EmployersPage() {
         }
     };
 
+    const handleSelectEmployer = async (emp) => {
+        setSelectedEmployer(emp);
+        setView('details');
+        setIsLoadingDetails(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`http://localhost:5000/api/employers/${emp._id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const result = await res.json();
+            if (result.success) setSelectedEmployer(result.data);
+        } catch (error) {
+            console.error("Failed to load details:", error);
+        } finally {
+            setIsLoadingDetails(false);
+        }
+    };
+
+    const handleSaveDemand = async (submissionData) => {
+        try {
+            const token = localStorage.getItem('token');
+            // Find the ID of the employer selected in the form
+            const targetEmployer = employers.find(e => e.employerName === submissionData.employerName);
+            
+            const res = await fetch('http://localhost:5000/api/demands', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json', 
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    ...submissionData,
+                    employerId: targetEmployer?._id
+                })
+            });
+            const result = await res.json();
+            if (result.success) {
+                // Refresh full data for this employer and return to details view
+                handleSelectEmployer(targetEmployer || selectedEmployer);
+            }
+        } catch (error) {
+            console.error("Save Demand Failed:", error);
+        }
+    };
+
     const handleSave = async (formData) => {
         const token = localStorage.getItem('token');
         const res = await fetch('http://localhost:5000/api/employers', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json', 
-                'Authorization': `Bearer ${token}` 
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(formData)
         });
-        
         const result = await res.json();
-        if (res.ok && result.success) {
-            fetchEmployers(token);
-            setView('list');
-        } else {
-            throw new Error(result.error || "Failed to save employer");
-        }
+        if (res.ok && result.success) { fetchEmployers(token); setView('list'); }
     };
 
     const handleUpdate = async (formData) => {
         const token = localStorage.getItem('token');
         const res = await fetch(`http://localhost:5000/api/employers/${selectedEmployer._id}`, {
             method: 'PUT',
-            headers: { 
-                'Content-Type': 'application/json', 
-                'Authorization': `Bearer ${token}` 
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(formData)
         });
-        
-        const result = await res.json();
-        if (res.ok && result.success) {
-            fetchEmployers(token);
-            setView('list');
-            setSelectedEmployer(null);
-        } else {
-            throw new Error(result.error || "Failed to update employer");
-        }
+        if (res.ok) { fetchEmployers(token); setView('list'); setSelectedEmployer(null); }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this employer?")) return;
-
+        if (!window.confirm("Are you sure?")) return;
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`http://localhost:5000/api/employers/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            
-            if (res.ok) {
-                fetchEmployers(token);
-                setView('list');
-            }
-        } catch (error) {
-            console.error("Delete failed:", error);
-        }
+            if (res.ok) { fetchEmployers(token); setView('list'); }
+        } catch (error) { console.error(error); }
     };
 
     return (
         <DashboardLayout 
-            role="employee" 
-            userName={userData.fullName} 
+            role="employee" userName={userData.fullName} 
             currentPath="/dashboard/employee/employer" 
             onLogout={() => { localStorage.clear(); router.push('/login'); }}
         >
             {view === 'list' && (
-                <EmployerListPage 
-                    employers={employers} 
-                    onNavigate={setView} 
-                    onSelectEmployer={(emp) => {
-                        setSelectedEmployer(emp);
-                        setView('details');
-                    }} 
-                    onDelete={handleDelete}
-                />
+                <EmployerListPage employers={employers} onNavigate={setView} onSelectEmployer={handleSelectEmployer} onDelete={handleDelete} />
             )}
-
-            {view === 'add' && (
-                <AddEmployerPage 
-                    onNavigate={() => setView('list')} 
-                    onSave={handleSave} 
-                />
-            )}
-
-            {view === 'edit' && (
-                <AddEmployerPage 
-                    onNavigate={() => setView('list')} 
-                    onSave={handleUpdate} 
-                    initialData={selectedEmployer}
-                    isEdit={true}
-                />
-            )}
-
+            {view === 'add' && <AddEmployerPage onNavigate={() => setView('list')} onSave={handleSave} />}
+            {view === 'edit' && <AddEmployerPage onNavigate={() => setView('list')} onSave={handleUpdate} initialData={selectedEmployer} isEdit={true} />}
+            
             {view === 'details' && (
                 <EmployerDetailsPage 
-                    employer={selectedEmployer} 
-                    onNavigate={setView} 
-                    onDelete={handleDelete}
+                    employer={selectedEmployer} onNavigate={setView} onDelete={handleDelete} 
+                    isLoading={isLoadingDetails} onCreateDemand={() => setView('createDemand')}
+                />
+            )}
+
+            {view === 'createDemand' && (
+                <CreateJobDemandPage 
+                    employers={employers} initialData={{ employerName: selectedEmployer?.employerName }}
+                    onNavigate={() => setView('details')} onSave={handleSaveDemand}
                 />
             )}
         </DashboardLayout>

@@ -1,17 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card";
 import { Input, Textarea } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { Button } from "../../components/ui/Button";
-import { ArrowLeft, Upload, X, FileText, CheckCircle2, ShieldCheck, Info } from "lucide-react";
+import { ArrowLeft, Upload, X, CheckCircle2, ShieldCheck, Info } from "lucide-react";
 
 export function AddWorkerPage({
+  initialData = null,
   employers = [],
   jobDemands = [],
   subAgents = [],
   onNavigate,
   onSave,
 }) {
+  const isEditMode = !!initialData;
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -20,17 +23,36 @@ export function AddWorkerPage({
     contact: "",
     address: "",
     country: "Nepal",
-    employerId: employers[0]?._id || employers[0]?.id || "",
+    employerId: "",
     jobDemandId: "",
-    subAgentId: subAgents[0]?._id || subAgents[0]?.id || "",
+    subAgentId: "",
     status: "pending",
     notes: "",
   });
 
+  // Populate data when in edit mode
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        name: initialData.name || "",
+        email: initialData.email || "",
+        dob: initialData.dob ? new Date(initialData.dob).toISOString().split('T')[0] : "",
+        passportNumber: initialData.passportNumber || "",
+        contact: initialData.contact || "",
+        address: initialData.address || "",
+        country: initialData.country || "Nepal",
+        employerId: initialData.employerId?._id || initialData.employerId || "",
+        jobDemandId: initialData.jobDemandId?._id || initialData.jobDemandId || "",
+        subAgentId: initialData.subAgentId?._id || initialData.subAgentId || "",
+        status: initialData.status || "pending",
+        notes: initialData.notes || "",
+      });
+    }
+  }, [initialData]);
+
   const [documents, setDocuments] = useState([]);
   const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
 
-  // This is the list for the dropdown
   const documentCategories = [
     { value: "Passport", label: "Passport" },
     { value: "Birth Certificate", label: "Birth Certificate" },
@@ -42,7 +64,6 @@ export function AddWorkerPage({
     { value: "Other", label: "Other" }
   ];
 
-  // This is the static list for the UI Checklist
   const requiredChecklist = [
     "Passport (with minimum 6 months validity)",
     "Birth Certificate",
@@ -79,15 +100,19 @@ export function AddWorkerPage({
           <ArrowLeft size={22} className="text-gray-600" />
         </button>
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Register New Worker</h1>
-          <p className="text-gray-500 text-sm">Follow the checklist to ensure all legal documents are collected.</p>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            {isEditMode ? "Edit Worker Profile" : "Register New Worker"}
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {isEditMode ? `Updating information for ${formData.name}` : "Follow the checklist to ensure all legal documents are collected."}
+          </p>
         </div>
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); onSave({ ...formData, documents }); }} className="space-y-6">
         
-        {/* PERSONAL & DEPLOYMENT SECTION */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* PERSONAL INFO */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
             <CardHeader className="bg-gray-50/50 border-b py-3">
               <CardTitle className="text-md font-bold">Personal Information</CardTitle>
@@ -104,31 +129,54 @@ export function AddWorkerPage({
             </CardContent>
           </Card>
 
+          {/* DEPLOYMENT INFO */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
             <CardHeader className="bg-gray-50/50 border-b py-3">
               <CardTitle className="text-md font-bold">Deployment Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <Select label="Employer" value={formData.employerId} onChange={(e) => { handleChange("employerId", e.target.value); handleChange("jobDemandId", ""); }} options={employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))} required />
-              <Select label="Job Demand" value={formData.jobDemandId} disabled={!formData.employerId} onChange={(e) => handleChange("jobDemandId", e.target.value)} options={filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || "Select Job" }))} required />
-              <Select label="Sub-Agent" value={formData.subAgentId} onChange={(e) => handleChange("subAgentId", e.target.value)} options={subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))} />
-              <Select label="Registration Status" value={formData.status} onChange={(e) => handleChange("status", e.target.value)} options={[{ value: "pending", label: "Pending" }, { value: "processing", label: "Processing" }, { value: "active", label: "Active" }]} required />
+              <Select 
+                label="Employer" 
+                value={formData.employerId} 
+                onChange={(e) => { handleChange("employerId", e.target.value); handleChange("jobDemandId", ""); }} 
+                options={employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))} 
+                required 
+              />
+              <Select 
+                label="Job Demand" 
+                value={formData.jobDemandId} 
+                disabled={!formData.employerId} 
+                onChange={(e) => handleChange("jobDemandId", e.target.value)} 
+                options={filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || jd.title }))} 
+                required 
+              />
+              <Select 
+                label="Sub-Agent" 
+                value={formData.subAgentId} 
+                onChange={(e) => handleChange("subAgentId", e.target.value)} 
+                options={subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))} 
+              />
+              <Select 
+                label="Registration Status" 
+                value={formData.status} 
+                onChange={(e) => handleChange("status", e.target.value)} 
+                options={[{ value: "pending", label: "Pending" }, { value: "processing", label: "Processing" }, { value: "active", label: "Active" }]} 
+                required 
+              />
             </CardContent>
           </Card>
         </div>
 
-        {/* DOCUMENT CLASSIFICATION & CHECKLIST */}
+        {/* DOCUMENTS SECTION */}
         <Card className="border-none shadow-sm ring-1 ring-gray-200 overflow-hidden">
           <CardHeader className="bg-blue-600 text-white">
             <div className="flex items-center gap-2">
               <ShieldCheck size={20} />
-              <CardTitle className="text-lg text-white">Required Documentation & Classification</CardTitle>
+              <CardTitle className="text-lg text-white">Documents Upload {isEditMode && "(Add New Only)"}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid grid-cols-1 lg:grid-cols-12">
-              
-              {/* LEFT COLUMN: STATIC CHECKLIST */}
               <div className="lg:col-span-4 bg-slate-50 p-6 border-r border-gray-100">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <Info size={16} className="text-blue-600" /> Required Checklist
@@ -143,35 +191,27 @@ export function AddWorkerPage({
                 </ul>
               </div>
 
-              {/* RIGHT COLUMN: UPLOAD CONTROLS */}
               <div className="lg:col-span-8 p-6 space-y-6 bg-white">
                 <div className="p-5 bg-white border-2 border-dashed border-blue-100 rounded-xl space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select label="Document Category" options={documentCategories} value={currentDoc.category} onChange={(e) => setCurrentDoc({...currentDoc, category: e.target.value})} />
-                    <Input label="Custom Label (File Name)" placeholder="e.g. Front Page" value={currentDoc.name} onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} />
+                    <Input label="Custom Label" placeholder="e.g. Front Page" value={currentDoc.name} onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm font-bold text-gray-700">Choose File</label>
-                    <input id="worker-file-input" type="file" className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer transition-all" onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} />
-                  </div>
+                  <input id="worker-file-input" type="file" className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} />
                   <button 
                     type="button" 
                     disabled={!currentDoc.file || !currentDoc.name} 
                     onClick={handleAddDocument}
                     className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md
-                      ${(!currentDoc.file || !currentDoc.name) 
-                        ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
-                        : "bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]"}`}
+                      ${(!currentDoc.file || !currentDoc.name) ? "bg-gray-100 text-gray-400" : "bg-blue-600 text-white hover:bg-blue-700"}`}
                   >
                     <Upload size={18} /> Attach to Profile
                   </button>
                 </div>
 
-                {/* QUEUED LIST */}
                 <div className="space-y-2">
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Attached Files</p>
-                  {documents.length > 0 ? documents.map((doc, i) => (
-                    <div key={i} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 border-l-green-500 animate-in fade-in slide-in-from-left-2">
+                  {documents.length > 0 && documents.map((doc, i) => (
+                    <div key={i} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 border-l-green-500">
                       <div className="flex items-center gap-3">
                         <CheckCircle2 size={18} className="text-green-500" />
                         <div>
@@ -179,15 +219,11 @@ export function AddWorkerPage({
                           <p className="text-[10px] text-gray-500 uppercase">{doc.category} • {doc.file?.name}</p>
                         </div>
                       </div>
-                      <button type="button" onClick={() => setDocuments(documents.filter((_, idx) => idx !== i))} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                      <button type="button" onClick={() => setDocuments(documents.filter((_, idx) => idx !== i))} className="p-1.5 text-gray-400 hover:text-red-500">
                         <X size={18} />
                       </button>
                     </div>
-                  )) : (
-                    <div className="text-center py-6 border border-dotted border-gray-200 rounded-lg text-gray-400 text-sm">
-                      No documents added yet.
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
             </div>
@@ -197,9 +233,10 @@ export function AddWorkerPage({
           </CardContent>
         </Card>
 
-        {/* SUBMIT BUTTONS */}
         <div className="flex gap-4">
-          <Button type="submit" className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 h-14 text-lg font-bold rounded-xl shadow-lg transition-all active:scale-[0.99]">Register Worker</Button>
+          <Button type="submit" className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 h-14 text-lg font-bold rounded-xl shadow-lg transition-all">
+            {isEditMode ? "Update Worker Profile" : "Register Worker"}
+          </Button>
           <Button type="button" variant="outline" onClick={onNavigate} className="flex-1 h-14 font-bold rounded-xl">Cancel</Button>
         </div>
       </form>

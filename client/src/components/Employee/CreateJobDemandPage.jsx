@@ -1,18 +1,12 @@
 "use client";
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Button } from '../../components/ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
-import { Input, Textarea } from '../../components/ui/Input';
-import { Select } from '../../components/ui/Select';
+import { Button } from '../ui/Button';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import { Input, Textarea } from '../ui/Input';
+import { Select } from '../ui/Select';
 
-export function CreateJobDemandPage({
-  employers = [],
-  onNavigate,
-  onSave,
-  initialData = null,
-  isEditing = false
-}) {
+export function CreateJobDemandPage({ employers = [], onNavigate, onSave, initialData = null, isEditing = false }) {
   const [formData, setFormData] = useState({
     employerName: '',
     jobTitle: '',
@@ -21,11 +15,10 @@ export function CreateJobDemandPage({
     salary: '',
     skills: '',
     deadline: '',
-    status: 'open', // Default status
+    status: 'open',
     documents: [],
   });
 
-  // Status options for the dropdown
   const statusOptions = [
     { value: 'open', label: 'Open' },
     { value: 'pending', label: 'Pending' },
@@ -35,8 +28,9 @@ export function CreateJobDemandPage({
 
   useEffect(() => {
     if (initialData) {
-      setFormData({
-        employerName: initialData.employerId?.employerName || initialData.employerName || '',
+      setFormData(prev => ({
+        ...prev,
+        employerName: initialData.employerName || '',
         jobTitle: initialData.jobTitle || '',
         requiredWorkers: initialData.requiredWorkers || '',
         description: initialData.description || '',
@@ -44,8 +38,7 @@ export function CreateJobDemandPage({
         skills: Array.isArray(initialData.skills) ? initialData.skills.join(', ') : initialData.skills || '',
         deadline: initialData.deadline ? new Date(initialData.deadline).toISOString().split('T')[0] : '',
         status: initialData.status || 'open',
-        documents: [],
-      });
+      }));
     } else if (employers.length > 0 && !formData.employerName) {
       setFormData(prev => ({ ...prev, employerName: employers[0].employerName }));
     }
@@ -72,32 +65,23 @@ export function CreateJobDemandPage({
           <ArrowLeft size={20} />
         </button>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            {isEditing ? 'Edit Job Demand' : 'Create Job Demand'}
-          </h1>
-          <p className="text-gray-600">Fill in the details for the recruitment requirement.</p>
+          <h1 className="text-3xl font-bold text-gray-900">{isEditing ? 'Edit Job Demand' : 'Create Job Demand'}</h1>
+          <p className="text-gray-600">Enter requirements for {formData.employerName || 'the employer'}.</p>
         </div>
       </div>
 
       <Card className="border-none shadow-lg">
-        <CardHeader>
-          <CardTitle>Job Information</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Job Information</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Select
                 label="Select Employer"
-                options={employers.map((emp) => ({
-                  value: emp.employerName,
-                  label: emp.employerName,
-                }))}
+                options={employers.map((emp) => ({ value: emp.employerName, label: emp.employerName }))}
                 value={formData.employerName}
                 onChange={(e) => handleChange('employerName', e.target.value)}
                 required
               />
-
-              {/* Added Status Field */}
               <Select
                 label="Demand Status"
                 options={statusOptions}
@@ -107,66 +91,20 @@ export function CreateJobDemandPage({
               />
             </div>
 
-            <Input
-              label="Job Title"
-              placeholder="e.g. Electrical Engineer"
-              value={formData.jobTitle}
-              onChange={(e) => handleChange('jobTitle', e.target.value)}
-              required
-            />
+            <Input label="Job Title" placeholder="e.g. Electrical Engineer" value={formData.jobTitle} onChange={(e) => handleChange('jobTitle', e.target.value)} required />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label="Required Workers"
-                type="number"
-                value={formData.requiredWorkers}
-                onChange={(e) => handleChange('requiredWorkers', e.target.value)}
-                required
-              />
-              <Input
-                label="Salary"
-                placeholder="e.g. 2500 QR + Food"
-                value={formData.salary}
-                onChange={(e) => handleChange('salary', e.target.value)}
-                required
-              />
+              <Input label="Required Workers" type="number" value={formData.requiredWorkers} onChange={(e) => handleChange('requiredWorkers', e.target.value)} required />
+              <Input label="Salary" placeholder="e.g. 2500 QR + Food" value={formData.salary} onChange={(e) => handleChange('salary', e.target.value)} required />
             </div>
 
-            <Textarea
-              label="Job Description"
-              rows={4}
-              value={formData.description}
-              onChange={(e) => handleChange('description', e.target.value)}
-              required
-            />
-
-            <Input
-              label="Required Skills (Comma separated)"
-              value={formData.skills}
-              onChange={(e) => handleChange('skills', e.target.value)}
-              required
-            />
-
-            <Input
-              label="Submission Deadline"
-              type="date"
-              value={formData.deadline}
-              onChange={(e) => handleChange('deadline', e.target.value)}
-              required
-            />
+            <Textarea label="Job Description" rows={4} value={formData.description} onChange={(e) => handleChange('description', e.target.value)} required />
+            <Input label="Required Skills (Comma separated)" value={formData.skills} onChange={(e) => handleChange('skills', e.target.value)} required />
+            <Input label="Submission Deadline" type="date" value={formData.deadline} onChange={(e) => handleChange('deadline', e.target.value)} required />
 
             <div className="flex gap-3 pt-6">
-              <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">
-                {isEditing ? 'Update Job Demand' : 'Create Job Demand'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onNavigate('list')}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
+              <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700">{isEditing ? 'Update Job Demand' : 'Create Job Demand'}</Button>
+              <Button type="button" variant="outline" onClick={() => onNavigate('list')} className="flex-1">Cancel</Button>
             </div>
           </form>
         </CardContent>

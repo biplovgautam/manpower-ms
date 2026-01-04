@@ -17,7 +17,7 @@ router.use(protect);
 router.get('/', getAllWorkers);
 router.get('/:id', getWorkerById); // Fetch single worker details
 router.post('/add', upload.array('files', 15), addWorker);
-router.put('/:id', upload.array('documents', 10), updateWorker);
+router.put('/:id', upload.array('files', 10), updateWorker);
 
 // Specific route to update a stage status inside the timeline array
 router.patch('/:id/stage/:stageId', updateWorkerStage);

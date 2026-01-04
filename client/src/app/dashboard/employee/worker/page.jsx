@@ -51,19 +51,19 @@ export default function WorkersPage() {
   const handleUpdateStage = async (workerId, stageId, newStatus) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`http://localhost:5000/api/workers/${workerId}/stage`, {
+      const res = await fetch(`http://localhost:5000/api/workers/${workerId}/stage/${stageId}`, {
         method: 'PATCH',
         headers: { 
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json' 
         },
-        body: JSON.stringify({ stageId, status: newStatus })
+        body: JSON.stringify({ status: newStatus })
       });
-      if (res.ok) {
-        // Refresh data and update the selected worker view
-        await fetchAllData(token);
-        const updatedWorker = workers.find(w => w._id === workerId);
-        if (updatedWorker) setSelectedWorker(updatedWorker);
+      
+      const result = await res.json();
+      if (result.success) {
+        setWorkers(prev => prev.map(w => w._id === workerId ? result.data : w));
+        setSelectedWorker(result.data);
       }
     } catch (err) {
       console.error("Update stage failed", err);
@@ -73,32 +73,76 @@ export default function WorkersPage() {
   const handleSave = async (payload) => {
     const token = localStorage.getItem('token');
     const data = new FormData();
+    // Destructure documents (files) from the rest of the text data
     const { documents, ...rest } = payload;
 
-    Object.keys(rest).forEach(key => data.append(key, rest[key]));
+    // 1. Append text fields (name, passport, etc.)
+    Object.keys(rest).forEach(key => {
+      if (rest[key] !== null && rest[key] !== undefined) {
+        data.append(key, rest[key]);
+      }
+    });
 
+    // 2. Append files using the key 'files' to match backend upload.array('files')
     if (documents && documents.length > 0) {
-      const metadata = documents.map(d => ({ category: d.category, name: d.name }));
-      data.append('documentMetadata', JSON.stringify(metadata));
-      documents.forEach((doc) => data.append('files', doc.file));
+      documents.forEach((doc) => {
+        if (doc.file) {
+          data.append('files', doc.file); 
+        }
+      });
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/workers/add', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+      const isEdit = selectedWorker && view === 'edit';
+      const url = isEdit 
+        ? `http://localhost:5000/api/workers/${selectedWorker._id}`
+        : 'http://localhost:5000/api/workers/add';
+      
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
+        headers: { 
+          'Authorization': `Bearer ${token}` 
+          // Browser sets Content-Type + boundary automatically for FormData
+        },
         body: data
       });
 
-      if (res.ok) {
-        fetchAllData(token);
-        setView('list');
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.indexOf("application/json") !== -1) {
+        const result = await res.json();
+        
+        if (res.ok && result.success) {
+          // Success Path
+          await fetchAllData(token); // Refresh the global list
+          setSelectedWorker(result.data); // Update the state with new data from server
+          setView('list'); // Redirect to list (change to 'details' if you want to see changes immediately)
+          alert("Worker saved successfully!");
+        } else {
+          alert(result.message || "Error saving worker");
+        }
       } else {
-        const err = await res.json();
-        alert(err.message || "Error saving worker");
+        const textError = await res.text();
+        console.error("Server Error:", textError);
+        alert("Server returned an error. Check backend logs for 'MulterError'.");
       }
     } catch (err) {
       console.error("Save failed", err);
+      alert("Network error occurred.");
+    }
+  };
+
+  const handleNavigate = (newView, data = null) => {
+    if (newView === 'edit' && data) {
+      setSelectedWorker(data);
+      setView('edit');
+    } else if (newView === 'details' && data) {
+      setSelectedWorker(data);
+      setView('details');
+    } else {
+      if (newView === 'list') setSelectedWorker(null);
+      setView(newView);
     }
   };
 
@@ -107,29 +151,26 @@ export default function WorkersPage() {
       {view === 'list' && (
         <WorkerManagementPage 
           workers={workers} 
-          onNavigate={setView} 
-          onSelectWorker={(worker) => {
-            setSelectedWorker(worker);
-            setView('details');
-          }}
+          onNavigate={handleNavigate} 
+          onSelectWorker={(worker) => handleNavigate('details', worker)}
         />
       )}
       
-      {view === 'add' && (
+      {(view === 'add' || view === 'edit') && (
         <AddWorkerPage
+          initialData={view === 'edit' ? selectedWorker : null}
           employers={employers}
           jobDemands={jobDemands}
           subAgents={subAgents}
-          onNavigate={() => setView('list')}
+          onNavigate={() => handleNavigate('list')}
           onSave={handleSave}
         />
       )}
 
-      {/* ✅ FIXED: Now rendering the actual component instead of JSON */}
       {view === 'details' && selectedWorker && (
         <WorkerDetailsPage 
           worker={selectedWorker} 
-          onNavigate={setView} 
+          onNavigate={handleNavigate} 
           onUpdateWorkerStage={handleUpdateStage}
         />
       )}
