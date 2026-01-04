@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { AddWorkerPage } from '../../../../components/Employee/AddWorkerPage';
 import { WorkerManagementPage } from '../../../../components/Employee/WorkerManagementPage';
+import { WorkerDetailsPage } from '../../../../components/Employee/WorkerDetailPage'; 
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 
 export default function WorkersPage() {
@@ -12,6 +13,7 @@ export default function WorkersPage() {
   const [employers, setEmployers] = useState([]);
   const [jobDemands, setJobDemands] = useState([]);
   const [subAgents, setSubAgents] = useState([]);
+  const [selectedWorker, setSelectedWorker] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -43,6 +45,28 @@ export default function WorkersPage() {
       setSubAgents(agentResult.data || agentResult.subAgents || (Array.isArray(agentResult) ? agentResult : []));
     } catch (err) {
       console.error("Fetch failed", err);
+    }
+  };
+
+  const handleUpdateStage = async (workerId, stageId, newStatus) => {
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`http://localhost:5000/api/workers/${workerId}/stage`, {
+        method: 'PATCH',
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ stageId, status: newStatus })
+      });
+      if (res.ok) {
+        // Refresh data and update the selected worker view
+        await fetchAllData(token);
+        const updatedWorker = workers.find(w => w._id === workerId);
+        if (updatedWorker) setSelectedWorker(updatedWorker);
+      }
+    } catch (err) {
+      console.error("Update stage failed", err);
     }
   };
 
@@ -81,8 +105,16 @@ export default function WorkersPage() {
   return (
     <DashboardLayout role="employee">
       {view === 'list' && (
-        <WorkerManagementPage workers={workers} onNavigate={setView} />
+        <WorkerManagementPage 
+          workers={workers} 
+          onNavigate={setView} 
+          onSelectWorker={(worker) => {
+            setSelectedWorker(worker);
+            setView('details');
+          }}
+        />
       )}
+      
       {view === 'add' && (
         <AddWorkerPage
           employers={employers}
@@ -90,6 +122,15 @@ export default function WorkersPage() {
           subAgents={subAgents}
           onNavigate={() => setView('list')}
           onSave={handleSave}
+        />
+      )}
+
+      {/* ✅ FIXED: Now rendering the actual component instead of JSON */}
+      {view === 'details' && selectedWorker && (
+        <WorkerDetailsPage 
+          worker={selectedWorker} 
+          onNavigate={setView} 
+          onUpdateWorkerStage={handleUpdateStage}
         />
       )}
     </DashboardLayout>

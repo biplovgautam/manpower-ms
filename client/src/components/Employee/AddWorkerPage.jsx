@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Ca
 import { Input, Textarea } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { Button } from "../../components/ui/Button";
-import { ArrowLeft, Upload, X, FileText } from "lucide-react";
+import { ArrowLeft, Upload, X, FileText, CheckCircle2, ShieldCheck, Info } from "lucide-react";
 
 export function AddWorkerPage({
   employers = [],
@@ -14,37 +14,49 @@ export function AddWorkerPage({
 }) {
   const [formData, setFormData] = useState({
     name: "",
+    email: "",
     dob: "",
     passportNumber: "",
     contact: "",
     address: "",
     country: "Nepal",
-    employerId: "",
+    employerId: employers[0]?._id || employers[0]?.id || "",
     jobDemandId: "",
-    subAgentId: "",
+    subAgentId: subAgents[0]?._id || subAgents[0]?.id || "",
     status: "pending",
     notes: "",
   });
 
   const [documents, setDocuments] = useState([]);
-  const [currentDoc, setCurrentDoc] = useState({ file: null, category: "passport", name: "" });
+  const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
 
+  // This is the list for the dropdown
   const documentCategories = [
-    { value: "passport", label: "Passport" },
-    { value: "medical", label: "Medical Certificate" },
-    { value: "police-clearance", label: "Police Clearance" },
-    { value: "photo", label: "Worker Photo" },
-    { value: "cv", label: "CV/Resume" },
-    { value: "citizenship", label: "Citizenship/ID" },
-    { value: "visa", label: "Visa Copy" },
-    { value: "other", label: "Other" }
+    { value: "Passport", label: "Passport" },
+    { value: "Birth Certificate", label: "Birth Certificate" },
+    { value: "Citizenship Certificate", label: "Citizenship Certificate" },
+    { value: "Medical Certificate", label: "Medical Certificate" },
+    { value: "Police Clearance", label: "Police Clearance Certificate" },
+    { value: "Educational Certificate", label: "Educational Certificates" },
+    { value: "Passport Photos", label: "Passport Size Photos" },
+    { value: "Other", label: "Other" }
+  ];
+
+  // This is the static list for the UI Checklist
+  const requiredChecklist = [
+    "Passport (with minimum 6 months validity)",
+    "Birth Certificate",
+    "Citizenship Certificate",
+    "Medical Certificate",
+    "Police Clearance Certificate",
+    "Educational Certificates",
+    "Passport Size Photos (2 copies)"
   ];
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // ✅ Fixed JD filtering: ensures comparison is between strings
   const filteredJobDemands = jobDemands.filter(jd => {
     if (!formData.employerId) return false;
     const jdEmpId = jd.employerId?._id || jd.employerId;
@@ -54,141 +66,141 @@ export function AddWorkerPage({
   const handleAddDocument = () => {
     if (currentDoc.file && currentDoc.name) {
       setDocuments([...documents, currentDoc]);
-      setCurrentDoc({ file: null, category: "passport", name: "" });
+      setCurrentDoc({ file: null, category: "Passport", name: "" });
       const fileInput = document.getElementById('worker-file-input');
       if (fileInput) fileInput.value = '';
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
       <div className="flex items-center gap-4">
-        <button type="button" onClick={onNavigate} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft size={20} />
+        <button type="button" onClick={onNavigate} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+          <ArrowLeft size={22} className="text-gray-600" />
         </button>
-        <h1 className="text-3xl font-bold">Add New Worker</h1>
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Register New Worker</h1>
+          <p className="text-gray-500 text-sm">Follow the checklist to ensure all legal documents are collected.</p>
+        </div>
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); onSave({ ...formData, documents }); }} className="space-y-6">
         
-        {/* SECTION 1: PERSONAL INFORMATION */}
-        <Card>
-          <CardHeader><CardTitle>Personal Information</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Full Name" value={formData.name} onChange={(e) => handleChange("name", e.target.value)} required />
-            <Input label="Passport Number" value={formData.passportNumber} onChange={(e) => handleChange("passportNumber", e.target.value)} required />
-            <Input label="Date of Birth" type="date" value={formData.dob} onChange={(e) => handleChange("dob", e.target.value)} required />
-            <Input label="Contact Number" value={formData.contact} onChange={(e) => handleChange("contact", e.target.value)} required />
-            <Input label="Address" value={formData.address} onChange={(e) => handleChange("address", e.target.value)} required />
-            <Input label="Country" value={formData.country} onChange={(e) => handleChange("country", e.target.value)} required />
-          </CardContent>
-        </Card>
-
-        {/* SECTION 2: ASSIGNMENT DETAILS */}
-        <Card>
-          <CardHeader><CardTitle>Assignment Details</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Select
-              label="Assign to Employer"
-              value={formData.employerId}
-              onChange={(e) => {
-                handleChange("employerId", e.target.value);
-                handleChange("jobDemandId", ""); 
-              }}
-              options={[
-                { value: "", label: "Select Employer" },
-                ...employers.map(emp => ({ 
-                  value: emp._id || emp.id, 
-                  label: emp.employerName || emp.name || emp.companyName || "Unknown Employer"
-                }))
-              ]}
-              required
-            />
-
-            <Select
-              label="Assign to Job Demand"
-              value={formData.jobDemandId}
-              disabled={!formData.employerId}
-              onChange={(e) => handleChange("jobDemandId", e.target.value)}
-              options={[
-                { value: "", label: formData.employerId ? "Select Job Demand" : "Select Employer First" },
-                ...filteredJobDemands.map(jd => ({ 
-                  value: jd._id || jd.id, 
-                  label: jd.jobTitle || jd.title || jd.position || "Unknown Job"
-                }))
-              ]}
-              required
-            />
-
-            <Select
-              label="Assign to Sub-Agent"
-              value={formData.subAgentId}
-              onChange={(e) => handleChange("subAgentId", e.target.value)}
-              options={[
-                { value: "", label: "Direct (No Sub-Agent)" },
-                ...subAgents.map(sa => ({ 
-                  value: sa._id || sa.id, 
-                  label: sa.fullName || sa.name || "Unknown Agent"
-                }))
-              ]}
-            />
-
-            <Select
-              label="Initial Status"
-              value={formData.status}
-              onChange={(e) => handleChange("status", e.target.value)}
-              options={[
-                { value: "pending", label: "Pending" },
-                { value: "processing", label: "Processing" },
-                { value: "active", label: "Active" }
-              ]}
-              required
-            />
-          </CardContent>
-        </Card>
-
-        {/* SECTION 3: DOCUMENT CLASSIFICATION */}
-        <Card>
-          <CardHeader><CardTitle>Document Classification</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-gray-50 rounded-lg">
-              <Select 
-                label="Category" 
-                options={documentCategories} 
-                value={currentDoc.category} 
-                onChange={(e) => setCurrentDoc({...currentDoc, category: e.target.value})} 
-              />
-              <Input label="Document Label" placeholder="e.g. Passport Front" value={currentDoc.name} onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} />
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium">Upload File</label>
-                <input id="worker-file-input" type="file" className="text-sm" onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} />
+        {/* PERSONAL & DEPLOYMENT SECTION */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="border-none shadow-sm ring-1 ring-gray-200">
+            <CardHeader className="bg-gray-50/50 border-b py-3">
+              <CardTitle className="text-md font-bold">Personal Information</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <Input label="Full Name" value={formData.name} onChange={(e) => handleChange("name", e.target.value)} required />
+              <Input label="Email Address" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} />
+              <div className="grid grid-cols-2 gap-4">
+                <Input label="Passport Number" value={formData.passportNumber} onChange={(e) => handleChange("passportNumber", e.target.value)} required />
+                <Input label="Date of Birth" type="date" value={formData.dob} onChange={(e) => handleChange("dob", e.target.value)} required />
               </div>
-              <Button type="button" disabled={!currentDoc.file || !currentDoc.name} onClick={handleAddDocument} className="md:col-span-3 bg-blue-50 text-blue-700 hover:bg-blue-100 border-dashed border-2 border-blue-200">
-                <Upload size={16} className="mr-2" /> Add to Queue
-              </Button>
-            </div>
+              <Input label="Contact Number" value={formData.contact} onChange={(e) => handleChange("contact", e.target.value)} required />
+              <Input label="Address" value={formData.address} onChange={(e) => handleChange("address", e.target.value)} required />
+            </CardContent>
+          </Card>
 
-            <div className="space-y-2">
-              {documents.map((doc, i) => (
-                <div key={i} className="flex justify-between items-center p-3 border rounded bg-white shadow-sm border-l-4 border-l-blue-500">
-                  <div className="flex items-center gap-3">
-                    <FileText size={20} className="text-blue-500" />
-                    <div>
-                      <p className="text-sm font-bold">{doc.name}</p>
-                      <p className="text-xs text-gray-500 uppercase">{doc.category} • {doc.file?.name}</p>
-                    </div>
-                  </div>
-                  <X size={20} className="text-red-500 cursor-pointer hover:bg-red-50 rounded" onClick={() => setDocuments(documents.filter((_, idx) => idx !== i))} />
-                </div>
-              ))}
+          <Card className="border-none shadow-sm ring-1 ring-gray-200">
+            <CardHeader className="bg-gray-50/50 border-b py-3">
+              <CardTitle className="text-md font-bold">Deployment Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <Select label="Employer" value={formData.employerId} onChange={(e) => { handleChange("employerId", e.target.value); handleChange("jobDemandId", ""); }} options={employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))} required />
+              <Select label="Job Demand" value={formData.jobDemandId} disabled={!formData.employerId} onChange={(e) => handleChange("jobDemandId", e.target.value)} options={filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || "Select Job" }))} required />
+              <Select label="Sub-Agent" value={formData.subAgentId} onChange={(e) => handleChange("subAgentId", e.target.value)} options={subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))} />
+              <Select label="Registration Status" value={formData.status} onChange={(e) => handleChange("status", e.target.value)} options={[{ value: "pending", label: "Pending" }, { value: "processing", label: "Processing" }, { value: "active", label: "Active" }]} required />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* DOCUMENT CLASSIFICATION & CHECKLIST */}
+        <Card className="border-none shadow-sm ring-1 ring-gray-200 overflow-hidden">
+          <CardHeader className="bg-blue-600 text-white">
+            <div className="flex items-center gap-2">
+              <ShieldCheck size={20} />
+              <CardTitle className="text-lg text-white">Required Documentation & Classification</CardTitle>
             </div>
-            <Textarea label="Notes" placeholder="Additional remarks..." value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} />
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 lg:grid-cols-12">
+              
+              {/* LEFT COLUMN: STATIC CHECKLIST */}
+              <div className="lg:col-span-4 bg-slate-50 p-6 border-r border-gray-100">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Info size={16} className="text-blue-600" /> Required Checklist
+                </h3>
+                <ul className="space-y-3">
+                  {requiredChecklist.map((item, index) => (
+                    <li key={index} className="flex items-start gap-3 text-sm text-slate-600 font-medium leading-tight">
+                      <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* RIGHT COLUMN: UPLOAD CONTROLS */}
+              <div className="lg:col-span-8 p-6 space-y-6 bg-white">
+                <div className="p-5 bg-white border-2 border-dashed border-blue-100 rounded-xl space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select label="Document Category" options={documentCategories} value={currentDoc.category} onChange={(e) => setCurrentDoc({...currentDoc, category: e.target.value})} />
+                    <Input label="Custom Label (File Name)" placeholder="e.g. Front Page" value={currentDoc.name} onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-bold text-gray-700">Choose File</label>
+                    <input id="worker-file-input" type="file" className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer transition-all" onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} />
+                  </div>
+                  <button 
+                    type="button" 
+                    disabled={!currentDoc.file || !currentDoc.name} 
+                    onClick={handleAddDocument}
+                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md
+                      ${(!currentDoc.file || !currentDoc.name) 
+                        ? "bg-gray-100 text-gray-400 cursor-not-allowed" 
+                        : "bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.98]"}`}
+                  >
+                    <Upload size={18} /> Attach to Profile
+                  </button>
+                </div>
+
+                {/* QUEUED LIST */}
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Attached Files</p>
+                  {documents.length > 0 ? documents.map((doc, i) => (
+                    <div key={i} className="flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 border-l-green-500 animate-in fade-in slide-in-from-left-2">
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2 size={18} className="text-green-500" />
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">{doc.name}</p>
+                          <p className="text-[10px] text-gray-500 uppercase">{doc.category} • {doc.file?.name}</p>
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => setDocuments(documents.filter((_, idx) => idx !== i))} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                        <X size={18} />
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="text-center py-6 border border-dotted border-gray-200 rounded-lg text-gray-400 text-sm">
+                      No documents added yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="p-6 bg-slate-50 border-t">
+              <Textarea label="Additional Background Notes" placeholder="Mention any special remarks..." value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} />
+            </div>
           </CardContent>
         </Card>
 
-        <div className="flex gap-3">
-          <Button type="submit" className="flex-1 bg-blue-600 text-white hover:bg-blue-700">Register Worker</Button>
-          <Button type="button" variant="outline" onClick={onNavigate} className="flex-1">Cancel</Button>
+        {/* SUBMIT BUTTONS */}
+        <div className="flex gap-4">
+          <Button type="submit" className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 h-14 text-lg font-bold rounded-xl shadow-lg transition-all active:scale-[0.99]">Register Worker</Button>
+          <Button type="button" variant="outline" onClick={onNavigate} className="flex-1 h-14 font-bold rounded-xl">Cancel</Button>
         </div>
       </form>
     </div>
