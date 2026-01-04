@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 
 /**
  * ADD WORKER
+ * Handles initial registration, file uploads, and default timeline creation.
  */
 exports.addWorker = async (req, res) => {
   try {
@@ -13,6 +14,7 @@ exports.addWorker = async (req, res) => {
       passportNumber,
       contact,
       address,
+      email, // Ensure email is extracted
       country,
       employerId,
       jobDemandId,
@@ -28,7 +30,7 @@ exports.addWorker = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Passport number already exists.' });
     }
 
-    // 2. Auth Check (Critical for the 'createdBy' field in your model)
+    // 2. Auth Check
     const creatorId = req.user?.userId;
     const companyId = req.user?.companyId;
 
@@ -39,29 +41,32 @@ exports.addWorker = async (req, res) => {
     // 3. Document Handling
     const documentFiles = req.files
       ? req.files.map((file) => ({
-        name: file.originalname,
-        path: file.path,
-        category: 'other',
-        uploadedAt: new Date()
-      }))
+          name: file.originalname,
+          path: file.path,
+          category: 'other',
+          uploadedAt: new Date()
+        }))
       : [];
 
-    // 4. Default Timeline (Matching your 11-stage enum if possible)
+    // 4. Default Timeline
     const defaultTimeline = [
       { stage: 'document-collection', status: 'completed', date: new Date() },
       { stage: 'document-verification', status: 'in-progress', date: new Date() },
+      { stage: 'medical-checkup', status: 'pending', date: new Date() },
+      { stage: 'visa-processing', status: 'pending', date: new Date() },
     ];
 
     const newWorker = new Worker({
       name,
-      dob: new Date(dob),
+      dob: dob ? new Date(dob) : null,
       passportNumber,
       contact,
       address,
+      email,
       country: country || 'Nepal',
       employerId: employerId || null,
       jobDemandId: jobDemandId || null,
-      subAgentId: subAgentId || null, // Reference to 'SubAgent' collection
+      subAgentId: subAgentId || null,
       status: status || 'pending',
       currentStage: currentStage || 'document-collection',
       notes,
@@ -74,9 +79,8 @@ exports.addWorker = async (req, res) => {
 
     await newWorker.save();
 
-    // Populate before sending back to frontend
     const populated = await Worker.findById(newWorker._id)
-      .populate('employerId', 'name employerName')
+      .populate('employerId', 'name employerName companyName')
       .populate('subAgentId', 'name')
       .populate('createdBy', 'fullName');
 
@@ -96,12 +100,11 @@ exports.addWorker = async (req, res) => {
  */
 exports.getAllWorkers = async (req, res) => {
   try {
-    // We use .lean() to prevent Mongoose from trying to validate instances of deleted refs
     const workers = await Worker.find()
       .populate('employerId', 'name employerName companyName')
-      .populate('subAgentId', 'name') // Pulls 'name' from SubAgent model
+      .populate('subAgentId', 'name')
       .populate('jobDemandId', 'title jobTitle')
-      .populate('createdBy', 'fullName') // Pulls 'fullName' from User model
+      .populate('createdBy', 'fullName')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -112,6 +115,30 @@ exports.getAllWorkers = async (req, res) => {
     });
   } catch (error) {
     console.error("Get All Workers Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * GET WORKER BY ID
+ * Crucial for the Details Page
+ */
+exports.getWorkerById = async (req, res) => {
+  try {
+    const worker = await Worker.findById(req.params.id)
+      .populate('employerId', 'name employerName companyName')
+      .populate('subAgentId', 'name')
+      .populate('jobDemandId', 'title jobTitle')
+      .populate('createdBy', 'fullName')
+      .lean();
+
+    if (!worker) {
+      return res.status(404).json({ success: false, message: 'Worker not found' });
+    }
+
+    res.status(200).json({ success: true, data: worker });
+  } catch (error) {
+    console.error("Get Worker Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -128,16 +155,15 @@ exports.updateWorker = async (req, res) => {
       updateData.dob = new Date(req.body.dob);
     }
 
-    // Handle new file uploads if any
+    // Handle new file uploads
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file) => ({
         name: file.originalname,
         path: file.path,
         uploadedAt: new Date()
       }));
-
-      // If updating documents, we use $push
-      delete updateData.documents; // Prevent overwriting array
+      
+      delete updateData.documents; 
       updateData.$push = { documents: { $each: newDocs } };
     }
 
@@ -146,10 +172,9 @@ exports.updateWorker = async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     )
-      .populate('employerId', 'name employerName')
+      .populate('employerId', 'name employerName companyName')
       .populate('subAgentId', 'name')
-      .populate('jobDemandId', 'title')
-      .populate('createdBy', 'fullName');
+      .populate('jobDemandId', 'title jobTitle');
 
     if (!updatedWorker) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
@@ -158,6 +183,39 @@ exports.updateWorker = async (req, res) => {
     res.status(200).json({ success: true, data: updatedWorker });
   } catch (error) {
     console.error("Update Worker Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * UPDATE WORKER STAGE (The Timeline "Action" dropdown trigger)
+ */
+exports.updateWorkerStage = async (req, res) => {
+  try {
+    const { id, stageId } = req.params;
+    const { status } = req.body;
+
+    const updatedWorker = await Worker.findOneAndUpdate(
+      { _id: id, "stageTimeline._id": stageId },
+      { 
+        $set: { 
+          "stageTimeline.$.status": status,
+          "stageTimeline.$.date": new Date() 
+        } 
+      },
+      { new: true }
+    )
+    .populate('employerId', 'name employerName companyName')
+    .populate('subAgentId', 'name')
+    .populate('jobDemandId', 'title jobTitle');
+
+    if (!updatedWorker) {
+      return res.status(404).json({ success: false, message: 'Worker or Stage not found' });
+    }
+
+    res.status(200).json({ success: true, data: updatedWorker });
+  } catch (error) {
+    console.error("Update Stage Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
