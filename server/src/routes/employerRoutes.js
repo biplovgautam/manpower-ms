@@ -3,8 +3,9 @@ const router = express.Router();
 const { 
   createEmployer, 
   getEmployers,
-  updateEmployer, // New
-  deleteEmployer  // New
+  getEmployerDetails, // Imported new function
+  updateEmployer, 
+  deleteEmployer 
 } = require('../controllers/employerController');
 
 const { protect } = require('../middleware/auth');
@@ -18,6 +19,7 @@ router.route('/')
 
 // Routes that require an ID
 router.route('/:id')
+  .get(getEmployerDetails) // Added GET for detail view
   .put(updateEmployer)
   .delete(deleteEmployer);
 

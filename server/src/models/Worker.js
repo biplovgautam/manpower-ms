@@ -21,7 +21,7 @@ const WorkerSchema = new mongoose.Schema({
   },
   subAgentId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', 
+    ref: 'SubAgent', 
   },
 
   companyId: {

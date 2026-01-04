@@ -1,7 +1,9 @@
 const Employer = require('../models/Employers');
+const JobDemand = require('../models/JobDemand'); // Verify this path/filename
+const Worker = require('../models/Worker');     // Verify this path/filename
 const { StatusCodes } = require('http-status-codes');
 
-// @desc    Get all employers for a specific company
+// @desc    Get all employers for a specific company (List View)
 exports.getEmployers = async (req, res) => {
   try {
     if (!req.user || !req.user.companyId) {
@@ -26,6 +28,39 @@ exports.getEmployers = async (req, res) => {
       success: false,
       error: error.message || 'Internal Server Error',
     });
+  }
+};
+
+// @desc    Get single employer with Job Demands and Workers (Detail View)
+exports.getEmployerDetails = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const employer = await Employer.findOne({ 
+      _id: id, 
+      companyId: req.user.companyId 
+    }).populate('createdBy', 'fullName');
+
+    if (!employer) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
+    }
+
+    // FIX: Changed 'employer: id' to 'employerId: id' to match your JobDemand model
+    const demands = await JobDemand.find({ employerId: id }).sort({ createdAt: -1 });
+
+    // This matches your Worker model ('employerId')
+    const workers = await Worker.find({ employerId: id }).sort({ createdAt: -1 });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        ...employer._doc,
+        demands, // Now will contain data
+        workers  // Now will contain data
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -56,12 +91,11 @@ exports.createEmployer = async (req, res) => {
   }
 };
 
-// @desc    Update an employer (The missing function)
+// @desc    Update an employer
 exports.updateEmployer = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if employer exists and belongs to the user's company
     let employer = await Employer.findOne({ 
       _id: id, 
       companyId: req.user.companyId 
@@ -74,7 +108,6 @@ exports.updateEmployer = async (req, res) => {
       });
     }
 
-    // Perform the update
     employer = await Employer.findByIdAndUpdate(
       id, 
       req.body, 

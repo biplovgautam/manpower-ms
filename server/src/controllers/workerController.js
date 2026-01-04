@@ -1,118 +1,155 @@
 const Worker = require('../models/Worker');
+const SubAgent = require('../models/SubAgent');
 const mongoose = require('mongoose');
 
+/**
+ * ADD WORKER
+ */
 exports.addWorker = async (req, res) => {
   try {
-    const { passportNumber, dob, country, status, currentStage, employerId, jobDemandId, subAgentId, notes } = req.body;
+    const {
+      name,
+      dob,
+      passportNumber,
+      contact,
+      address,
+      country,
+      employerId,
+      jobDemandId,
+      subAgentId,
+      status,
+      currentStage,
+      notes,
+    } = req.body;
 
-    // 1. Authentication Check
-    const creatorId = req.user.userId;
-    const companyId = req.user.companyId;
-
-    if (!creatorId || !companyId) {
-      return res.status(401).json({ success: false, message: 'Authentication failed.' });
-    }
-
-    // 2. Duplicate Check
+    // 1. Duplicate Check
     const existingWorker = await Worker.findOne({ passportNumber });
     if (existingWorker) {
-      return res.status(400).json({ success: false, message: 'Passport number already registered.' });
+      return res.status(400).json({ success: false, message: 'Passport number already exists.' });
     }
 
-    // 3. Handle Categorized Documents
-    // We expect req.body.documentMetadata to be a stringified array from the frontend
-    let documentFiles = [];
-    if (req.files && req.files.length > 0) {
-      const metadata = req.body.documentMetadata ? JSON.parse(req.body.documentMetadata) : [];
-      
-      documentFiles = req.files.map((file, index) => ({
-        category: metadata[index]?.category || 'other',
-        name: metadata[index]?.name || file.originalname,
-        fileName: file.originalname,
-        fileSize: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-        fileUrl: file.path, // Path from Multer
-        uploadedAt: new Date(),
-        status: 'pending'
-      }));
+    // 2. Auth Check (Critical for the 'createdBy' field in your model)
+    const creatorId = req.user?.userId;
+    const companyId = req.user?.companyId;
+
+    if (!creatorId) {
+      return res.status(401).json({ success: false, message: 'User authentication failed.' });
     }
 
-    // 4. Detailed Stage Timeline (11 Stages)
-    const detailedTimeline = [
-      { stage: 'document-collection', status: 'in-progress' },
-      { stage: 'document-verification', status: 'pending' },
-      { stage: 'interview', status: 'pending' },
-      { stage: 'medical-examination', status: 'pending' },
-      { stage: 'police-clearance', status: 'pending' },
-      { stage: 'training', status: 'pending' },
-      { stage: 'visa-application', status: 'pending' },
-      { stage: 'visa-approval', status: 'pending' },
-      { stage: 'ticket-booking', status: 'pending' },
-      { stage: 'pre-departure-orientation', status: 'pending' },
-      { stage: 'deployed', status: 'pending' },
+    // 3. Document Handling
+    const documentFiles = req.files
+      ? req.files.map((file) => ({
+        name: file.originalname,
+        path: file.path,
+        category: 'other',
+        uploadedAt: new Date()
+      }))
+      : [];
+
+    // 4. Default Timeline (Matching your 11-stage enum if possible)
+    const defaultTimeline = [
+      { stage: 'document-collection', status: 'completed', date: new Date() },
+      { stage: 'document-verification', status: 'in-progress', date: new Date() },
     ];
 
-    // 5. Create Worker
     const newWorker = new Worker({
-      name: req.body.name,
-      dob: dob ? new Date(dob) : null,
+      name,
+      dob: new Date(dob),
       passportNumber,
-      contact: req.body.contact,
-      address: req.body.address,
+      contact,
+      address,
       country: country || 'Nepal',
+      employerId: employerId || null,
+      jobDemandId: jobDemandId || null,
+      subAgentId: subAgentId || null, // Reference to 'SubAgent' collection
       status: status || 'pending',
       currentStage: currentStage || 'document-collection',
       notes,
-      
-      // Relationship IDs
-      employerId: employerId ? new mongoose.Types.ObjectId(employerId) : null,
-      jobDemandId: jobDemandId ? new mongoose.Types.ObjectId(jobDemandId) : null,
-      subAgentId: subAgentId ? new mongoose.Types.ObjectId(subAgentId) : null,
-      
-      // Categorized Data
       documents: documentFiles,
-      stageTimeline: detailedTimeline,
-      
-      // Ownership
-      createdBy: new mongoose.Types.ObjectId(creatorId),
-      companyId: new mongoose.Types.ObjectId(companyId),
-      assignedTo: new mongoose.Types.ObjectId(creatorId)
+      stageTimeline: defaultTimeline,
+      createdBy: creatorId,
+      companyId: companyId,
+      assignedTo: creatorId
     });
 
     await newWorker.save();
-    res.status(201).json({ success: true, data: newWorker });
 
+    // Populate before sending back to frontend
+    const populated = await Worker.findById(newWorker._id)
+      .populate('employerId', 'name employerName')
+      .populate('subAgentId', 'name')
+      .populate('createdBy', 'fullName');
+
+    res.status(201).json({
+      success: true,
+      message: 'Worker registered successfully',
+      data: populated,
+    });
   } catch (error) {
     console.error("Add Worker Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
+/**
+ * GET ALL WORKERS
+ */
 exports.getAllWorkers = async (req, res) => {
   try {
+    // We use .lean() to prevent Mongoose from trying to validate instances of deleted refs
     const workers = await Worker.find()
-      .populate('employerId', 'name employerName companyName') // Added companyName just in case
-      .populate('subAgentId', 'name agentName')
+      .populate('employerId', 'name employerName companyName')
+      .populate('subAgentId', 'name') // Pulls 'name' from SubAgent model
       .populate('jobDemandId', 'title jobTitle')
-      .sort({ createdAt: -1 });
+      .populate('createdBy', 'fullName') // Pulls 'fullName' from User model
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.status(200).json({ success: true, data: workers });
+    res.status(200).json({
+      success: true,
+      count: workers.length,
+      data: workers
+    });
   } catch (error) {
+    console.error("Get All Workers Error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
+/**
+ * UPDATE WORKER
+ */
 exports.updateWorker = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = { ...req.body };
 
-    if (req.body.dob) updateData.dob = new Date(req.body.dob);
+    if (req.body.dob) {
+      updateData.dob = new Date(req.body.dob);
+    }
+
+    // Handle new file uploads if any
+    if (req.files && req.files.length > 0) {
+      const newDocs = req.files.map((file) => ({
+        name: file.originalname,
+        path: file.path,
+        uploadedAt: new Date()
+      }));
+
+      // If updating documents, we use $push
+      delete updateData.documents; // Prevent overwriting array
+      updateData.$push = { documents: { $each: newDocs } };
+    }
 
     const updatedWorker = await Worker.findByIdAndUpdate(
       id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('employerId', 'name employerName companyName');
+    )
+      .populate('employerId', 'name employerName')
+      .populate('subAgentId', 'name')
+      .populate('jobDemandId', 'title')
+      .populate('createdBy', 'fullName');
 
     if (!updatedWorker) {
       return res.status(404).json({ success: false, message: 'Worker not found' });
@@ -120,32 +157,7 @@ exports.updateWorker = async (req, res) => {
 
     res.status(200).json({ success: true, data: updatedWorker });
   } catch (error) {
+    console.error("Update Worker Error:", error);
     res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// RUN THIS ONCE TO CLEAN UP OLD DATA
-exports.fixWorkerData = async (req, res) => {
-  try {
-    const workers = await Worker.find({});
-    let updatedCount = 0;
-
-    for (let worker of workers) {
-      // Use findByIdAndUpdate to bypass the full .save() validation if needed
-      await Worker.findByIdAndUpdate(worker._id, {
-        createdBy: new mongoose.Types.ObjectId(worker.createdBy),
-        companyId: new mongoose.Types.ObjectId(worker.companyId),
-        assignedTo: worker.assignedTo ? new mongoose.Types.ObjectId(worker.assignedTo) : worker.createdBy
-      });
-      updatedCount++;
-    }
-
-    res.status(200).json({
-      success: true,
-      msg: `Successfully converted ${updatedCount} workers to ObjectId format.`
-    });
-  } catch (error) {
-    console.error("Fix Data Error:", error);
-    res.status(500).json({ error: error.message });
   }
 };
