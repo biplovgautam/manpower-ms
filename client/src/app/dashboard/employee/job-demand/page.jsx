@@ -1,14 +1,16 @@
 "use client";
 
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation'; // Added useSearchParams
+import { useCallback, useEffect, useState, Suspense } from 'react'; // Added Suspense
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 import { JobDemandDetailsPage } from '../../../../components/Employee/JobDemandDetailsPage';
 import { JobDemandListPage } from '../../../../components/Employee/JobDemandListPage';
 
-export default function JobDemandsPage() {
+function JobDemandsContent() {
     const router = useRouter();
+    const searchParams = useSearchParams(); // Hook to read URL params
+    
     const [view, setView] = useState('list');
     const [isLoading, setIsLoading] = useState(true);
     const [jobDemands, setJobDemands] = useState([]);
@@ -43,7 +45,6 @@ export default function JobDemandsPage() {
         }
     }, []);
 
-    // FULLY SYNCED WITH YOUR BACKEND CONTROLLER
     const fetchSingleJobDemand = async (id) => {
         if (!id) return;
         setIsLoading(true);
@@ -55,11 +56,9 @@ export default function JobDemandsPage() {
             const result = await res.json();
 
             if (result.success) {
-                // Your backend returns { success: true, data: jobDemand }
                 setSelectedJobDemand(result.data);
                 setView('details');
             } else {
-                // Your backend returns { success: false, error: "..." }
                 alert("Error: " + (result.error || "Failed to load details"));
             }
         } catch (error) {
@@ -87,11 +86,20 @@ export default function JobDemandsPage() {
         const loadInitialData = async () => {
             setIsLoading(true);
             await Promise.all([fetchJobDemands(token), fetchEmployers(token)]);
+            
+            // NAVIGATION LOGIC: Check for ?action=add
+            const action = searchParams.get('action');
+            if (action === 'add') {
+                setView('create');
+            } else {
+                setView('list');
+            }
+            
             setIsLoading(false);
         };
 
         loadInitialData();
-    }, [router, fetchJobDemands, fetchEmployers]);
+    }, [router, searchParams, fetchJobDemands, fetchEmployers]);
 
     const handleNavigate = (targetView, data = null) => {
         if (targetView === 'details') {
@@ -103,6 +111,8 @@ export default function JobDemandsPage() {
         } else if (targetView === 'list') {
             setSelectedJobDemand(null);
             setView('list');
+            // Clear URL params when going back to list
+            router.replace('/dashboard/employee/job-demand');
         } else {
             if (data) setSelectedJobDemand(data);
             setView(targetView);
@@ -123,7 +133,7 @@ export default function JobDemandsPage() {
             const result = await res.json();
             if (result.success) {
                 await fetchJobDemands(token);
-                setView('list');
+                handleNavigate('list');
             } else {
                 alert(result.error);
             }
@@ -146,8 +156,7 @@ export default function JobDemandsPage() {
             const result = await res.json();
             if (result.success) {
                 await fetchJobDemands(token);
-                setView('list');
-                setSelectedJobDemand(null);
+                handleNavigate('list');
             }
         } catch (error) {
             console.error("Update Error:", error);
@@ -222,5 +231,14 @@ export default function JobDemandsPage() {
                 )}
             </div>
         </DashboardLayout>
+    );
+}
+
+// Wrap in Suspense to handle useSearchParams in Next.js
+export default function JobDemandsPage() {
+    return (
+        <Suspense fallback={<div>Loading Job Demands...</div>}>
+            <JobDemandsContent />
+        </Suspense>
     );
 }

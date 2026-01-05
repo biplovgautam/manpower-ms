@@ -27,29 +27,36 @@ export default function EmployeePage() {
 
     /**
      * Updated Navigation Handler
-     * Explicitly maps incoming paths to your singular folder structure
+     * Now supports query parameters (like ?action=add)
      */
     const handleNavigation = (path) => {
         if (!path) return;
         
         let targetPath = path;
 
-        // 1. Map Employer paths (Specifically for your first card)
+        // NEW LOGIC: If the path already includes a query parameter (?),
+        // we push it directly to preserve the 'action' (e.g., ?action=add)
+        if (path.includes('?')) {
+            router.push(path);
+            return;
+        }
+
+        // 1. Map Employer paths
         if (path.includes('employer')) {
             targetPath = '/dashboard/employee/employer';
         }
 
-        // 2. Map 'job-demands' (plural) to 'job-demand' (singular)
+        // 2. Map 'job-demand' paths
         else if (path.includes('job-demand')) {
             targetPath = '/dashboard/employee/job-demand';
         }
 
-        // 3. Map 'workers' (plural) to 'worker' (singular)
+        // 3. Map 'worker' paths
         else if (path.includes('worker')) {
             targetPath = '/dashboard/employee/worker';
         }
 
-        // 4. Map 'sub-agents' variations to 'subagent'
+        // 4. Map 'subagent' variations
         else if (path.includes('subagent') || path.includes('sub-agent')) {
             targetPath = '/dashboard/employee/subagent';
         }

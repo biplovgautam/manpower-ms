@@ -121,6 +121,7 @@ export function EmployeeDashboard({
                 </div>
             </div>
 
+            {/* Top Stat Cards - Navigate to Lists */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
                 <StatCard title="Employers" value={stats.employersAdded} icon={<Building2 size={28} />} gradient="from-indigo-500 to-purple-600" onClick={() => onNavigate('/dashboard/employee/employer')} />
                 <StatCard title="Job Demands" value={stats.activeJobDemands} icon={<Briefcase size={28} />} gradient="from-purple-500 to-pink-600" onClick={() => onNavigate('/dashboard/employee/job-demand')} />
@@ -129,7 +130,6 @@ export function EmployeeDashboard({
                 <StatCard title="Sub-Agents" value={stats.activeSubAgents} icon={<Users size={28} />} gradient="from-cyan-500 to-blue-600" onClick={() => onNavigate('/dashboard/employee/subagent')} />
             </div>
 
-            {/* Operation Notes Section */}
             <Card className="border-none shadow-xl overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between bg-gray-50/80 border-b border-gray-100">
                     <div className="flex items-center gap-3">
@@ -145,7 +145,7 @@ export function EmployeeDashboard({
                     {isAddingNote && (
                         <div className="mb-8 p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100">
                             <div className="grid md:grid-cols-4 gap-4 mb-4">
-                                <select value={noteCategory} onChange={e => setNoteCategory(e.target.value)} className="px-4 py-2 rounded-lg border border-gray-300 bg-white">
+                                <select value={noteCategory} onChange={e => setNoteCategory(e.target.value)} className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-gray-900">
                                     {noteCategories.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
                                 </select>
                                 <div className="md:col-span-3">
@@ -175,17 +175,17 @@ export function EmployeeDashboard({
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* QUICK ACTIONS SECTION - Routing Fixed Here */}
+                {/* QUICK ACTIONS SECTION - Routing Params Added Here */}
                 <Card className="shadow-xl border-2">
                     <CardHeader>
                         <CardTitle className="text-xl font-bold">Quick Actions</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 gap-4">
-                            {/* Card 1: Add Employer */}
+                            {/* Card 1: Add Employer - Opens form directly */}
                             <Button 
                                 size="lg" 
-                                onClick={() => onNavigate('/dashboard/employee/employer')} 
+                                onClick={() => onNavigate('/dashboard/employee/employer?action=add')} 
                                 className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
                             >
                                 <Building2 className="h-7 w-7 mr-4 text-white shrink-0" />
@@ -195,9 +195,10 @@ export function EmployeeDashboard({
                                 </div>
                             </Button>
 
+                            {/* Card 2: Create Demand - Assuming similar logic for demand page */}
                             <Button 
                                 size="lg" 
-                                onClick={() => onNavigate('/dashboard/employee/job-demand')} 
+                                onClick={() => onNavigate('/dashboard/employee/job-demand?action=add')} 
                                 className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
                             >
                                 <Briefcase className="h-7 w-7 mr-4 text-white shrink-0" />

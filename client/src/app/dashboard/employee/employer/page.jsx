@@ -1,14 +1,16 @@
 "use client";
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { EmployerListPage } from '../../../../components/Employee/EmployerListPage';
 import { AddEmployerPage } from '../../../../components/Employee/AddEmployer';
 import { EmployerDetailsPage } from '../../../../components/Employee/EmployerDetailPage';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 
-export default function EmployersPage() {
+function EmployersContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    
     const [view, setView] = useState('list'); // views: 'list', 'add', 'details', 'edit', 'createDemand'
     const [employers, setEmployers] = useState([]);
     const [selectedEmployer, setSelectedEmployer] = useState(null);
@@ -18,13 +20,21 @@ export default function EmployersPage() {
     useEffect(() => {
         const token = localStorage.getItem('token');
         const role = localStorage.getItem('userRole');
+        
         if (!token || role !== 'employee') {
             router.push('/login');
             return;
         }
+        
         setUserData({ fullName: localStorage.getItem('fullName'), role });
         fetchEmployers(token);
-    }, [router]);
+
+        // CHECK FOR ACTION PARAMETER
+        const action = searchParams.get('action');
+        if (action === 'add') {
+            setView('add');
+        }
+    }, [router, searchParams]);
 
     const fetchEmployers = async (token) => {
         try {
@@ -59,7 +69,6 @@ export default function EmployersPage() {
     const handleSaveDemand = async (submissionData) => {
         try {
             const token = localStorage.getItem('token');
-            // Find the ID of the employer selected in the form
             const targetEmployer = employers.find(e => e.employerName === submissionData.employerName);
             
             const res = await fetch('http://localhost:5000/api/demands', {
@@ -75,7 +84,6 @@ export default function EmployersPage() {
             });
             const result = await res.json();
             if (result.success) {
-                // Refresh full data for this employer and return to details view
                 handleSelectEmployer(targetEmployer || selectedEmployer);
             }
         } catch (error) {
@@ -91,7 +99,12 @@ export default function EmployersPage() {
             body: JSON.stringify(formData)
         });
         const result = await res.json();
-        if (res.ok && result.success) { fetchEmployers(token); setView('list'); }
+        if (res.ok && result.success) { 
+            fetchEmployers(token); 
+            setView('list'); 
+            // Clear URL params after saving
+            router.replace('/dashboard/employee/employer');
+        }
     };
 
     const handleUpdate = async (formData) => {
@@ -142,5 +155,14 @@ export default function EmployersPage() {
                 />
             )}
         </DashboardLayout>
+    );
+}
+
+// Main Export with Suspense wrapper
+export default function EmployersPage() {
+    return (
+        <Suspense fallback={<div className="p-8">Loading Employer Management...</div>}>
+            <EmployersContent />
+        </Suspense>
     );
 }
