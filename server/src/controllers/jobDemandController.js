@@ -24,7 +24,38 @@ exports.getJobDemands = async (req, res) => {
   }
 };
 
-// @desc    Create new Job Demand (Lookup by Name)
+// @desc    Get Single Job Demand (WITH POPULATED WORKERS)
+// @desc    Get Single Job Demand (WITH POPULATED WORKERS)
+exports.getJobDemandById = async (req, res) => {
+  try {
+    const jobDemand = await JobDemand.findOne({
+      _id: req.params.id,
+      companyId: req.user.companyId
+    })
+      .populate('employerId', 'employerName')
+      .populate({
+        path: 'workers',
+        // ADDED passportNumber to the select string below
+        select: 'name fullName status currentStage passportNumber'
+      });
+
+    if (!jobDemand) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        error: "Job Demand not found"
+      });
+    }
+
+    res.status(StatusCodes.OK).json({ success: true, data: jobDemand });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: error.message
+    });
+  }
+};
+
+// @desc    Create new Job Demand
 exports.createJobDemand = async (req, res) => {
   try {
     const { employerName, ...otherData } = req.body;
@@ -60,7 +91,7 @@ exports.createJobDemand = async (req, res) => {
   }
 };
 
-// @desc    Update Job Demand (With optional Name Lookup)
+// @desc    Update Job Demand
 exports.updateJobDemand = async (req, res) => {
   try {
     const { id } = req.params;
@@ -137,7 +168,6 @@ exports.deleteJobDemand = async (req, res) => {
 };
 
 // @desc    Get Job Demands for a specific employer
-// MOVED THIS OUTSIDE OF THE DELETE FUNCTION
 exports.getEmployerJobDemands = async (req, res) => {
   try {
     const { employerId } = req.params;

@@ -26,7 +26,7 @@ import {
 export function JobDemandListPage({
   jobDemands = [],
   onNavigate,
-  onSelectJobDemand,
+  // Remove onSelectJobDemand from here
   onDelete
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -112,7 +112,8 @@ export function JobDemandListPage({
                   filtered.map((jd) => (
                     <TableRow
                       key={jd._id}
-                      onClick={() => onSelectJobDemand(jd)}
+                      // CHANGE THIS LINE: use onNavigate instead of onSelectJobDemand
+                      onClick={() => onNavigate('details', jd)}
                       className="group hover:bg-indigo-50/30 cursor-pointer transition-colors border-b border-slate-50 last:border-0"
                     >
                       <TableCell className="py-5 pl-6">

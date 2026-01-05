@@ -15,6 +15,12 @@ const JobDemandSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Please specify the number of workers'],
   },
+  // ADDED: The workers field to store an array of Worker IDs
+  // This allows the .populate('workers') call in your controller to work
+  workers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Worker', // Ensure this matches exactly with your Worker model name
+  }],
   description: {
     type: String,
     required: [true, 'Please add a description'],
@@ -33,12 +39,12 @@ const JobDemandSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['open', 'pending', 'in-progress' , 'closed'],
+    enum: ['open', 'pending', 'in-progress', 'closed'],
     default: 'open',
   },
   documents: [{
     name: String,
-    url: String, // You would store the path to the file here
+    url: String,
   }],
   companyId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -50,6 +56,11 @@ const JobDemandSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
   },
-}, { timestamps: true });
+}, {
+  timestamps: true,
+  // If you decide to use Virtuals later, these options are helpful:
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
+});
 
 module.exports = mongoose.model('JobDemand', JobDemandSchema);

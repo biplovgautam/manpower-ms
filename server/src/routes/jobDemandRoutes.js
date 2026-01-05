@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     getJobDemands,
+    getJobDemandById, // Added this
     createJobDemand,
     updateJobDemand,
     deleteJobDemand,
@@ -14,6 +15,7 @@ router.route('/')
     .post(protect, createJobDemand);
 
 router.route('/:id')
+    .get(protect, getJobDemandById) // Added this to fetch single demand with workers
     .put(protect, updateJobDemand)
     .delete(protect, deleteJobDemand);
 

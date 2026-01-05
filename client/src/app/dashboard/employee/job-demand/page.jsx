@@ -1,4 +1,5 @@
 "use client";
+
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
@@ -9,11 +10,11 @@ import { JobDemandListPage } from '../../../../components/Employee/JobDemandList
 export default function JobDemandsPage() {
     const router = useRouter();
     const [view, setView] = useState('list');
+    const [isLoading, setIsLoading] = useState(true);
     const [jobDemands, setJobDemands] = useState([]);
     const [employers, setEmployers] = useState([]);
     const [selectedJobDemand, setSelectedJobDemand] = useState(null);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
-    const [isLoading, setIsLoading] = useState(true);
 
     const API_URL = 'http://localhost:5000/api/job-demands';
     const EMPLOYERS_API_URL = 'http://localhost:5000/api/employers';
@@ -42,6 +43,33 @@ export default function JobDemandsPage() {
         }
     }, []);
 
+    // FULLY SYNCED WITH YOUR BACKEND CONTROLLER
+    const fetchSingleJobDemand = async (id) => {
+        if (!id) return;
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_URL}/${id}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                // Your backend returns { success: true, data: jobDemand }
+                setSelectedJobDemand(result.data);
+                setView('details');
+            } else {
+                // Your backend returns { success: false, error: "..." }
+                alert("Error: " + (result.error || "Failed to load details"));
+            }
+        } catch (error) {
+            console.error("Fetch Error:", error);
+            alert("Network error. Is the server running?");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         const role = localStorage.getItem('userRole');
@@ -56,13 +84,30 @@ export default function JobDemandsPage() {
             role
         });
 
-        const loadData = async () => {
+        const loadInitialData = async () => {
             setIsLoading(true);
             await Promise.all([fetchJobDemands(token), fetchEmployers(token)]);
             setIsLoading(false);
         };
-        loadData();
+
+        loadInitialData();
     }, [router, fetchJobDemands, fetchEmployers]);
+
+    const handleNavigate = (targetView, data = null) => {
+        if (targetView === 'details') {
+            const targetId = data?._id;
+            if (targetId) fetchSingleJobDemand(targetId);
+        } else if (targetView === 'edit' && data) {
+            setSelectedJobDemand(data);
+            setView('edit');
+        } else if (targetView === 'list') {
+            setSelectedJobDemand(null);
+            setView('list');
+        } else {
+            if (data) setSelectedJobDemand(data);
+            setView(targetView);
+        }
+    };
 
     const handleSave = async (formData) => {
         try {
@@ -75,16 +120,15 @@ export default function JobDemandsPage() {
                 },
                 body: JSON.stringify(formData)
             });
-
             const result = await res.json();
-            if (res.ok && result.success) {
+            if (result.success) {
                 await fetchJobDemands(token);
                 setView('list');
             } else {
-                alert(result.error || "Failed to save job demand");
+                alert(result.error);
             }
         } catch (error) {
-            console.error("Save error:", error);
+            console.error("Save Error:", error);
         }
     };
 
@@ -99,42 +143,33 @@ export default function JobDemandsPage() {
                 },
                 body: JSON.stringify(formData)
             });
-
             const result = await res.json();
-            if (res.ok && result.success) {
+            if (result.success) {
                 await fetchJobDemands(token);
                 setView('list');
                 setSelectedJobDemand(null);
-            } else {
-                alert(result.error || "Failed to update job demand");
             }
         } catch (error) {
-            console.error("Update error:", error);
+            console.error("Update Error:", error);
         }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this job demand?")) return;
-
+        if (!window.confirm("Delete this record?")) return;
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`${API_URL}/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-
-            if (res.ok) {
+            const result = await res.json();
+            if (result.success) {
                 fetchJobDemands(token);
                 setView('list');
             }
         } catch (error) {
-            console.error("Delete failed:", error);
+            console.error("Delete Error:", error);
         }
-    };
-
-    const handleNavigate = (targetView, data = null) => {
-        if (data) setSelectedJobDemand(data);
-        setView(targetView);
     };
 
     return (
@@ -142,12 +177,11 @@ export default function JobDemandsPage() {
             role="employee"
             userName={userData.fullName}
             currentPath="/dashboard/employee/job-demand"
-            onLogout={() => { localStorage.clear(); router.push('/login'); }}
         >
             <div className="container mx-auto p-4">
                 {isLoading ? (
                     <div className="flex justify-center items-center h-64">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
                     </div>
                 ) : (
                     <>
@@ -155,7 +189,6 @@ export default function JobDemandsPage() {
                             <JobDemandListPage
                                 jobDemands={jobDemands}
                                 onNavigate={handleNavigate}
-                                onSelectJobDemand={(jd) => handleNavigate('details', jd)}
                                 onDelete={handleDelete}
                             />
                         )}
@@ -178,7 +211,7 @@ export default function JobDemandsPage() {
                             />
                         )}
 
-                        {view === 'details' && (
+                        {view === 'details' && selectedJobDemand && (
                             <JobDemandDetailsPage
                                 jobDemand={selectedJobDemand}
                                 onNavigate={handleNavigate}
