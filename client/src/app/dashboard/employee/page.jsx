@@ -25,6 +25,38 @@ export default function EmployeePage() {
         setIsReady(true);
     }, [router]);
 
+    /**
+     * Updated Navigation Handler
+     * Explicitly maps incoming paths to your singular folder structure
+     */
+    const handleNavigation = (path) => {
+        if (!path) return;
+        
+        let targetPath = path;
+
+        // 1. Map Employer paths (Specifically for your first card)
+        if (path.includes('employer')) {
+            targetPath = '/dashboard/employee/employer';
+        }
+
+        // 2. Map 'job-demands' (plural) to 'job-demand' (singular)
+        else if (path.includes('job-demand')) {
+            targetPath = '/dashboard/employee/job-demand';
+        }
+
+        // 3. Map 'workers' (plural) to 'worker' (singular)
+        else if (path.includes('worker')) {
+            targetPath = '/dashboard/employee/worker';
+        }
+
+        // 4. Map 'sub-agents' variations to 'subagent'
+        else if (path.includes('subagent') || path.includes('sub-agent')) {
+            targetPath = '/dashboard/employee/subagent';
+        }
+            
+        router.push(targetPath);
+    };
+
     const handleLogout = () => {
         localStorage.clear();
         router.push('/login');
@@ -37,14 +69,11 @@ export default function EmployeePage() {
             role="employee"
             userName={userData.fullName}
             currentPath="/dashboard/employee"
-            onNavigate={(path) => router.push(path)}
+            onNavigate={handleNavigation}
             onLogout={handleLogout}
         >
-            {/* Rendering the EmployeeDashboard you provided. 
-        Note: We pass mock stats for now as requested.
-      */}
             <EmployeeDashboard
-                onNavigate={(path) => router.push(path)}
+                onNavigate={handleNavigation}
                 stats={{
                     employersAdded: 5,
                     activeJobDemands: 12,

@@ -3,10 +3,14 @@ import {
     Briefcase,
     Building2,
     Check,
-    Clock, FileText,
+    Clock, 
+    FileText,
     Trash2,
     UserCircle,
-    Users
+    Users,
+    Plus,
+    Edit,
+    X
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -16,7 +20,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 // Helper Component for Stats
 function StatCard({ title, value, icon, onClick, gradient = 'from-blue-500 to-blue-600' }) {
     return (
-        <Card onClick={onClick} className={`transition-all duration-300 hover:shadow-xl hover:-translate-y-2 ${onClick ? 'cursor-pointer' : ''}`}>
+        <Card 
+            onClick={onClick} 
+            className={`transition-all duration-300 hover:shadow-xl hover:-translate-y-2 ${onClick ? 'cursor-pointer' : ''}`}
+        >
             <CardContent className="flex items-center justify-between p-6">
                 <div>
                     <p className="text-sm font-medium text-gray-600">{title}</p>
@@ -55,9 +62,7 @@ export function EmployeeDashboard({
 }) {
     const [notes, setNotes] = useState(initialNotes);
     const [isAddingNote, setIsAddingNote] = useState(false);
-    const [editingNoteId, setEditingNoteId] = useState(null);
     const [newNoteContent, setNewNoteContent] = useState('');
-    const [editingNoteContent, setEditingNoteContent] = useState('');
     const [noteCategory, setNoteCategory] = useState('general');
 
     const noteCategories = [
@@ -106,7 +111,6 @@ export function EmployeeDashboard({
 
     return (
         <div className="space-y-8 p-4">
-            {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Employee Dashboard</h1>
@@ -117,16 +121,15 @@ export function EmployeeDashboard({
                 </div>
             </div>
 
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                <StatCard title="Employers" value={stats.employersAdded} icon={<Building2 size={28} />} gradient="from-indigo-500 to-purple-600" />
-                <StatCard title="Job Demands" value={stats.activeJobDemands} icon={<Briefcase size={28} />} gradient="from-purple-500 to-pink-600" />
-                <StatCard title="Processing" value={stats.workersInProcess} icon={<UserCircle size={28} />} gradient="from-emerald-500 to-teal-600" />
+                <StatCard title="Employers" value={stats.employersAdded} icon={<Building2 size={28} />} gradient="from-indigo-500 to-purple-600" onClick={() => onNavigate('/dashboard/employee/employer')} />
+                <StatCard title="Job Demands" value={stats.activeJobDemands} icon={<Briefcase size={28} />} gradient="from-purple-500 to-pink-600" onClick={() => onNavigate('/dashboard/employee/job-demand')} />
+                <StatCard title="Processing" value={stats.workersInProcess} icon={<UserCircle size={28} />} gradient="from-emerald-500 to-teal-600" onClick={() => onNavigate('/dashboard/employee/worker')} />
                 <StatCard title="Urgent Tasks" value={stats.tasksNeedingAttention} icon={<AlertCircle size={28} />} gradient="from-orange-500 to-red-600" />
-                <StatCard title="Sub-Agents" value={stats.activeSubAgents} icon={<Users size={28} />} gradient="from-cyan-500 to-blue-600" />
+                <StatCard title="Sub-Agents" value={stats.activeSubAgents} icon={<Users size={28} />} gradient="from-cyan-500 to-blue-600" onClick={() => onNavigate('/dashboard/employee/subagent')} />
             </div>
 
-            {/* Quick Notes */}
+            {/* Operation Notes Section */}
             <Card className="border-none shadow-xl overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between bg-gray-50/80 border-b border-gray-100">
                     <div className="flex items-center gap-3">
@@ -142,43 +145,28 @@ export function EmployeeDashboard({
                     {isAddingNote && (
                         <div className="mb-8 p-6 bg-indigo-50/50 rounded-2xl border border-indigo-100">
                             <div className="grid md:grid-cols-4 gap-4 mb-4">
-                                <select
-                                    value={noteCategory}
-                                    onChange={e => setNoteCategory(e.target.value)}
-                                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white"
-                                >
+                                <select value={noteCategory} onChange={e => setNoteCategory(e.target.value)} className="px-4 py-2 rounded-lg border border-gray-300 bg-white">
                                     {noteCategories.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
                                 </select>
                                 <div className="md:col-span-3">
-                                    <CustomTextarea
-                                        value={newNoteContent}
-                                        onChange={e => setNewNoteContent(e.target.value)}
-                                        placeholder="Describe the update or task..."
-                                    />
+                                    <CustomTextarea value={newNoteContent} onChange={e => setNewNoteContent(e.target.value)} placeholder="Describe the update or task..." />
                                 </div>
                             </div>
-                            <div className="flex justify-end">
-                                <Button onClick={addNote}>Save Update</Button>
-                            </div>
+                            <div className="flex justify-end"><Button onClick={addNote}>Save Update</Button></div>
                         </div>
                     )}
-
                     <div className="space-y-4">
                         {notes.map(note => (
                             <div key={note.id} className="p-5 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all">
                                 <div className="flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-3 mb-2">
-                                            <Badge className={getCategoryColor(note.category)}>
-                                                {note.category}
-                                            </Badge>
+                                            <Badge className={getCategoryColor(note.category)}>{note.category}</Badge>
                                             <span className="text-xs text-gray-500">{formatDate(note.updatedAt)}</span>
                                         </div>
                                         <p className="text-gray-800">{note.content}</p>
                                     </div>
-                                    <Button variant="ghost" className="text-red-500" onClick={() => deleteNote(note.id)}>
-                                        <Trash2 size={18} />
-                                    </Button>
+                                    <Button variant="ghost" className="text-red-500" onClick={() => deleteNote(note.id)}><Trash2 size={18} /></Button>
                                 </div>
                             </div>
                         ))}
@@ -186,23 +174,63 @@ export function EmployeeDashboard({
                 </CardContent>
             </Card>
 
-            {/* Bottom Actions and Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="shadow-lg border-none">
-                    <CardHeader><CardTitle>Management Links</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-4">
-                        <Button variant="outline" className="h-24 flex-col" onClick={() => onNavigate('/employee/add-employer')}>
-                            <Building2 className="mb-2" /> Add Employer
-                        </Button>
-                        <Button variant="outline" className="h-24 flex-col" onClick={() => onNavigate('/employee/job-demands')}>
-                            <Briefcase className="mb-2" /> New Demand
-                        </Button>
-                        <Button variant="outline" className="h-24 flex-col" onClick={() => onNavigate('/employee/workers')}>
-                            <UserCircle className="mb-2" /> Workers
-                        </Button>
-                        <Button variant="outline" className="h-24 flex-col" onClick={() => onNavigate('/employee/sub-agents')}>
-                            <Users className="mb-2" /> Sub-Agents
-                        </Button>
+                {/* QUICK ACTIONS SECTION - Routing Fixed Here */}
+                <Card className="shadow-xl border-2">
+                    <CardHeader>
+                        <CardTitle className="text-xl font-bold">Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 gap-4">
+                            {/* Card 1: Add Employer */}
+                            <Button 
+                                size="lg" 
+                                onClick={() => onNavigate('/dashboard/employee/employer')} 
+                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
+                            >
+                                <Building2 className="h-7 w-7 mr-4 text-white shrink-0" />
+                                <div>
+                                    <div className="font-bold text-lg">Add Employer</div>
+                                    <div className="text-sm opacity-80 font-normal">Register new company</div>
+                                </div>
+                            </Button>
+
+                            <Button 
+                                size="lg" 
+                                onClick={() => onNavigate('/dashboard/employee/job-demand')} 
+                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
+                            >
+                                <Briefcase className="h-7 w-7 mr-4 text-white shrink-0" />
+                                <div>
+                                    <div className="font-bold text-lg">Create Demand</div>
+                                    <div className="text-sm opacity-80 font-normal">New job opening</div>
+                                </div>
+                            </Button>
+
+                            <Button 
+                                size="lg" 
+                                onClick={() => onNavigate('/dashboard/employee/worker')} 
+                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
+                            >
+                                <UserCircle className="h-7 w-7 mr-4 text-white shrink-0" />
+                                <div>
+                                    <div className="font-bold text-lg">Manage Workers</div>
+                                    <div className="text-sm opacity-80 font-normal">Track progress</div>
+                                </div>
+                            </Button>
+
+                            <Button 
+                                size="lg" 
+                                onClick={() => onNavigate('/dashboard/employee/subagent')} 
+                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
+                            >
+                                <Users className="h-7 w-7 mr-4 text-white shrink-0" />
+                                <div>
+                                    <div className="font-bold text-lg">Sub-Agents</div>
+                                    <div className="text-sm opacity-80 font-normal">View & assign</div>
+                                </div>
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
 

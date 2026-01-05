@@ -1,14 +1,15 @@
 "use client";
+
 import {
     ArrowUpRight,
     Building2,
-    Edit2,
     Globe,
-    MapPin,
     Phone,
     Plus,
     Search,
-    Trash2
+    Briefcase,
+    Users,
+    Mail
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -24,7 +25,7 @@ import {
     TableRow,
 } from '../ui/table';
 
-export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer, onDelete }) {
+export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer }) {
     const [searchTerm, setSearchTerm] = useState('');
 
     const filtered = useMemo(() => {
@@ -37,12 +38,12 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
 
-            {/* 1. Header - Unified with Job Demand style */}
+            {/* Header Section */}
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
-                    <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Employers</h1>
+                    <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">My Employers</h1>
                     <p className="text-gray-500 mt-2 text-lg">
-                        Manage your global network of hiring partners.
+                        Manage your hiring partners, job demands, and placement stats.
                     </p>
                 </div>
                 <Button
@@ -54,11 +55,10 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
                 </Button>
             </div>
 
-            {/* 2. Main Data Table Card */}
+            {/* Main Data Table Card */}
             <Card className="border-none shadow-xl shadow-gray-100 overflow-hidden bg-white">
-                {/* Search Header Area */}
-                <div className="bg-white border-b px-6 py-5">
-                    <div className="relative max-w-md group">
+                <div className="bg-white border-b px-6 py-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="relative max-w-md w-full group">
                         <Search
                             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 group-focus-within:text-blue-500 transition-colors"
                             size={18}
@@ -70,6 +70,9 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    <div className="text-sm font-medium text-gray-500">
+                        Total Employers: <span className="text-blue-600 font-bold">{filtered.length}</span>
+                    </div>
                 </div>
 
                 <CardContent className="p-0">
@@ -77,37 +80,52 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
                         <Table>
                             <TableHeader className="bg-gray-50/50">
                                 <TableRow>
-                                    <TableHead className="w-[350px] py-4 pl-6 text-xs uppercase font-bold text-gray-500">Employer Profile</TableHead>
+                                    <TableHead className="w-[280px] py-4 pl-6 text-xs uppercase font-bold text-gray-500">Employer</TableHead>
+                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Contact Details</TableHead>
                                     <TableHead className="text-xs uppercase font-bold text-gray-500">Region</TableHead>
-                                    <TableHead className="text-xs uppercase font-bold text-gray-500">Contact</TableHead>
+                                    <TableHead className="text-xs uppercase font-bold text-gray-500 text-center">Demands</TableHead>
+                                    <TableHead className="text-xs uppercase font-bold text-gray-500 text-center">Hires</TableHead>
                                     <TableHead className="text-xs uppercase font-bold text-gray-500">Status</TableHead>
-                                    <TableHead className="text-right pr-6 text-xs uppercase font-bold text-gray-500">Actions</TableHead>
+                                    <TableHead className="w-[50px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {filtered.length > 0 ? (
                                     filtered.map((employer) => (
                                         <TableRow
-                                            key={employer._id}
-                                            className="group hover:bg-blue-50/30 cursor-pointer transition-all border-b border-gray-50 last:border-0"
+                                            key={employer._id || employer.id}
+                                            className="group hover:bg-blue-50/40 cursor-pointer transition-all border-b border-gray-50 last:border-0"
                                             onClick={() => onSelectEmployer(employer)}
                                         >
-                                            <TableCell className="py-4 pl-6">
+                                            {/* Profile Column */}
+                                            <TableCell className="py-5 pl-6">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                                                    <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-600 group-hover:text-white transition-all duration-300">
                                                         <Building2 size={18} />
                                                     </div>
-                                                    <div>
-                                                        <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                                            {employer.employerName}
-                                                        </p>
-                                                        <p className="text-sm text-gray-500 flex items-center mt-0.5">
-                                                            <MapPin size={12} className="mr-1" /> {employer.address || 'Global HQ'}
-                                                        </p>
-                                                    </div>
+                                                    <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                                        {employer.employerName || employer.name}
+                                                    </p>
                                                 </div>
                                             </TableCell>
 
+                                            {/* NEW: Dedicated Contact Column */}
+                                            <TableCell>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center text-sm font-medium text-gray-700">
+                                                        <Phone size={14} className="mr-2 text-blue-500/70" />
+                                                        {employer.contact || 'N/A'}
+                                                    </div>
+                                                    {employer.email && (
+                                                        <div className="flex items-center text-xs text-gray-400">
+                                                            <Mail size={12} className="mr-2" />
+                                                            {employer.email}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+
+                                            {/* Region Column */}
                                             <TableCell>
                                                 <div className="flex items-center gap-2 text-sm text-gray-700">
                                                     <Globe size={14} className="text-gray-400" />
@@ -115,13 +133,27 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
                                                 </div>
                                             </TableCell>
 
-                                            <TableCell>
-                                                <div className="flex items-center gap-2 text-sm text-gray-700 font-medium">
-                                                    <Phone size={14} className="text-blue-400" />
-                                                    {employer.contact}
+                                            {/* Demands Column */}
+                                            <TableCell className="text-center">
+                                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100">
+                                                    <Briefcase size={14} />
+                                                    <span className="font-mono font-bold">
+                                                        {employer.totalJobDemands || 0}
+                                                    </span>
                                                 </div>
                                             </TableCell>
 
+                                            {/* Hires Column */}
+                                            <TableCell className="text-center">
+                                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100">
+                                                    <Users size={14} />
+                                                    <span className="font-mono font-bold">
+                                                        {employer.totalHires || 0}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+
+                                            {/* Status Column */}
                                             <TableCell>
                                                 <Badge
                                                     variant={employer.status === 'active' || !employer.status ? 'success' : 'secondary'}
@@ -131,47 +163,21 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer,
                                                 </Badge>
                                             </TableCell>
 
-                                            <TableCell className="text-right pr-6" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex justify-end gap-4 items-center">
-                                                    {/* Icon-only Edit */}
-                                                    <button
-                                                        onClick={() => {
-                                                            onSelectEmployer(employer);
-                                                            onNavigate('edit');
-                                                        }}
-                                                        className="text-gray-400 hover:text-blue-600 transition-colors p-1"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit2 size={18} />
-                                                    </button>
-
-                                                    {/* Icon-only Delete */}
-                                                    <button
-                                                        onClick={() => onDelete(employer._id)}
-                                                        className="text-gray-400 hover:text-red-600 transition-colors p-1"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 size={18} />
-                                                    </button>
-
-                                                    {/* Detail Arrow */}
-                                                    <div className="text-gray-300 group-hover:text-blue-600 transition-colors">
-                                                        <ArrowUpRight size={20} />
-                                                    </div>
+                                            {/* Arrow Icon */}
+                                            <TableCell className="pr-6 text-right">
+                                                <div className="inline-flex text-gray-300 group-hover:text-blue-600 group-hover:translate-x-1 transition-all duration-300">
+                                                    <ArrowUpRight size={20} />
                                                 </div>
                                             </TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="py-20 text-center bg-gray-50/50">
+                                        <TableCell colSpan={7} className="py-20 text-center bg-gray-50/50">
                                             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white shadow-sm text-gray-300 mb-4">
                                                 <Search size={32} />
                                             </div>
                                             <h3 className="text-gray-900 font-bold text-lg">No partners found</h3>
-                                            <p className="text-gray-500 max-w-xs mx-auto mt-2">
-                                                Adjust your filters or add a new employer to get started.
-                                            </p>
                                         </TableCell>
                                     </TableRow>
                                 )}
