@@ -216,6 +216,7 @@ export function EmployerDetailsPage({ employer, onNavigate, onDelete, isLoading,
                   <p className="text-sm text-gray-600">Irreversible action</p>
                 </div>
               </div>
+              
               <div className="h-px bg-red-200 my-6" />
               <p className="text-gray-700 mb-8 leading-relaxed">
                 Deleting this employer will permanently remove their profile, all job demands, and worker records. This cannot be undone.
