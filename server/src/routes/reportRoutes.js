@@ -1,9 +1,19 @@
 const express = require('express');
 const router = express.Router();
 const { getPerformanceStats } = require('../controllers/reportController');
-const { protect } = require('../middleware/auth'); // Ensure user is logged in
+const { protect, authorize } = require('../middleware/auth');
 
-// Define the endpoint
-router.get('/performance-stats', protect, getPerformanceStats);
+/**
+ * @route   GET /api/reports/performance-stats
+ * @desc    Get executive-level agency analytics (Revenue, Trends, Top Performers)
+ * @access  Private (Admin Only)
+ */
+router.get(
+    '/performance-stats',
+    protect,
+    // If you have role-based middleware, uncomment the line below to secure revenue data:
+    // authorize('tenant-admin', 'admin'), 
+    getPerformanceStats
+);
 
 module.exports = router;
