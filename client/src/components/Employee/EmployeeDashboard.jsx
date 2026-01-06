@@ -1,23 +1,15 @@
 import {
-    AlertCircle,
-    Briefcase,
-    Building2,
-    Check,
-    Clock, 
-    FileText,
-    Trash2,
-    UserCircle,
-    Users,
-    Plus,
-    Edit,
-    X
+    AlertCircle, Briefcase, Building2, Check, Clock, 
+    FileText, Trash2, UserCircle, Users, Plus, Edit, X
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import axios from 'axios';
 
-// Helper Component for Stats
+const API_BASE = 'http://localhost:5000/api/dashboard';
+
 function StatCard({ title, value, icon, onClick, gradient = 'from-blue-500 to-blue-600' }) {
     return (
         <Card 
@@ -44,24 +36,13 @@ const CustomTextarea = React.forwardRef(({ className, ...props }, ref) => (
         {...props}
     />
 ));
-CustomTextarea.displayName = "CustomTextarea";
 
-export function EmployeeDashboard({
-    stats = {
-        employersAdded: 12,
-        activeJobDemands: 8,
-        workersInProcess: 24,
-        tasksNeedingAttention: 3,
-        activeSubAgents: 5
-    },
-    notes: initialNotes = [
-        { id: '1', content: 'Follow up with Al-Safi Group regarding visa quotas.', category: 'employer', updatedAt: new Date().toISOString() },
-        { id: '2', content: 'Medical reports for 5 workers pending from Kathmandu clinic.', category: 'worker', updatedAt: new Date().toISOString() }
-    ],
-    onNavigate = () => { }
-}) {
-    const [notes, setNotes] = useState(initialNotes);
+export function EmployeeDashboard({ onNavigate = () => { } }) {
+    const [stats, setStats] = useState({ employersAdded: 0, activeJobDemands: 0, workersInProcess: 0, tasksNeedingAttention: 0, activeSubAgents: 0 });
+    const [notes, setNotes] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [isAddingNote, setIsAddingNote] = useState(false);
+    const [editingNote, setEditingNote] = useState(null); // Added for Edit logic
     const [newNoteContent, setNewNoteContent] = useState('');
     const [noteCategory, setNoteCategory] = useState('general');
 
@@ -73,29 +54,66 @@ export function EmployeeDashboard({
         { value: 'reminder', label: 'Reminder', color: 'orange' }
     ];
 
-    const addNote = () => {
+    useEffect(() => {
+        fetchDashboardData();
+    }, []);
+
+    const fetchDashboardData = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const res = await axios.get(API_BASE, { headers: { Authorization: `Bearer ${token}` } });
+            if (res.data.success) {
+                setStats(res.data.data.stats);
+                setNotes(res.data.data.notes);
+            }
+        } catch (err) { console.error("Dashboard Load Error:", err); } 
+        finally { setLoading(false); }
+    };
+
+    const handleSaveNote = async () => {
         if (!newNoteContent.trim()) return;
-        const newNote = {
-            id: Date.now().toString(),
-            content: newNoteContent.trim(),
-            updatedAt: new Date().toISOString(),
-            category: noteCategory
-        };
-        setNotes([newNote, ...notes]);
+        const token = localStorage.getItem('token');
+        try {
+            if (editingNote) {
+                // EDIT LOGIC
+                const res = await axios.patch(`${API_BASE}/notes/${editingNote._id}`, {
+                    content: newNoteContent,
+                    category: noteCategory
+                }, { headers: { Authorization: `Bearer ${token}` } });
+                setNotes(notes.map(n => n._id === editingNote._id ? res.data.data : n));
+            } else {
+                // ADD LOGIC
+                const res = await axios.post(`${API_BASE}/notes`, {
+                    content: newNoteContent,
+                    category: noteCategory
+                }, { headers: { Authorization: `Bearer ${token}` } });
+                setNotes([res.data.data, ...notes]);
+            }
+            resetNoteForm();
+        } catch (err) { console.error("Save Note Error:", err); }
+    };
+
+    const resetNoteForm = () => {
         setNewNoteContent('');
+        setEditingNote(null);
         setIsAddingNote(false);
+        setNoteCategory('general');
     };
 
-    const deleteNote = (id) => {
-        if (window.confirm('Delete this note?')) {
-            setNotes(notes.filter(n => n.id !== id));
-        }
+    const deleteNote = async (id) => {
+        if (!window.confirm('Delete this note?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_BASE}/notes/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+            setNotes(notes.filter(n => (n._id || n.id) !== id));
+        } catch (err) { console.error("Delete Error:", err); }
     };
 
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
-        });
+    const startEdit = (note) => {
+        setEditingNote(note);
+        setNewNoteContent(note.content);
+        setNoteCategory(note.category);
+        setIsAddingNote(true);
     };
 
     const getCategoryColor = (category) => {
@@ -109,6 +127,8 @@ export function EmployeeDashboard({
         return colors[category] || colors.general;
     };
 
+    if (loading) return <div className="p-8 text-center text-gray-500 font-bold">Loading Dashboard...</div>;
+
     return (
         <div className="space-y-8 p-4">
             <div className="flex items-center justify-between">
@@ -121,7 +141,7 @@ export function EmployeeDashboard({
                 </div>
             </div>
 
-            {/* Top Stat Cards - Navigate to Lists */}
+            {/* Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
                 <StatCard title="Employers" value={stats.employersAdded} icon={<Building2 size={28} />} gradient="from-indigo-500 to-purple-600" onClick={() => onNavigate('/dashboard/employee/employer')} />
                 <StatCard title="Job Demands" value={stats.activeJobDemands} icon={<Briefcase size={28} />} gradient="from-purple-500 to-pink-600" onClick={() => onNavigate('/dashboard/employee/job-demand')} />
@@ -130,13 +150,14 @@ export function EmployeeDashboard({
                 <StatCard title="Sub-Agents" value={stats.activeSubAgents} icon={<Users size={28} />} gradient="from-cyan-500 to-blue-600" onClick={() => onNavigate('/dashboard/employee/subagent')} />
             </div>
 
+            {/* Operation Notes Card with Add/Edit/Delete */}
             <Card className="border-none shadow-xl overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between bg-gray-50/80 border-b border-gray-100">
                     <div className="flex items-center gap-3">
                         <FileText className="h-6 w-6 text-indigo-600" />
                         <CardTitle className="text-xl font-bold">Operation Notes</CardTitle>
                     </div>
-                    <Button onClick={() => setIsAddingNote(!isAddingNote)} variant={isAddingNote ? "outline" : "primary"}>
+                    <Button onClick={() => isAddingNote ? resetNoteForm() : setIsAddingNote(true)} variant={isAddingNote ? "outline" : "primary"}>
                         {isAddingNote ? 'Close' : 'Add Note'}
                     </Button>
                 </CardHeader>
@@ -152,79 +173,68 @@ export function EmployeeDashboard({
                                     <CustomTextarea value={newNoteContent} onChange={e => setNewNoteContent(e.target.value)} placeholder="Describe the update or task..." />
                                 </div>
                             </div>
-                            <div className="flex justify-end"><Button onClick={addNote}>Save Update</Button></div>
+                            <div className="flex justify-end gap-2">
+                                <Button variant="ghost" onClick={resetNoteForm}>Cancel</Button>
+                                <Button onClick={handleSaveNote}>{editingNote ? 'Update Note' : 'Save Update'}</Button>
+                            </div>
                         </div>
                     )}
                     <div className="space-y-4">
-                        {notes.map(note => (
-                            <div key={note.id} className="p-5 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <Badge className={getCategoryColor(note.category)}>{note.category}</Badge>
-                                            <span className="text-xs text-gray-500">{formatDate(note.updatedAt)}</span>
+                        {notes.length === 0 ? (
+                            <div className="text-center py-6 text-gray-400">No notes found.</div>
+                        ) : (
+                            notes.map(note => (
+                                <div key={note._id || note.id} className="p-5 rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <Badge className={getCategoryColor(note.category)}>{note.category}</Badge>
+                                                <span className="text-xs text-gray-500">{new Date(note.createdAt).toLocaleString()}</span>
+                                            </div>
+                                            <p className="text-gray-800">{note.content}</p>
                                         </div>
-                                        <p className="text-gray-800">{note.content}</p>
+                                        <div className="flex gap-1">
+                                            <Button variant="ghost" className="text-gray-400 hover:text-indigo-600" onClick={() => startEdit(note)}><Edit size={18} /></Button>
+                                            <Button variant="ghost" className="text-red-500" onClick={() => deleteNote(note._id || note.id)}><Trash2 size={18} /></Button>
+                                        </div>
                                     </div>
-                                    <Button variant="ghost" className="text-red-500" onClick={() => deleteNote(note.id)}><Trash2 size={18} /></Button>
                                 </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </CardContent>
             </Card>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* QUICK ACTIONS SECTION - Routing Params Added Here */}
+                {/* RESTORED QUICK ACTIONS SECTION */}
                 <Card className="shadow-xl border-2">
                     <CardHeader>
                         <CardTitle className="text-xl font-bold">Quick Actions</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 gap-4">
-                            {/* Card 1: Add Employer - Opens form directly */}
-                            <Button 
-                                size="lg" 
-                                onClick={() => onNavigate('/dashboard/employee/employer?action=add')} 
-                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
-                            >
+                            <Button size="lg" onClick={() => onNavigate('/dashboard/employee/employer?action=add')} className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md">
                                 <Building2 className="h-7 w-7 mr-4 text-white shrink-0" />
                                 <div>
                                     <div className="font-bold text-lg">Add Employer</div>
                                     <div className="text-sm opacity-80 font-normal">Register new company</div>
                                 </div>
                             </Button>
-
-                            {/* Card 2: Create Demand - Assuming similar logic for demand page */}
-                            <Button 
-                                size="lg" 
-                                onClick={() => onNavigate('/dashboard/employee/job-demand?action=add')} 
-                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
-                            >
+                            <Button size="lg" onClick={() => onNavigate('/dashboard/employee/job-demand?action=add')} className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md">
                                 <Briefcase className="h-7 w-7 mr-4 text-white shrink-0" />
                                 <div>
                                     <div className="font-bold text-lg">Create Demand</div>
                                     <div className="text-sm opacity-80 font-normal">New job opening</div>
                                 </div>
                             </Button>
-
-                            <Button 
-                                size="lg" 
-                                onClick={() => onNavigate('/dashboard/employee/worker')} 
-                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
-                            >
+                            <Button size="lg" onClick={() => onNavigate('/dashboard/employee/worker')} className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md">
                                 <UserCircle className="h-7 w-7 mr-4 text-white shrink-0" />
                                 <div>
                                     <div className="font-bold text-lg">Manage Workers</div>
                                     <div className="text-sm opacity-80 font-normal">Track progress</div>
                                 </div>
                             </Button>
-
-                            <Button 
-                                size="lg" 
-                                onClick={() => onNavigate('/dashboard/employee/subagent')} 
-                                className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md"
-                            >
+                            <Button size="lg" onClick={() => onNavigate('/dashboard/employee/subagent')} className="h-28 text-left justify-start bg-blue-600 hover:bg-blue-700 text-white border-none shadow-md">
                                 <Users className="h-7 w-7 mr-4 text-white shrink-0" />
                                 <div>
                                     <div className="font-bold text-lg">Sub-Agents</div>
@@ -235,6 +245,7 @@ export function EmployeeDashboard({
                     </CardContent>
                 </Card>
 
+                {/* RESTORED RECENT ACTIVITY SECTION */}
                 <Card className="shadow-lg border-none">
                     <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
                     <CardContent className="space-y-4">
