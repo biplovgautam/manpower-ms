@@ -21,43 +21,33 @@ export default function EmployeePage() {
             return;
         }
 
-        setUserData({ fullName, role });
+        setUserData({ fullName: fullName || 'Employee', role });
         setIsReady(true);
     }, [router]);
 
     /**
-     * Updated Navigation Handler
-     * Now supports query parameters (like ?action=add)
+     * Navigation Handler
+     * Processes paths and query strings for Next.js routing
      */
     const handleNavigation = (path) => {
         if (!path) return;
-        
-        let targetPath = path;
 
-        // NEW LOGIC: If the path already includes a query parameter (?),
-        // we push it directly to preserve the 'action' (e.g., ?action=add)
-        if (path.includes('?')) {
+        // If path is already a full dashboard route or contains queries, push it directly
+        if (path.startsWith('/') || path.includes('?')) {
             router.push(path);
             return;
         }
 
-        // 1. Map Employer paths
+        // Mapping shorthand keywords to full routes
+        let targetPath = '/dashboard/employee';
+        
         if (path.includes('employer')) {
             targetPath = '/dashboard/employee/employer';
-        }
-
-        // 2. Map 'job-demand' paths
-        else if (path.includes('job-demand')) {
+        } else if (path.includes('job-demand')) {
             targetPath = '/dashboard/employee/job-demand';
-        }
-
-        // 3. Map 'worker' paths
-        else if (path.includes('worker')) {
+        } else if (path.includes('worker')) {
             targetPath = '/dashboard/employee/worker';
-        }
-
-        // 4. Map 'subagent' variations
-        else if (path.includes('subagent') || path.includes('sub-agent')) {
+        } else if (path.includes('subagent') || path.includes('sub-agent')) {
             targetPath = '/dashboard/employee/subagent';
         }
             
@@ -69,7 +59,13 @@ export default function EmployeePage() {
         router.push('/login');
     };
 
-    if (!isReady) return null;
+    if (!isReady) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <p className="text-gray-500 animate-pulse">Verifying Session...</p>
+            </div>
+        );
+    }
 
     return (
         <DashboardLayout
@@ -79,16 +75,11 @@ export default function EmployeePage() {
             onNavigate={handleNavigation}
             onLogout={handleLogout}
         >
-            <EmployeeDashboard
-                onNavigate={handleNavigation}
-                stats={{
-                    employersAdded: 5,
-                    activeJobDemands: 12,
-                    workersInProcess: 45,
-                    tasksNeedingAttention: 3,
-                    activeSubAgents: 8
-                }}
-            />
+            {/* Stats prop removed here. 
+                The EmployeeDashboard component now manages its own 
+                internal state and fetches real data from the API.
+            */}
+            <EmployeeDashboard onNavigate={handleNavigation} />
         </DashboardLayout>
     );
 }
