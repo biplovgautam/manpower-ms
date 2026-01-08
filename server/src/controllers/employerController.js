@@ -6,20 +6,19 @@ const { StatusCodes } = require('http-status-codes');
 // @desc    Get all employers for a specific company (List View with Stats)
 exports.getEmployers = async (req, res) => {
     try {
-        if (!req.user || !req.user.companyId) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                error: "Company ID is missing from your session."
-            });
+        const { companyId, userId, role } = req.user;
+        const { view } = req.query; // Get view from URL query
+
+        let filter = { companyId };
+
+        // If not admin AND NOT asking for all (dropdown view), filter by owner
+        if (role !== 'admin' && view !== 'all') {
+            filter.createdBy = userId;
         }
 
-        // We populate 'createdBy' for user info
-        // We populate 'totalJobDemands' and 'totalHires' which are the VIRTUALS defined in the Model
-        const employers = await Employer.find({ companyId: req.user.companyId })
+        const employers = await Employer.find(filter)
             .populate('createdBy', 'fullName')
-            .populate('totalJobDemands') 
-            .populate('totalHires')
-            .sort({ createdAt: -1 });
+            .sort({ employerName: 1 }); // Sorted alphabetically for dropdowns
 
         return res.status(StatusCodes.OK).json({
             success: true,
@@ -27,52 +26,38 @@ exports.getEmployers = async (req, res) => {
             data: employers,
         });
     } catch (error) {
-        console.error("GET EMPLOYERS ERROR:", error);
-        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            error: error.message || 'Internal Server Error',
-        });
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
 
-// @desc    Get single employer with Job Demands and Workers (Detail View)
 exports.getEmployerDetails = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { companyId, userId, role } = req.user;
 
-        const employer = await Employer.findOne({ 
-            _id: id, 
-            companyId: req.user.companyId 
-        }).populate('createdBy', 'fullName');
-
-        if (!employer) {
-            return res.status(StatusCodes.NOT_FOUND).json({ 
-                success: false, 
-                error: "Employer not found" 
-            });
+        // Secure the lookup: check ownership if not admin
+        let filter = { _id: req.params.id, companyId };
+        if (role !== 'admin') {
+            filter.createdBy = userId;
         }
 
-        // Fetch related data using 'employerId' to match your JobDemand and Worker schemas
-        const demands = await JobDemand.find({ employerId: id }).sort({ createdAt: -1 });
-        const workers = await Worker.find({ employerId: id }).sort({ createdAt: -1 });
+        const employer = await Employer.findOne(filter).populate('createdBy', 'fullName');
+
+        if (!employer) {
+            return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
+        }
+
+        const demands = await JobDemand.find({ employerId: req.params.id, companyId });
+        const workers = await Worker.find({ employerId: req.params.id, companyId });
 
         return res.status(StatusCodes.OK).json({
             success: true,
-            data: {
-                ...employer._doc,
-                id: employer._id, // Ensure ID is accessible
-                demands, 
-                workers  
-            },
+            data: { ...employer._doc, demands, workers },
         });
     } catch (error) {
-        console.error("GET EMPLOYER DETAILS ERROR:", error);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
-            success: false, 
-            error: error.message 
-        });
+        res.status(500).json({ success: false, error: error.message });
     }
 };
+
 
 // @desc    Create a new employer
 exports.createEmployer = async (req, res) => {
@@ -107,9 +92,9 @@ exports.updateEmployer = async (req, res) => {
     try {
         const { id } = req.params;
 
-        let employer = await Employer.findOne({ 
-            _id: id, 
-            companyId: req.user.companyId 
+        let employer = await Employer.findOne({
+            _id: id,
+            companyId: req.user.companyId
         });
 
         if (!employer) {
@@ -120,8 +105,8 @@ exports.updateEmployer = async (req, res) => {
         }
 
         employer = await Employer.findByIdAndUpdate(
-            id, 
-            req.body, 
+            id,
+            req.body,
             { new: true, runValidators: true }
         );
 
@@ -143,9 +128,9 @@ exports.deleteEmployer = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const employer = await Employer.findOneAndDelete({ 
-            _id: id, 
-            companyId: req.user.companyId 
+        const employer = await Employer.findOneAndDelete({
+            _id: id,
+            companyId: req.user.companyId
         });
 
         if (!employer) {

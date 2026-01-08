@@ -5,10 +5,18 @@ const { StatusCodes } = require('http-status-codes');
 // @desc    Get all Job Demands
 exports.getJobDemands = async (req, res) => {
   try {
-    const jobDemands = await JobDemand.find({ companyId: req.user.companyId })
+    const { companyId, userId, role } = req.user;
+    const { view } = req.query;
+
+    let filter = { companyId };
+
+    // Apply ownership filter unless it's an admin or dropdown 'all' view
+    if (role !== 'admin' && role !== 'super_admin' && view !== 'all') {
+      filter.createdBy = userId;
+    }
+
+    const jobDemands = await JobDemand.find(filter)
       .populate('employerId', 'employerName')
-      .populate('companyId', 'name')
-      .populate('createdBy', 'fullName')
       .sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({
@@ -25,24 +33,27 @@ exports.getJobDemands = async (req, res) => {
 };
 
 // @desc    Get Single Job Demand (WITH POPULATED WORKERS)
-// @desc    Get Single Job Demand (WITH POPULATED WORKERS)
 exports.getJobDemandById = async (req, res) => {
   try {
-    const jobDemand = await JobDemand.findOne({
-      _id: req.params.id,
-      companyId: req.user.companyId
-    })
+    const { companyId, userId, role } = req.user;
+
+    // Security: Filter by owner if not admin
+    let filter = { _id: req.params.id, companyId };
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
+
+    const jobDemand = await JobDemand.findOne(filter)
       .populate('employerId', 'employerName')
       .populate({
         path: 'workers',
-        // ADDED passportNumber to the select string below
         select: 'name fullName status currentStage passportNumber'
       });
 
     if (!jobDemand) {
       return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        error: "Job Demand not found"
+        error: "Job Demand not found or unauthorized"
       });
     }
 
@@ -60,6 +71,7 @@ exports.createJobDemand = async (req, res) => {
   try {
     const { employerName, ...otherData } = req.body;
 
+    // Important: Ensure the employer being linked belongs to the same company
     const employer = await Employer.findOne({
       employerName: employerName,
       companyId: req.user.companyId
@@ -96,8 +108,15 @@ exports.updateJobDemand = async (req, res) => {
   try {
     const { id } = req.params;
     const { employerName, ...updateData } = req.body;
+    const { companyId, userId, role } = req.user;
 
-    let jobDemand = await JobDemand.findOne({ _id: id, companyId: req.user.companyId });
+    // Security check: Can only update if they own it or are admin
+    let filter = { _id: id, companyId };
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
+
+    let jobDemand = await JobDemand.findOne(filter);
 
     if (!jobDemand) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -109,7 +128,7 @@ exports.updateJobDemand = async (req, res) => {
     if (employerName) {
       const employer = await Employer.findOne({
         employerName: employerName,
-        companyId: req.user.companyId
+        companyId: companyId
       });
 
       if (!employer) {
@@ -142,11 +161,15 @@ exports.updateJobDemand = async (req, res) => {
 exports.deleteJobDemand = async (req, res) => {
   try {
     const { id } = req.params;
+    const { companyId, userId, role } = req.user;
 
-    const jobDemand = await JobDemand.findOneAndDelete({
-      _id: id,
-      companyId: req.user.companyId
-    });
+    // Security check: Only owner or admin can delete
+    let filter = { _id: id, companyId };
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
+
+    const jobDemand = await JobDemand.findOneAndDelete(filter);
 
     if (!jobDemand) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -171,11 +194,16 @@ exports.deleteJobDemand = async (req, res) => {
 exports.getEmployerJobDemands = async (req, res) => {
   try {
     const { employerId } = req.params;
+    const { companyId, userId, role } = req.user;
 
-    const jobDemands = await JobDemand.find({
-      employerId,
-      companyId: req.user.companyId
-    }).sort({ createdAt: -1 });
+    // If an employee is looking at an employer's demands, 
+    // they should still only see the demands they created for that employer.
+    let filter = { employerId, companyId };
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
+
+    const jobDemands = await JobDemand.find(filter).sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({
       success: true,

@@ -1,20 +1,24 @@
-// models/SubAgent.js
 const mongoose = require('mongoose');
 
 const SubAgentSchema = new mongoose.Schema({
   name: { type: String, required: true },
   country: { type: String, required: true },
   contact: { type: String, required: true },
-  status: {
-    type: String,
-    enum: ['active', 'inactive', 'pending'],
+  status: { 
+    type: String, 
+    enum: ['active', 'inactive', 'pending'], 
     default: 'active',
-    lowercase: true
+    lowercase: true 
   },
-  // ADD THIS FIELD BELOW
   companyId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Company', // Ensure this matches your Company model name
+    ref: 'Company',
+    required: true
+  },
+  // ADDED THIS FIELD - MUST BE IN SCHEMA TO SAVE TO DB
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   },
   totalWorkersBrought: { type: Number, default: 0 }
