@@ -339,7 +339,6 @@ export function EmployeeDashboard({ onNavigate = () => { } }) {
     );
 }
 
-/** Helper Components **/
 function QuickActionButton({ title, desc, icon, onClick }) {
     return (
         <Button 
