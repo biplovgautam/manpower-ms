@@ -176,38 +176,38 @@ const getAllEmployees = async (req, res) => {
 // controllers/auth.js
 
 const forceResetPassword = async (req, res) => {
-    const { email, newPassword, recoveryKey } = req.body;
+    const { userId, newPassword } = req.body; // Use ID for precision
+    const requesterRole = req.user.role; // From your auth middleware
 
-    // 1. Security Check: Compare against environment variable
-    if (!recoveryKey || recoveryKey !== process.env.ADMIN_RECOVERY_KEY) {
-        return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Unauthorized: Invalid Recovery Key' });
+    // 1. Security Check: Only allow Admins or Super Admins
+    if (requesterRole !== 'admin' && requesterRole !== 'super_admin') {
+        return res.status(StatusCodes.FORBIDDEN).json({
+            msg: 'Access denied. Only admins can reset employee passwords.'
+        });
     }
 
-    if (!email || !newPassword) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email and New Password are required' });
+    if (!userId || !newPassword) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'User ID and New Password are required' });
     }
 
     try {
-        const cleanEmail = normalizeEmail(email);
-
-        // Find the user
-        const user = await User.findOne({ email: cleanEmail });
+        const user = await User.findById(userId);
 
         if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'User not found' });
+            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Employee not found' });
         }
 
-        // 2. Update the password field
-        // Assigning the plain text password here will trigger the .pre('save') 
-        // hook in your User model to hash it before storing.
-        user.password = newPassword;
+        // 2. Prevent Admins from resetting other Admins (optional but recommended)
+        if (user.role === 'admin' && requesterRole !== 'super_admin') {
+            return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Admins cannot reset other Admins.' });
+        }
 
-        // Use validateModifiedOnly to bypass validation for fields not being changed
+        user.password = newPassword;
         await user.save({ validateModifiedOnly: true });
 
         res.status(StatusCodes.OK).json({
             success: true,
-            msg: `Password for ${user.fullName} updated successfully.`
+            msg: `Password for ${user.fullName} has been reset.`
         });
     } catch (error) {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: error.message });
