@@ -1,5 +1,9 @@
+"use client";
+
 import {
   AlertCircle, ArrowRight, CheckCircle2,
+  Eye,
+  EyeOff,
   Key,
   Loader2,
   Lock,
@@ -25,18 +29,23 @@ const LoginInput = React.memo(({
   disabled,
   className = '',
   autoFocus = false,
-  clearError
+  clearError,
+  isPassword = false // Added flag
 }) => {
+  const [showPassword, setShowPassword] = useState(false);
   const IconComponent = Icon;
+
+  const togglePassword = () => setShowPassword(!showPassword);
+
   return (
     <div className="space-y-2">
       <label className="block text-sm font-semibold text-gray-700">{label}</label>
-      <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
-          {Icon && <IconComponent className="h-4 w-4 text-gray-400" />}
+      <div className="relative group">
+        <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10 pointer-events-none transition-colors group-focus-within:text-blue-500">
+          {Icon && <IconComponent className="h-4 w-4 text-gray-400 group-focus-within:text-current" />}
         </div>
         <Input
-          type={type}
+          type={isPassword ? (showPassword ? 'text' : 'password') : type}
           placeholder={placeholder}
           value={value}
           onChange={e => {
@@ -46,15 +55,25 @@ const LoginInput = React.memo(({
           autoComplete={type === 'email' ? 'email' : 'current-password'}
           disabled={disabled}
           autoFocus={autoFocus}
-          className={`pl-10 pr-4 h-12 text-base bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-0 focus:ring-offset-transparent focus:border-transparent transition-all duration-200 ${className}`}
+          className={`pl-10 ${isPassword ? 'pr-10' : 'pr-4'} h-12 text-base bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-offset-0 focus:ring-offset-transparent focus:border-transparent transition-all duration-200 ${className}`}
         />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={togglePassword}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+            tabIndex="-1"
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        )}
       </div>
     </div>
   );
 });
 LoginInput.displayName = 'LoginInput';
 
-// --- Shared Message Component (Error/Success) ---
+// --- Shared Message Component ---
 const AuthMessage = ({ type, message }) => {
   const isError = type === 'error';
   return (
@@ -80,11 +99,9 @@ export function LoginPage({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // 1. Check for registration success message on mount
   useEffect(() => {
     if (searchParams.get('registered') === 'true') {
-      setSuccessMsg('Registration successful! Please sign in with your new credentials.');
-      // Auto-switch to admin if that's your typical flow, or keep as employee
+      setSuccessMsg('Registration successful! Please sign in.');
       setRole('admin');
     }
   }, [searchParams]);
@@ -94,10 +111,23 @@ export function LoginPage({ onLogin }) {
     if (successMsg) setSuccessMsg('');
   }, [error, successMsg]);
 
+  // --- Validation Logic ---
+  const validateForm = () => {
+    if (!email) return 'Email address is required.';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return 'Please enter a valid email address.';
+    if (!password) return 'Password is required.';
+    if (password.length < 6) return 'Password must be at least 6 characters.';
+    return null;
+  };
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    if (!email || !password) {
-      setError('Please enter both email and password.');
+
+    // Run validation
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -108,7 +138,7 @@ export function LoginPage({ onLogin }) {
     try {
       await onLogin(email, password, role);
     } catch (err) {
-      setError(err.message || 'Login failed. Please try again.');
+      setError(err.message || 'Invalid email or password.');
     } finally {
       setIsLoading(false);
     }
@@ -142,7 +172,6 @@ export function LoginPage({ onLogin }) {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Display Messages */}
           {error && <AuthMessage type="error" message={error} />}
           {successMsg && <AuthMessage type="success" message={successMsg} />}
 
@@ -160,7 +189,7 @@ export function LoginPage({ onLogin }) {
               autoFocus
             />
             <LoginInput
-              type="password"
+              isPassword
               label="Password"
               placeholder="••••••••"
               value={password}
@@ -175,8 +204,8 @@ export function LoginPage({ onLogin }) {
               type="submit"
               disabled={isLoading}
               className={`w-full h-12 flex items-center justify-center gap-2 text-base font-semibold text-white shadow-lg transition-all rounded-lg ${isAdmin
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
-                  : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
+                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                : 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700'
                 }`}
             >
               {isLoading ? (
@@ -193,8 +222,8 @@ export function LoginPage({ onLogin }) {
               onClick={() => handleRoleSwitch(isAdmin ? 'employee' : 'admin')}
               disabled={isLoading}
               className={`inline-flex items-center gap-1 px-4 py-2 font-medium text-sm rounded-lg transition-all ${isAdmin
-                  ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                 }`}
             >
               Switch to {isAdmin ? 'Employee' : 'Admin'} Portal

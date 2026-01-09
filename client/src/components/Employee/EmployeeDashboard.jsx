@@ -12,9 +12,6 @@ import axios from 'axios';
 
 const API_BASE = 'http://localhost:5000/api/dashboard';
 
-/**
- * Reusable Stat Card Component
- */
 function StatCard({ title, value, icon, onClick, gradient = 'from-blue-500 to-blue-600' }) {
     return (
         <Card 
@@ -22,11 +19,11 @@ function StatCard({ title, value, icon, onClick, gradient = 'from-blue-500 to-bl
             className={`transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${onClick ? 'cursor-pointer' : ''}`}
         >
             <CardContent className="flex items-center justify-between p-6">
-                <div>
-                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">{title}</p>
-                    <p className="text-4xl font-bold text-gray-900 mt-2">{value}</p>
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wider truncate">{title}</p>
+                    <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
                 </div>
-                <div className={`p-4 bg-gradient-to-br ${gradient} rounded-2xl text-white shadow-lg`}>
+                <div className={`shrink-0 flex items-center justify-center w-14 h-14 bg-gradient-to-br ${gradient} rounded-2xl text-white shadow-lg ml-4`}>
                     {React.cloneElement(icon, { size: 28 })}
                 </div>
             </CardContent>
@@ -59,11 +56,11 @@ export function EmployeeDashboard({ onNavigate = () => { } }) {
     const [noteCategory, setNoteCategory] = useState('general');
 
     const noteCategories = [
-        { value: 'general', label: 'General', color: 'gray' },
-        { value: 'employer', label: 'Employer', color: 'indigo' },
-        { value: 'worker', label: 'Worker', color: 'emerald' },
-        { value: 'job-demand', label: 'Job Demand', color: 'purple' },
-        { value: 'reminder', label: 'Reminder', color: 'orange' }
+        { value: 'general', label: 'General' },
+        { value: 'employer', label: 'Employer' },
+        { value: 'worker', label: 'Worker' },
+        { value: 'job-demand', label: 'Job Demand' },
+        { value: 'reminder', label: 'Reminder' }
     ];
 
     const fetchDashboardData = useCallback(async () => {
@@ -151,86 +148,58 @@ export function EmployeeDashboard({ onNavigate = () => { } }) {
     );
 
     return (
-        <div className="space-y-8 p-2 md:p-4 animate-in fade-in duration-500">
+        <div className="space-y-8 p-2 md:p-6 animate-in fade-in duration-500 max-w-[1600px] mx-auto">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Employee Dashboard</h1>
-                    <p className="text-gray-500 mt-1">Overview of your recruitment pipeline and tasks.</p>
+                    <p className="text-gray-500 mt-1 font-medium">Internal recruitment pipeline overview</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Button variant="outline" size="sm" onClick={fetchDashboardData} className="bg-white">
+                    <Button variant="outline" size="sm" onClick={fetchDashboardData} className="bg-white border-gray-200">
                         <RefreshCw size={16} className="mr-2" /> Refresh
                     </Button>
-                    <div className="text-xs font-mono text-gray-400 bg-white px-4 py-2 rounded-lg border">
-                        {new Date().toLocaleDateString()} | {new Date().toLocaleTimeString()}
+                    <div className="text-xs font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+                        {new Date().toLocaleDateString()} | {new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                     </div>
                 </div>
             </div>
 
             {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
-                <StatCard 
-                    title="Employers" 
-                    value={stats.employersAdded} 
-                    icon={<Building2 />} 
-                    gradient="from-indigo-500 to-blue-600" 
-                    onClick={() => onNavigate('employer')} 
-                />
-                <StatCard 
-                    title="Job Demands" 
-                    value={stats.activeJobDemands} 
-                    icon={<Briefcase />} 
-                    gradient="from-purple-500 to-indigo-600" 
-                    onClick={() => onNavigate('job-demand')} 
-                />
-                <StatCard 
-                    title="Workers" 
-                    value={stats.workersInProcess} 
-                    icon={<UserCircle />} 
-                    gradient="from-emerald-500 to-teal-600" 
-                    onClick={() => onNavigate('worker')} 
-                />
-                <StatCard 
-                    title="Urgent" 
-                    value={stats.tasksNeedingAttention} 
-                    icon={<AlertCircle />} 
-                    gradient="from-orange-500 to-red-600" 
-                />
-                <StatCard 
-                    title="Sub-Agents" 
-                    value={stats.activeSubAgents} 
-                    icon={<Users />} 
-                    gradient="from-cyan-500 to-blue-600" 
-                    onClick={() => onNavigate('subagent')} 
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <StatCard title="Employers" value={stats.employersAdded} icon={<Building2 />} gradient="from-indigo-500 to-blue-600" onClick={() => onNavigate('employer')} />
+                <StatCard title="Job Demands" value={stats.activeJobDemands} icon={<Briefcase />} gradient="from-purple-500 to-indigo-600" onClick={() => onNavigate('job-demand')} />
+                <StatCard title="Workers" value={stats.workersInProcess} icon={<UserCircle />} gradient="from-emerald-500 to-teal-600" onClick={() => onNavigate('worker')} />
+                <StatCard title="Urgent" value={stats.tasksNeedingAttention} icon={<AlertCircle />} gradient="from-orange-500 to-red-600" />
+                <StatCard title="Sub-Agents" value={stats.activeSubAgents} icon={<Users />} gradient="from-cyan-500 to-blue-600" onClick={() => onNavigate('subagent')} />
             </div>
 
             {/* Operation Notes Section */}
-            <Card className="border-none shadow-xl">
-                <CardHeader className="flex flex-row items-center justify-between border-b border-gray-100 pb-4">
+            <Card className="border border-gray-200 shadow-lg overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between bg-gray-50/50 border-b border-gray-100 py-4">
                     <div className="flex items-center gap-2">
-                        <FileText className="text-blue-600" />
-                        <CardTitle>Internal Operation Notes</CardTitle>
+                        <div className="p-2 bg-blue-50 rounded-lg"><FileText size={20} className="text-blue-600" /></div>
+                        <CardTitle className="text-lg">Internal Operation Notes</CardTitle>
                     </div>
                     <Button 
                         onClick={() => isAddingNote ? resetNoteForm() : setIsAddingNote(true)} 
                         variant={isAddingNote ? "outline" : "default"}
-                        className={!isAddingNote ? "bg-blue-600 hover:bg-blue-700" : ""}
+                        className={!isAddingNote ? "bg-blue-600 hover:bg-blue-700 shadow-sm" : ""}
+                        size="sm"
                     >
-                        {isAddingNote ? <X size={18} /> : <Plus size={18} className="mr-1" />}
+                        {isAddingNote ? <X size={16} className="mr-1" /> : <Plus size={16} className="mr-1" />}
                         {isAddingNote ? 'Cancel' : 'New Note'}
                     </Button>
                 </CardHeader>
 
                 <CardContent className="pt-6">
                     {isAddingNote && (
-                        <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                        <div className="mb-6 p-5 bg-blue-50/30 rounded-xl border border-blue-100 animate-in slide-in-from-top-2 duration-300">
                             <div className="grid md:grid-cols-4 gap-4 mb-4">
                                 <select 
                                     value={noteCategory} 
                                     onChange={e => setNoteCategory(e.target.value)} 
-                                    className="px-4 py-2 rounded-lg border bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                    className="px-4 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                                 >
                                     {noteCategories.map(cat => <option key={cat.value} value={cat.value}>{cat.label}</option>)}
                                 </select>
@@ -238,45 +207,54 @@ export function EmployeeDashboard({ onNavigate = () => { } }) {
                                     <CustomTextarea 
                                         value={newNoteContent} 
                                         onChange={e => setNewNoteContent(e.target.value)} 
-                                        placeholder="Type your note here..." 
+                                        placeholder="Note details..." 
                                     />
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2">
-                                <Button variant="ghost" onClick={resetNoteForm}>Discard</Button>
-                                <Button onClick={handleSaveNote} className="bg-blue-600 text-white hover:bg-blue-700">
+                                <Button variant="ghost" onClick={resetNoteForm} size="sm">Discard</Button>
+                                <Button onClick={handleSaveNote} className="bg-blue-600 text-white hover:bg-blue-700" size="sm">
                                     {editingNote ? 'Update Changes' : 'Post Note'}
                                 </Button>
                             </div>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 gap-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    <div className="grid grid-cols-1 gap-3 max-h-[450px] overflow-y-auto pr-2 custom-scrollbar">
                         {notes.length === 0 ? (
-                            <div className="text-center py-10 text-gray-400 italic">No operational notes yet.</div>
+                            <div className="text-center py-12">
+                                <FileText className="mx-auto text-gray-200 mb-2" size={48} />
+                                <p className="text-gray-400 italic">No operational notes yet.</p>
+                            </div>
                         ) : (
                             notes.map(note => (
-                                <div key={note._id || note.id} className="group p-4 rounded-xl border border-gray-100 bg-white hover:shadow-md transition-all">
-                                    <div className="flex justify-between items-start">
-                                        <div className="space-y-2">
-                                            <div className="flex items-center gap-3">
-                                                <Badge className={`${getCategoryColor(note.category)} border-none capitalize`}>
-                                                    {note.category}
-                                                </Badge>
-                                                <span className="text-[10px] text-gray-400 uppercase font-semibold">
-                                                    {new Date(note.createdAt).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                            <p className="text-gray-700 text-sm leading-relaxed">{note.content}</p>
+                                <div key={note._id || note.id} className="relative group p-4 rounded-xl border border-gray-100 bg-white hover:border-blue-200 hover:shadow-md transition-all duration-200">
+                                    {/* Action Buttons: Absolute Positioned for UI stability */}
+                                    <div className="absolute top-4 right-4 flex gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                                        <button 
+                                            onClick={() => startEdit(note)}
+                                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                        >
+                                            <Edit size={16} />
+                                        </button>
+                                        <button 
+                                            onClick={() => deleteNote(note._id || note.id)}
+                                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+
+                                    <div className="pr-16 space-y-2">
+                                        <div className="flex items-center gap-3">
+                                            <Badge className={`${getCategoryColor(note.category)} border-none capitalize text-[10px] px-2 py-0`}>
+                                                {note.category}
+                                            </Badge>
+                                            <span className="text-[11px] text-gray-400 font-medium">
+                                                {new Date(note.createdAt).toLocaleDateString()}
+                                            </span>
                                         </div>
-                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-blue-600" onClick={() => startEdit(note)}>
-                                                <Edit size={16} />
-                                            </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-500" onClick={() => deleteNote(note._id || note.id)}>
-                                                <Trash2 size={16} />
-                                            </Button>
-                                        </div>
+                                        <p className="text-gray-700 text-sm leading-relaxed break-words">{note.content}</p>
                                     </div>
                                 </div>
                             ))
@@ -285,53 +263,23 @@ export function EmployeeDashboard({ onNavigate = () => { } }) {
                 </CardContent>
             </Card>
 
-            {/* Quick Actions & Recent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <Card className="shadow-xl border-none ring-1 ring-gray-100">
-                    <CardHeader><CardTitle className="text-lg">Quick Actions</CardTitle></CardHeader>
-                    <CardContent className="grid grid-cols-2 gap-4">
-                        <QuickActionButton 
-                            title="Add Employer" 
-                            desc="New company" 
-                            icon={<Building2 />} 
-                            onClick={() => onNavigate('employer?action=add')} 
-                        />
-                        <QuickActionButton 
-                            title="Create Demand" 
-                            desc="Job opening" 
-                            icon={<Briefcase />} 
-                            onClick={() => onNavigate('job-demand?action=add')} 
-                        />
-                        <QuickActionButton 
-                            title="Workers List" 
-                            desc="View status" 
-                            icon={<UserCircle />} 
-                            onClick={() => onNavigate('worker')} 
-                        />
-                        <QuickActionButton 
-                            title="Manage Agents" 
-                            desc="Sub-agent list" 
-                            icon={<Users />} 
-                            onClick={() => onNavigate('subagent')} 
-                        />
+            {/* Bottom Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="shadow-lg border-gray-200 overflow-hidden">
+                    <CardHeader className="bg-gray-50/50 border-b border-gray-100"><CardTitle className="text-lg">Quick Actions</CardTitle></CardHeader>
+                    <CardContent className="grid grid-cols-2 gap-4 p-6">
+                        <QuickActionButton title="Add Employer" desc="New company" icon={<Building2 />} onClick={() => onNavigate('employer?action=add')} />
+                        <QuickActionButton title="Create Demand" desc="Job opening" icon={<Briefcase />} onClick={() => onNavigate('job-demand?action=add')} />
+                        <QuickActionButton title="Workers List" desc="View status" icon={<UserCircle />} onClick={() => onNavigate('worker')} />
+                        <QuickActionButton title="Manage Agents" desc="Sub-agent list" icon={<Users />} onClick={() => onNavigate('subagent')} />
                     </CardContent>
                 </Card>
 
-                <Card className="shadow-xl border-none ring-1 ring-gray-100">
-                    <CardHeader><CardTitle className="text-lg">Recent Activity</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                        <ActivityItem 
-                            icon={<Check className="text-emerald-600" />} 
-                            title="Visa Approved" 
-                            subtitle="Worker: Ram Bahadur (Dubai Project)" 
-                            bg="bg-emerald-50" 
-                        />
-                        <ActivityItem 
-                            icon={<Clock className="text-amber-600" />} 
-                            title="Follow-up Required" 
-                            subtitle="Interview scheduled for 10am tomorrow" 
-                            bg="bg-amber-50" 
-                        />
+                <Card className="shadow-lg border-gray-200 overflow-hidden">
+                    <CardHeader className="bg-gray-50/50 border-b border-gray-100"><CardTitle className="text-lg">Recent Activity</CardTitle></CardHeader>
+                    <CardContent className="space-y-4 p-6">
+                        <ActivityItem icon={<Check className="text-emerald-600" />} title="Visa Approved" subtitle="Worker: Ram Bahadur (Dubai Project)" bg="bg-emerald-50" />
+                        <ActivityItem icon={<Clock className="text-amber-600" />} title="Follow-up Required" subtitle="Interview scheduled for 10am tomorrow" bg="bg-amber-50" />
                     </CardContent>
                 </Card>
             </div>
@@ -341,24 +289,27 @@ export function EmployeeDashboard({ onNavigate = () => { } }) {
 
 function QuickActionButton({ title, desc, icon, onClick }) {
     return (
-        <Button 
+        <button 
+            type="button"
             onClick={onClick} 
-            className="h-24 flex flex-col items-center justify-center bg-gray-50 hover:bg-blue-600 text-gray-900 hover:text-white border border-gray-100 shadow-sm transition-all"
+            className="group h-24 flex flex-col items-center justify-center bg-white hover:bg-blue-600 text-gray-900 hover:text-white border border-gray-200 rounded-xl shadow-sm transition-all duration-300"
         >
-            <div className="mb-2">{React.cloneElement(icon, { size: 20 })}</div>
-            <div className="font-bold">{title}</div>
-            <div className="text-[10px] opacity-70 uppercase tracking-tighter">{desc}</div>
-        </Button>
+            <div className="mb-2 text-blue-600 group-hover:text-white transition-colors transform group-hover:scale-110 duration-300">
+                {React.cloneElement(icon, { size: 24 })}
+            </div>
+            <div className="font-bold text-sm">{title}</div>
+            <div className="text-[10px] opacity-60 group-hover:opacity-90 uppercase tracking-tighter">{desc}</div>
+        </button>
     );
 }
 
 function ActivityItem({ icon, title, subtitle, bg }) {
     return (
-        <div className={`flex items-start gap-4 p-4 ${bg} rounded-xl border border-white shadow-sm`}>
-            <div className="mt-1">{icon}</div>
-            <div>
-                <p className="font-bold text-gray-900">{title}</p>
-                <p className="text-xs text-gray-600">{subtitle}</p>
+        <div className={`flex items-start gap-4 p-4 ${bg} rounded-xl border border-black/5 shadow-sm`}>
+            <div className="mt-1 bg-white p-1.5 rounded-lg shadow-sm shrink-0">{icon}</div>
+            <div className="min-w-0">
+                <p className="font-bold text-gray-900 text-sm">{title}</p>
+                <p className="text-xs text-gray-600 truncate">{subtitle}</p>
             </div>
         </div>
     );

@@ -14,10 +14,9 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export function Sidebar({ role, onLogout }) {
+export function Sidebar({ role, onLogout, companyName, companyLogo }) {
     const pathname = usePathname();
 
-    // Define the link structures
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
@@ -39,18 +38,38 @@ export function Sidebar({ role, onLogout }) {
     ];
 
     const links = (role === 'admin' || role === 'tenant-admin') ? adminLinks : employeeLinks;
+
     return (
         <div className="w-64 bg-white border-r border-gray-200 h-screen flex flex-col sticky top-0 z-40 shadow-sm">
-            {/* Header / Branding */}
+            {/* Header / Branding - DYNAMIC LOGO & NAME */}
             <div className="p-6 border-b border-gray-200 bg-white">
-                <div className="flex items-center gap-2">
-                    <div className="w-9 h-9 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
-                        M
+                <div className="flex items-center gap-3">
+                    {companyLogo ? (
+                        <div className="w-10 h-10 rounded-lg overflow-hidden border border-gray-100 shadow-sm flex-shrink-0">
+                            <img
+                                src={companyLogo}
+                                alt="Company Logo"
+                                className="w-full h-full object-contain bg-white"
+                            />
+                        </div>
+                    ) : (
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-lg flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
+                            {companyName?.charAt(0) || 'M'}
+                        </div>
+                    )}
+
+                    <div className="overflow-hidden">
+                        <h1 className="text-sm font-bold text-gray-900 tracking-tight truncate leading-tight">
+                            {companyName || "ManpowerMS"}
+                        </h1>
+                        <p className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
+                            Management System
+                        </p>
                     </div>
-                    <h1 className="text-xl font-bold text-gray-900 tracking-tight">ManpowerMS</h1>
                 </div>
-                <div className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
-                    {role} Portal
+
+                <div className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-100">
+                    {role?.replace('-', ' ')} Portal
                 </div>
             </div>
 
@@ -58,10 +77,6 @@ export function Sidebar({ role, onLogout }) {
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto custom-scrollbar">
                 {links.map((link) => {
                     const Icon = link.icon;
-
-                    // Improved active logic: 
-                    // Matches exact for dashboard, and startsWith for categories to keep them 
-                    // highlighted when you are in "Add" or "Details" views.
                     const isActive = link.exact
                         ? pathname === link.path
                         : pathname.startsWith(link.path);
@@ -102,7 +117,6 @@ export function Sidebar({ role, onLogout }) {
                     </div>
                 </div>
 
-                {/* Logout Button */}
                 <button
                     onClick={onLogout}
                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 hover:text-red-600 transition-all duration-200 group border border-transparent hover:border-red-100"

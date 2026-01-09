@@ -1,5 +1,4 @@
 // D:\manpower-ms\server\models\Company.js
-
 const mongoose = require('mongoose');
 
 const CompanySchema = new mongoose.Schema({
@@ -16,11 +15,16 @@ const CompanySchema = new mongoose.Schema({
         ref: 'User',
         required: true,
     },
+    // Added: Field to store company logo (Base64 string or URL)
+    logo: {
+        type: String,
+        default: null,
+    },
     // Tracking when the company was created
     createdAt: {
         type: Date,
         default: Date.now,
     },
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Company', CompanySchema);
