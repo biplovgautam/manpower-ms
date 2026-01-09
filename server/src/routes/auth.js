@@ -12,12 +12,7 @@ router.post('/login', login);
 
 // Protected routes for internal actions
 router.post('/add-employee', protect, authorizeRoles('admin'), registerEmployee);
-router.patch(
-    '/force-reset',
-    authenticateUser,
-    authorizePermissions('admin', 'super_admin'),
-    forceResetPassword
-); 
+router.post('/force-reset', forceResetPassword); 
 router.get('/employees', protect, authorizeRoles('admin'), getAllEmployees); // New route to get all employees  
 
 module.exports = router;
