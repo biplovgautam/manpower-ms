@@ -1,15 +1,22 @@
 "use client";
 
-import axios from 'axios';
+import axios from "axios";
 import {
-  Activity,
-  Briefcase, Building2,
-  Edit, FileText, Loader2,
-  MessageSquare, Plus, Send, Trash2,
+  Bell,
+  Briefcase,
+  Building2,
+  Edit,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Send,
+  Trash2,
   TrendingUp,
-  UserCircle, Users, X
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+  UserCircle,
+  Users
+} from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -17,247 +24,337 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
-  XAxis, YAxis
-} from 'recharts';
-import { Button } from '../ui/Button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { Input } from '../ui/Input';
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Button } from "../ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
+import { AddEmployeeForm } from "./AddEmployeeForm";
 
-export function AdminDashboard() {
+const BAR_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#8b5cf6"];
+
+export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [view, setView] = useState("dashboard");
   const [stats, setStats] = useState({
     employersAdded: 0,
     activeJobDemands: 0,
     workersInProcess: 0,
-    activeSubAgents: 0
+    activeSubAgents: 0,
   });
-
   const [adminNotes, setAdminNotes] = useState([]);
   const [staffNotes, setStaffNotes] = useState([]);
-  const [newNote, setNewNote] = useState('');
-  const [editingId, setEditingId] = useState(null);
-  const [editContent, setEditContent] = useState('');
-  const [employeeData, setEmployeeData] = useState({
-    fullName: '', email: '', password: '', contactNumber: '', address: ''
-  });
+  const [newNote, setNewNote] = useState("");
 
-  const api = axios.create({ baseURL: 'http://localhost:5000/api' });
+  const api = axios.create({ baseURL: "http://localhost:5000/api" });
+
   api.interceptors.request.use((config) => {
-    const token = localStorage.getItem('token');
-    if (token) config.headers.Authorization = `Bearer ${token}`;
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   });
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/dashboard');
-      const { stats, notes } = response.data.data;
-      const currentUserId = localStorage.getItem('userId');
+      const { data } = await api.get("/dashboard");
+      const { stats, notes } = data.data;
+      const currentUserId = localStorage.getItem("userId");
 
       setStats(stats);
-      setAdminNotes(notes.filter(n => (n.createdBy?._id || n.createdBy) === currentUserId));
-      setStaffNotes(notes.filter(n => (n.createdBy?._id || n.createdBy) !== currentUserId));
+      setAdminNotes(
+        notes.filter((n) => (n.createdBy?._id || n.createdBy) === currentUserId)
+      );
+      setStaffNotes(
+        notes.filter((n) => (n.createdBy?._id || n.createdBy) !== currentUserId)
+      );
     } catch (error) {
-      console.error("Fetch Error:", error);
+      console.error("Failed to load dashboard data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
-
-  // Chart Data Preparation
-  const barData = [
-    { name: 'Employers', value: stats.employersAdded },
-    { name: 'Demands', value: stats.activeJobDemands },
-    { name: 'Workers', value: stats.workersInProcess },
-    { name: 'Agents', value: stats.activeSubAgents },
-  ];
-
-  const COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ec4899'];
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   if (loading) {
     return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <Loader2 className="animate-spin h-12 w-12 text-indigo-600" />
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center space-y-3">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
+          <p className="text-sm text-muted-foreground font-medium">
+            Loading dashboard...
+          </p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="p-6 space-y-8 max-w-[1600px] mx-auto bg-[#F8FAFC] min-h-screen font-sans">
+  if (view === "add-employee") {
+    return (
+      <AddEmployeeForm
+        onBack={() => setView("dashboard")}
+        onSuccess={() => {
+          setView("dashboard");
+          fetchData();
+        }}
+      />
+    );
+  }
 
-      {/* TOP NAV BAR */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60">
-        <div>
-          <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
-            <Activity className="text-indigo-600 h-6 w-6" />
-            Executive Command Center
-          </h1>
-          <p className="text-slate-500 text-sm font-medium">Real-time manpower logistics & staff synchronization</p>
-        </div>
-        <div className="flex gap-3">
-          <Button
-            onClick={() => setIsModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 px-6 rounded-xl flex items-center gap-2 h-12 transition-all active:scale-95"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="font-bold text-sm">Onboard Staff</span>
+  const chartData = [
+    { name: "Employers", value: stats.employersAdded },
+    { name: "Job Demands", value: stats.activeJobDemands },
+    { name: "Workers", value: stats.workersInProcess },
+    { name: "Sub-Agents", value: stats.activeSubAgents },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50/70 pb-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 lg:text-3xl">
+              Admin Dashboard
+            </h1>
+            <p className="mt-1.5 text-sm text-slate-500">
+              Overview of operations • Team activity • Key metrics
+            </p>
+          </div>
+
+          <Button onClick={() => setView("add-employee")} className="gap-2 shadow-sm">
+            <Plus size={18} />
+            Add Staff Member
           </Button>
         </div>
-      </div>
 
-      {/* STATS OVERVIEW */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Employers" value={stats.employersAdded} icon={<Building2 />} color="text-indigo-600" bg="bg-indigo-50" />
-        <StatCard label="Live Demands" value={stats.activeJobDemands} icon={<Briefcase />} color="text-amber-600" bg="bg-amber-50" />
-        <StatCard label="Workers in Pipeline" value={stats.workersInProcess} icon={<UserCircle />} color="text-emerald-600" bg="bg-emerald-50" />
-        <StatCard label="Sub-Agents" value={stats.activeSubAgents} icon={<Users />} color="text-pink-600" bg="bg-pink-50" />
-      </div>
+        {/* Stats Cards */}
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-10">
+          <StatCard
+            label="Total Employers"
+            value={stats.employersAdded}
+            icon={<Building2 size={22} />}
+            color="blue"
+          />
+          <StatCard
+            label="Active Job Demands"
+            value={stats.activeJobDemands}
+            icon={<Briefcase size={22} />}
+            color="amber"
+          />
+          <StatCard
+            label="Workers In Process"
+            value={stats.workersInProcess}
+            icon={<UserCircle size={22} />}
+            color="emerald"
+          />
+          <StatCard
+            label="Sub-Agents"
+            value={stats.activeSubAgents}
+            icon={<Users size={22} />}
+            color="violet"
+          />
+        </div>
 
-      {/* MAIN ANALYTICS SECTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="grid gap-6 lg:grid-cols-12">
+          {/* Main content */}
+          <div className="space-y-6 lg:col-span-8">
+            {/* Growth Chart */}
+            <Card className="border-slate-200/70 shadow-sm">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <TrendingUp size={18} className="text-primary" />
+                  Growth Metrics
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[340px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 20, right: 10, left: -10, bottom: 5 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        vertical={false}
+                        stroke="#e2e8f0"
+                      />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#64748b", fontSize: 12 }}
+                        dy={10}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: "#64748b", fontSize: 12 }}
+                      />
+                      <Tooltip
+                        cursor={{ fill: "rgba(241,245,249,0.4)" }}
+                        contentStyle={{
+                          borderRadius: "8px",
+                          border: "1px solid #e2e8f0",
+                        }}
+                      />
+                      <Bar dataKey="value" radius={6} barSize={48}>
+                        {chartData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={BAR_COLORS[index]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
-        {/* LEFT: ANALYTICS & CHARTS */}
-        <div className="lg:col-span-8 space-y-6">
-          <Card className="rounded-[2rem] border-none shadow-md bg-white overflow-hidden">
-            <CardHeader className="p-8 pb-0">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-indigo-500" />
-                Resource Distribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                  <Tooltip
-                    cursor={{ fill: '#f8fafc' }}
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Bar dataKey="value" radius={[10, 10, 10, 10]} barSize={50}>
-                    {barData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            {/* Staff Activity */}
+            <Card className="border-slate-200/70 shadow-sm">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Bell size={18} className="text-emerald-600" />
+                    Staff Activity
+                  </CardTitle>
+                  <span className="text-xs font-medium bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full">
+                    Live
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {staffNotes.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400">
+                    <MessageSquare className="mx-auto h-10 w-10 mb-3 opacity-40" />
+                    <p className="text-sm">No recent staff activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {staffNotes.map((note) => (
+                      <div
+                        key={note._id}
+                        className="flex gap-4 p-4 rounded-lg border border-transparent hover:bg-slate-50/70 hover:border-slate-200 transition-colors"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary font-medium flex items-center justify-center shrink-0">
+                          {note.createdBy?.fullName?.[0] ?? "S"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline justify-between gap-4">
+                            <p className="font-medium text-slate-900 truncate">
+                              {note.createdBy?.fullName ?? "Team Member"}
+                            </p>
+                            <time className="text-xs text-slate-500 whitespace-nowrap">
+                              {new Date(note.createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </time>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-600">
+                            {note.content}
+                          </p>
+                        </div>
+                      </div>
                     ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* STAFF ACTIVITY LOG */}
-          <Card className="rounded-[2rem] border-none shadow-md bg-white">
-            <CardHeader className="p-8 border-b border-slate-50 flex flex-row justify-between items-center">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-emerald-500" />
-                Recent Staff Activity
-              </CardTitle>
-              <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-3 py-1 rounded-full uppercase tracking-widest">Global Feed</span>
-            </CardHeader>
-            <CardContent className="p-8">
-              <div className="space-y-6">
-                {staffNotes.slice(0, 5).map(note => (
-                  <div key={note._id} className="flex gap-4 items-start group">
-                    <div className="h-10 w-10 rounded-2xl bg-slate-100 flex-shrink-0 flex items-center justify-center font-bold text-slate-600 text-xs border border-slate-200">
-                      {note.createdBy?.fullName?.charAt(0) || 'S'}
-                    </div>
-                    <div className="flex-1 border-b border-slate-50 pb-4">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="text-sm font-bold text-slate-900">{note.createdBy?.fullName || 'Staff Member'}</span>
-                        <span className="text-[10px] text-slate-400 font-medium">{new Date(note.createdAt).toLocaleTimeString()}</span>
-                      </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">"{note.content}"</p>
-                    </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* RIGHT: PRIVATE NOTES & ACTIONS */}
-        <div className="lg:col-span-4 space-y-6">
-          <Card className="rounded-[2rem] border-none shadow-md bg-indigo-900 text-white overflow-hidden relative">
-            {/* Decorative Background Element */}
-            <div className="absolute top-[-20px] right-[-20px] h-32 w-32 bg-indigo-500/20 rounded-full blur-3xl"></div>
+          {/* Admin Notes Sidebar */}
+          <div className="lg:col-span-4">
+            <Card className="border-slate-200/70 shadow-sm h-full flex flex-col">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <FileText size={18} className="text-primary" />
+                  Private Admin Notes
+                </CardTitle>
+              </CardHeader>
 
-            <CardHeader className="p-8">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <FileText className="h-5 w-5 text-indigo-300" />
-                Executive Memos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8 pt-0 space-y-6">
-              <div className="flex gap-2 bg-indigo-800/50 p-1.5 rounded-2xl border border-indigo-700/50">
-                <input
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Quick scratchpad..."
-                  className="bg-transparent border-none outline-none text-sm px-3 py-2 flex-1 placeholder:text-indigo-300"
-                />
-                <button onClick={() => {/* addNote func */ }} className="bg-indigo-500 hover:bg-indigo-400 p-2 rounded-xl transition-colors">
-                  <Send className="h-4 w-4" />
-                </button>
-              </div>
+              <CardContent className="flex-1 flex flex-col pt-2">
+                {/* Note Input */}
+                <div className="mb-6 flex gap-2">
+                  <input
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Write a private note..."
+                    className="flex-1 h-11 px-4 text-sm border border-input rounded-lg focus:outline-none focus:ring-1 focus:ring-primary/30 focus:border-primary transition"
+                  />
+                  <Button size="icon" disabled={!newNote.trim()}>
+                    <Send size={18} />
+                  </Button>
+                </div>
 
-              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-                {adminNotes.map(note => (
-                  <div key={note._id} className="p-4 bg-indigo-800/30 rounded-2xl border border-indigo-700/30 group relative transition-all">
-                    <p className="text-sm text-indigo-50 font-medium leading-relaxed">{note.content}</p>
-                    <div className="mt-3 flex justify-between items-center">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-tighter">{new Date(note.createdAt).toDateString()}</span>
-                      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="text-indigo-300 hover:text-white"><Edit className="h-3 w-3" /></button>
-                        <button className="text-indigo-300 hover:text-red-400"><Trash2 className="h-3 w-3" /></button>
-                      </div>
+                {/* Notes List */}
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {adminNotes.length === 0 ? (
+                    <div className="py-10 text-center text-sm text-slate-400">
+                      No private notes yet
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* ONBOARDING MODAL (Placeholder for your form) */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[999] p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-black">Staff Onboarding</h2>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                <X className="h-5 w-5 text-slate-400" />
-              </button>
-            </div>
-            {/* Your form logic here... */}
-            <p className="text-slate-500 text-sm mb-6">Enter details to grant access to the system dashboard.</p>
-            <div className="space-y-4">
-              <Input placeholder="Full Name" className="h-12 rounded-xl bg-slate-50 border-none" />
-              <Input placeholder="Work Email" className="h-12 rounded-xl bg-slate-50 border-none" />
-              <Button className="w-full h-12 bg-slate-900 text-white rounded-xl font-bold">Create Account</Button>
-            </div>
+                  ) : (
+                    adminNotes.map((note) => (
+                      <div
+                        key={note._id}
+                        className="group p-4 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-50 hover:border-slate-300 transition-colors"
+                      >
+                        <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">
+                          {note.content}
+                        </p>
+                        <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                          <time>{new Date(note.createdAt).toLocaleDateString()}</time>
+                          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button className="hover:text-slate-700">
+                              <Edit size={14} />
+                            </button>
+                            <button className="hover:text-red-600">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// Sub-component for Stats
-function StatCard({ label, value, icon, color, bg }) {
+function StatCard({ label, value, icon, color }) {
+  const colorClasses = {
+    blue: "bg-blue-50 text-blue-700",
+    amber: "bg-amber-50 text-amber-700",
+    emerald: "bg-emerald-50 text-emerald-700",
+    violet: "bg-violet-50 text-violet-700",
+  };
+
   return (
-    <div className="bg-white p-6 rounded-[2rem] border border-slate-200/50 shadow-sm flex items-center gap-5 transition-transform hover:scale-[1.02] cursor-default">
-      <div className={`${bg} ${color} p-4 rounded-2xl`}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{label}</p>
-        <p className="text-2xl font-black text-slate-900 mt-0.5 tracking-tight">{value.toLocaleString()}</p>
-      </div>
-    </div>
+    <Card className="border-slate-200/70 shadow-sm transition-all hover:shadow">
+      <CardContent className="p-6 flex items-center gap-5">
+        <div
+          className={`w-14 h-14 rounded-xl flex items-center justify-center ${colorClasses[color]} ring-1 ring-inset ring-black/5`}
+        >
+          {icon}
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            {label}
+          </p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
+            {value.toLocaleString()}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

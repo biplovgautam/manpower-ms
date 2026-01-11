@@ -13,13 +13,10 @@ const UserSchema = new mongoose.Schema({
     email: {
         type: String,
         unique: true,
-        sparse: true, // IMPORTANT: Allows multiple null/undefined values
+        sparse: true,
         lowercase: true,
         trim: true,
-        match: [
-            /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-            'Please provide a valid email',
-        ],
+        match: [/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, 'Please provide a valid email'],
     },
     password: {
         type: String,
@@ -37,25 +34,21 @@ const UserSchema = new mongoose.Schema({
     companyId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Company',
-        required: function () {
-            // companyId is required for everyone except super_admin
-            return this.role !== 'super_admin';
-        },
+        required: function () { return this.role !== 'super_admin'; },
     },
+    // Reset Password Fields
+    passwordResetToken: String,
+    passwordResetExpires: Date,
+    otpReference: String,       // A small code to show on screen like "Ref: AX-12"
 }, { timestamps: true });
 
-// CENTRALIZED SALT + PEPPER LOGIC
 UserSchema.pre('save', async function () {
     if (!this.isModified('password')) return;
-
     const salt = await bcrypt.genSalt(10);
-    // Combine password with secret PEPPER from .env
     const pepperedPassword = this.password + process.env.PASSWORD_PEPPER;
-
     this.password = await bcrypt.hash(pepperedPassword, salt);
 });
 
-// PASSWORD VERIFICATION
 UserSchema.methods.comparePassword = async function (candidatePassword) {
     const pepperedPassword = candidatePassword + process.env.PASSWORD_PEPPER;
     return await bcrypt.compare(pepperedPassword, this.password);

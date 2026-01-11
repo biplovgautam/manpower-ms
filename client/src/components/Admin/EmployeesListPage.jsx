@@ -126,8 +126,8 @@ export function EmployeesListPage({ employees = [], onAddEmployee, isLoading, on
                                         <TableCell className="text-center">
                                             {/* Logic: Highlight green if they are actively managing workers */}
                                             <span className={`inline-flex items-center justify-center min-w-[3rem] py-1 px-2 font-black rounded-lg transition-colors ${(employee.workersManaged || 0) > 0
-                                                    ? "text-green-700 bg-green-100 shadow-sm"
-                                                    : "text-gray-400 bg-gray-50"
+                                                ? "text-green-700 bg-green-100 shadow-sm"
+                                                : "text-gray-400 bg-gray-50"
                                                 }`}>
                                                 {employee.workersManaged || 0}
                                             </span>

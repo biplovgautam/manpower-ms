@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 // Try relative paths if @/ is failing
-import { AdminDashboard } from '../../../components/Admin/AdminDashboard';
+import AdminDashboard from '../../../components/Admin/AdminDashboard';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 
 export default function TenantAdminPage() {

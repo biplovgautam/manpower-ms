@@ -1,13 +1,14 @@
-// D:\manpower-ms\server\controllers\auth.js
 const User = require('../models/User');
 const Company = require('../models/Company');
-const Employer = require('../models/Employers');
-const JobDemand = require('../models/JobDemand');
-const Worker = require('../models/Worker');
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
+const crypto = require('crypto');
+const sendEmail = require('../utils/sendEmail');
+const sendNepaliSMS = require('../utils/sendSMS');
 
-// Helper: Only normalizes if email exists
+/**
+ * Helper to normalize email addresses
+ */
 const normalizeEmail = (email) => {
     if (!email || typeof email !== 'string') return null;
     const [local, domain] = email.toLowerCase().trim().split('@');
@@ -15,63 +16,82 @@ const normalizeEmail = (email) => {
     return `${local.split('+')[0]}@${domain}`;
 };
 
-// 1. REGISTER ADMIN/SUPER_ADMIN
-const register = async (req, res) => {
-    // Destructure 'logo' from the request body
-    const { fullName, email, password, role, companyName, contactNumber, address, logo } = req.body;
+/**
+ * Password Policy: 8+ chars, 1 Upper, 1 Number, 1 Special Char
+ */
+const validatePasswordPolicy = (password) => {
+    const regex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    return regex.test(password);
+};
 
-    if (!fullName || !password) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Full Name and Password are required.' });
+// 1. REGISTER ADMIN & COMPANY (Agency Registration)
+const register = async (req, res) => {
+    const { agencyName, fullAddress, fullName, email, contactNumber, password } = req.body;
+
+    // VALIDATION: Email is optional, everything else REQUIRED
+    if (!agencyName || !fullName || !password || !contactNumber || !fullAddress) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Full Name, Password, Contact, Address, and Agency Name are required.' });
     }
 
-    const cleanEmail = normalizeEmail(email);
+    if (!validatePasswordPolicy(password)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            msg: 'Password too weak. Use 8+ chars, 1 uppercase, 1 number, and 1 special character.'
+        });
+    }
+
+    const cleanEmail = email ? normalizeEmail(email) : null;
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-        if (cleanEmail) {
-            const existingUser = await User.findOne({ email: cleanEmail }).session(session);
-            if (existingUser) {
-                await session.abortTransaction();
-                return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email already exists.' });
-            }
+        // Check if phone already exists (always) or email exists (if provided)
+        const existingUser = await User.findOne({
+            $or: [
+                ...(cleanEmail ? [{ email: cleanEmail }] : []),
+                { contactNumber: contactNumber }
+            ]
+        }).session(session);
+
+        if (existingUser) {
+            await session.abortTransaction();
+            const field = existingUser.contactNumber === contactNumber ? 'Phone number' : 'Email';
+            return res.status(StatusCodes.BAD_REQUEST).json({ msg: `${field} already exists.` });
         }
 
+        const adminId = new mongoose.Types.ObjectId();
         const isFirstAccount = (await User.countDocuments({}).session(session)) === 0;
-        let userRole = isFirstAccount ? 'super_admin' : (role || 'admin');
+        const userRole = isFirstAccount ? 'super_admin' : 'admin';
 
-        const userId = new mongoose.Types.ObjectId();
-        let companyId = null;
+        // A. Create Company
+        const company = await Company.create([{
+            name: agencyName,
+            adminId: adminId,
+            logo: null // Handled via separate upload if needed
+        }], { session });
 
-        if (userRole === 'admin') {
-            if (!companyName) {
-                await session.abortTransaction();
-                return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Company Name required for Admin.' });
-            }
-            // Create company and include the logo
-            const company = await Company.create([{
-                name: companyName,
-                adminId: userId,
-                logo: logo || null
-            }], { session });
-            companyId = company[0]._id;
-        }
-
+        // B. Create Admin User
         const user = await User.create([{
-            _id: userId,
+            _id: adminId,
             fullName,
             email: cleanEmail || undefined,
             password,
             role: userRole,
-            contactNumber: contactNumber || 'N/A',
-            address: address || 'N/A',
-            companyId
+            contactNumber,
+            address: fullAddress,
+            companyId: company[0]._id
         }], { session });
 
         await session.commitTransaction();
+        const token = user[0].createJWT();
+
         res.status(StatusCodes.CREATED).json({
             success: true,
-            user: { fullName: user[0].fullName, email: user[0].email || 'No email provided' }
+            user: {
+                fullName: user[0].fullName,
+                role: user[0].role,
+                agencyName: company[0].name
+            },
+            token
         });
     } catch (error) {
         await session.abortTransaction();
@@ -81,49 +101,137 @@ const register = async (req, res) => {
     }
 };
 
-// 2. LOGIN
+// 2. LOGIN (Supports Email OR Phone Number)
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
-        if (!email || !password) return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email and password required' });
+        const { identifier, password } = req.body;
 
-        const cleanEmail = normalizeEmail(email);
-        const user = await User.findOne({ email: cleanEmail }).select('+password');
+        if (!identifier || !password) {
+            return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Please provide both ID and password' });
+        }
 
-        if (!user || !(await user.comparePassword(password))) {
-            return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Invalid Credentials' });
+        const cleanEmail = identifier.includes('@') ? normalizeEmail(identifier) : "NOT_AN_EMAIL";
+
+        const user = await User.findOne({
+            $or: [
+                { email: cleanEmail },
+                { contactNumber: identifier }
+            ]
+        }).select('+password');
+
+        // Split errors for clarity
+        if (!user) {
+            return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Account not found. Please check your credentials.' });
+        }
+
+        const isMatch = await user.comparePassword(password);
+        if (!isMatch) {
+            return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Incorrect password. Try again.' });
         }
 
         const token = user.createJWT();
         res.status(StatusCodes.OK).json({
             success: true,
-            user: { userId: user._id, fullName: user.fullName, role: user.role, companyId: user.companyId },
+            user: {
+                userId: user._id,
+                fullName: user.fullName,
+                role: user.role,
+                companyId: user.companyId
+            },
             token
         });
     } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: error.message });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: 'Login failed. Server error.' });
     }
 };
 
-// 3. REGISTER EMPLOYEE (Admin Action)
-const registerEmployee = async (req, res) => {
+// 3. FORGOT PASSWORD
+const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Please provide email' });
+
+    const user = await User.findOne({ email: normalizeEmail(email) });
+    if (!user) return res.status(StatusCodes.OK).json({ msg: 'If an account exists, an OTP has been sent.' });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpRef = crypto.randomBytes(2).toString('hex').toUpperCase();
+
+    user.passwordResetToken = crypto.createHash('sha256').update(otp).digest('hex');
+    user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+    user.otpReference = otpRef;
+    await user.save();
+
     try {
-        const { fullName, email, password, contactNumber, address } = req.body;
-        const adminCompanyId = req.user.companyId;
+        await Promise.all([
+            sendEmail({
+                to: user.email,
+                subject: `[${otpRef}] Password Reset OTP`,
+                html: `<h3>OTP: ${otp}</h3><p>Reference: ${otpRef}</p>`
+            }),
+            sendNepaliSMS(user.contactNumber, `OTP: ${otp} (Ref: ${otpRef})`)
+        ]);
+        res.status(StatusCodes.OK).json({ success: true, otpReference: otpRef });
+    } catch (error) {
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: 'Notification failed' });
+    }
+};
 
-        if (!adminCompanyId) {
-            return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Admin Company context missing.' });
-        }
+// 4. RESET PASSWORD
+const resetPassword = async (req, res) => {
+    const { email, otp, newPassword } = req.body;
 
-        if (!fullName || !password || !contactNumber || !address) {
-            return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Name, Password, Contact, and Address are required.' });
-        }
+    if (!validatePasswordPolicy(newPassword)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'New password must meet security requirements.' });
+    }
 
-        const cleanEmail = normalizeEmail(email);
+    const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
 
-        if (cleanEmail) {
-            const existingUser = await User.findOne({ email: cleanEmail });
-            if (existingUser) return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email already exists.' });
+    const user = await User.findOne({
+        email: normalizeEmail(email),
+        passwordResetToken: hashedOTP,
+        passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!user) return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Invalid or expired OTP' });
+
+    user.password = newPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.otpReference = undefined;
+
+    await user.save();
+    res.status(StatusCodes.OK).json({ success: true, msg: 'Password updated successfully.' });
+};
+
+// 5. REGISTER EMPLOYEE (Email Optional, Everything Else Required)
+const registerEmployee = async (req, res) => {
+    const { fullName, email, password, contactNumber, address } = req.body;
+    const adminCompanyId = req.user.companyId;
+
+    // VALIDATION: All required except email
+    if (!fullName || !password || !contactNumber || !address) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Full Name, Password, Contact, and Address are required.' });
+    }
+
+    if (!validatePasswordPolicy(password)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+            msg: 'Password must be 8+ chars with 1 Uppercase, 1 Number, and 1 Special character.'
+        });
+    }
+
+    const cleanEmail = email ? normalizeEmail(email) : null;
+
+    try {
+        // Check for duplicates
+        const existingUser = await User.findOne({
+            $or: [
+                ...(cleanEmail ? [{ email: cleanEmail }] : []),
+                { contactNumber: contactNumber }
+            ]
+        });
+
+        if (existingUser) {
+            return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email or Contact Number already in use.' });
         }
 
         const employee = await User.create({
@@ -136,90 +244,49 @@ const registerEmployee = async (req, res) => {
             companyId: adminCompanyId
         });
 
-        res.status(StatusCodes.CREATED).json({
-            success: true,
-            msg: 'Employee registered successfully',
-            employee: { id: employee._id, email: employee.email || 'N/A' }
-        });
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: error.message });
-    }
-};
+        const loginUrl = process.env.CLIENT_URL || "http://localhost:3000";
 
-// 4. GET ALL EMPLOYEES
-const getAllEmployees = async (req, res) => {
-    try {
-        const adminCompanyId = req.user.companyId;
-        const compId = new mongoose.Types.ObjectId(adminCompanyId);
-
-        const employees = await User.find({ companyId: compId, role: 'employee' }).select('-password').lean();
-
-        const employeesWithStats = await Promise.all(employees.map(async (emp) => {
-            const targetId = new mongoose.Types.ObjectId(emp._id);
-            const [employersCount, demandsCount, workersCount] = await Promise.all([
-                Employer.countDocuments({ createdBy: targetId }),
-                JobDemand.countDocuments({ createdBy: targetId }),
-                Worker.countDocuments({
-                    companyId: compId,
-                    $or: [{ createdBy: targetId }, { assignedTo: targetId }]
-                })
-            ]);
-
-            return { ...emp, employersAdded: employersCount, jobDemandsCreated: demandsCount, workersManaged: workersCount };
-        }));
-
-        res.status(StatusCodes.OK).json({ success: true, count: employeesWithStats.length, data: employeesWithStats });
-    } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
-    }
-};
-// controllers/auth.js
-
-// controllers/auth.js
-
-// controllers/auth.js
-
-const forceResetPassword = async (req, res) => {
-    const { email, newPassword, recoveryKey } = req.body;
-
-    // 1. Hardcoded Security Check (The "Master Key")
-    // Ensure ADMIN_RECOVERY_KEY is in your .env file
-    if (!recoveryKey || recoveryKey !== process.env.ADMIN_RECOVERY_KEY) {
-        return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Invalid Recovery Key' });
-    }
-
-    if (!email || !newPassword) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email and New Password are required' });
-    }
-
-    try {
-        const cleanEmail = normalizeEmail(email);
-        const user = await User.findOne({ email: cleanEmail });
-
-        if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'User not found' });
+        // Notify via Email (Only if provided)
+        if (cleanEmail) {
+            await sendEmail({
+                to: cleanEmail,
+                subject: 'Your Account Credentials - Manpower MS',
+                html: `
+                    <h3>Welcome to the team, ${fullName}!</h3>
+                    <p>Your account is ready.</p>
+                    <ul>
+                        <li><b>Email:</b> ${cleanEmail}</li>
+                        <li><b>Password:</b> ${password}</li>
+                    </ul>
+                    <p>Login here: <a href="${loginUrl}">${loginUrl}</a></p>`
+            });
         }
 
-        // 2. Force update the password
-        // This triggers the .pre('save') hook in your User model to hash the password
-        user.password = newPassword;
-        
-        // validateModifiedOnly: true prevents errors if other fields (like contactNumber) are missing
-        await user.save({ validateModifiedOnly: true });
+        // Notify via SMS (Always required)
+        const smsBody = `Hi ${fullName}, your account is ready. Phone: ${contactNumber}, Pass: ${password}. Login: ${loginUrl}`;
+        await sendNepaliSMS(contactNumber, smsBody);
 
-        res.status(StatusCodes.OK).json({
-            success: true,
-            msg: `Password for ${user.fullName} has been forced reset.`
-        });
+        res.status(StatusCodes.CREATED).json({ success: true, msg: 'Employee registered and notified via SMS.' });
     } catch (error) {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: error.message });
     }
 };
-// Add to module.exports
+
+// 6. GET ALL EMPLOYEES
+const getAllEmployees = async (req, res) => {
+    const employees = await User.find({
+        companyId: req.user.companyId,
+        role: 'employee'
+    }).select('-password').sort({ createdAt: -1 });
+
+    res.status(StatusCodes.OK).json({ success: true, data: employees });
+};
+
 module.exports = {
     register,
     login,
     registerEmployee,
     getAllEmployees,
-    forceResetPassword // <--- Added
+    forgotPassword,
+    resetPassword
 };
