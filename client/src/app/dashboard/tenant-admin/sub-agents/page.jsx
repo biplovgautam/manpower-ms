@@ -2,9 +2,9 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { SubAgentDetailsPage } from '../../../../components/Admin/SubAgentDetailsPage';
 import { SubAgentListPage } from '../../../../components/Admin/SubAgentsListPage';
-// import { SubAgentDetailsPage } from '../../../../components/Admin/SubAgentDetailsPage';
+import { DashboardLayout } from '../../../../components/DashboardLayout';
 
 export default function AdminSubAgentsPage() {
     const router = useRouter();
@@ -12,8 +12,9 @@ export default function AdminSubAgentsPage() {
     const action = searchParams.get('action');
 
     const [subAgents, setSubAgents] = useState([]);
+    const [agentWorkers, setAgentWorkers] = useState([]); // Store workers for the selected agent
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState('list'); // 'list' | 'detail' | 'add'
+    const [view, setView] = useState('list');
     const [selectedAgent, setSelectedAgent] = useState(null);
 
     const fetchSubAgents = useCallback(async () => {
@@ -21,57 +22,105 @@ export default function AdminSubAgentsPage() {
         try {
             setIsLoading(true);
             const response = await fetch('http://localhost:5000/api/sub-agents', {
-                headers: { 
+                headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
             const result = await response.json();
-
             if (response.ok) {
                 setSubAgents(result.data || []);
-                
-                // Refresh detail view if one is open
-                if (selectedAgent) {
-                    const updated = result.data.find(a => a._id === selectedAgent._id);
-                    if (updated) setSelectedAgent(updated);
-                }
             }
         } catch (err) {
             console.error("Error fetching sub-agents:", err);
         } finally {
             setIsLoading(false);
         }
-    }, [selectedAgent]);
+    }, []);
+
+    // Fetch workers for a specific agent when details are viewed
+    const fetchAgentWorkers = async (agentId) => {
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`http://localhost:5000/api/sub-agents/${agentId}/workers`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const result = await response.json();
+            if (result.success) {
+                setAgentWorkers(result.data || []);
+            }
+        } catch (err) {
+            console.error("Error fetching workers:", err);
+        }
+    };
 
     useEffect(() => {
         fetchSubAgents();
-    }, []);
+    }, [fetchSubAgents]);
 
     useEffect(() => {
-        if (action === 'add') setView('add');
-        else if (!action && view === 'add') setView('list');
-    }, [action, view]);
+        if (action === 'add') {
+            setView('add');
+        } else if (selectedAgent) {
+            setView('detail');
+            fetchAgentWorkers(selectedAgent._id);
+        } else {
+            setView('list');
+        }
+    }, [action, selectedAgent]);
 
-    const handleSelectAgent = (agent) => {
-        setSelectedAgent(agent);
-        setView('detail');
+    const handleUpdateStatus = async (id, newStatus) => {
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (response.ok) {
+                const updatedResult = await response.json();
+                setSelectedAgent(updatedResult.data);
+                fetchSubAgents();
+            }
+        } catch (err) {
+            console.error("Update failed:", err);
+        }
+    };
+
+    const handleDeleteAgent = async (id) => {
+        if (!confirm("Are you sure you want to delete this agent?")) return;
+        const token = localStorage.getItem('token');
+        try {
+            const response = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                handleBackToList();
+                fetchSubAgents();
+            }
+        } catch (err) {
+            console.error("Delete failed:", err);
+        }
     };
 
     const handleBackToList = () => {
-        setView('list');
         setSelectedAgent(null);
+        setAgentWorkers([]);
+        setView('list');
         router.push('/dashboard/tenant-admin/sub-agents');
     };
 
     return (
         <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
             <div className="py-6 max-w-[1600px] mx-auto px-4">
-                
+
                 {view === 'add' && (
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                         <h2 className="text-xl font-bold mb-4">Register New Sub-Agent</h2>
-                        {/* <AddSubAgentForm onBack={handleBackToList} onSuccess={fetchSubAgents} /> */}
                         <button onClick={handleBackToList} className="text-blue-500 hover:underline">
                             ← Back to List
                         </button>
@@ -80,15 +129,16 @@ export default function AdminSubAgentsPage() {
 
                 {view === 'detail' && selectedAgent && (
                     <div className="space-y-4">
-                        <button onClick={handleBackToList} className="text-sm text-gray-500 hover:text-black">
+                        <button onClick={handleBackToList} className="text-sm text-gray-500 hover:text-black flex items-center gap-1">
                             ← Back to Sub-Agents
                         </button>
-                        {/* <SubAgentDetailsPage agent={selectedAgent} /> */}
-                        <div className="bg-white p-8 rounded-lg shadow">
-                            <h2 className="text-2xl font-bold">{selectedAgent.name}</h2>
-                            <p>Country: {selectedAgent.country}</p>
-                            <p>Status: {selectedAgent.status}</p>
-                        </div>
+
+                        <SubAgentDetailsPage
+                            agent={selectedAgent}
+                            workers={agentWorkers}
+                            onDelete={handleDeleteAgent}
+                            onStatusChange={handleUpdateStatus}
+                        />
                     </div>
                 )}
 
@@ -96,8 +146,10 @@ export default function AdminSubAgentsPage() {
                     <SubAgentListPage
                         subAgents={subAgents}
                         isLoading={isLoading}
-                        onAddAgent={() => router.push('/dashboard/tenant-admin/sub-agents?action=add')}
-                        onSelectSubAgent={handleSelectAgent}
+                        onSelectSubAgent={(agent) => {
+                            setSelectedAgent(agent);
+                            router.push(`/dashboard/tenant-admin/sub-agents?id=${agent._id}`);
+                        }}
                     />
                 )}
             </div>

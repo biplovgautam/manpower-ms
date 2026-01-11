@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Input } from '../ui/Input';
+import { Search, Users } from 'lucide-react';
+import { useState } from 'react';
 import { Badge } from '../ui/Badge';
-import { Search, Plus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import { Input } from '../ui/Input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
-export function SubAgentListPage({ subAgents, onSelectSubAgent, onAddAgent, isLoading }) {
+export function SubAgentListPage({ subAgents = [], onSelectSubAgent, isLoading }) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const getStatusVariant = (status) => {
@@ -22,34 +22,28 @@ export function SubAgentListPage({ subAgents, onSelectSubAgent, onAddAgent, isLo
   const filteredSubAgents = subAgents.filter(
     (agent) =>
       agent.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.country?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      agent.contact?.toLowerCase().includes(searchTerm.toLowerCase())
+      agent.country?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Sub Agents</h1>
-          <p className="text-gray-600 mt-2">Manage and monitor sub-agent performance</p>
+          <p className="text-gray-600 mt-2">Overview of registered agents and recruitment volume.</p>
         </div>
-        <button 
-          onClick={onAddAgent}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={20} /> Add Sub Agent
-        </button>
       </div>
 
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>All Sub Agents ({filteredSubAgents.length})</CardTitle>
-            <div className="relative w-64">
+            <CardTitle className="text-xl font-semibold">
+              Agent Directory <span className="text-sm font-normal text-gray-500 ml-2">({filteredSubAgents.length} agents)</span>
+            </CardTitle>
+            <div className="relative w-72">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
               <Input
-                type="text"
-                placeholder="Search sub agents..."
+                placeholder="Search name or country..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -60,47 +54,63 @@ export function SubAgentListPage({ subAgents, onSelectSubAgent, onAddAgent, isLo
 
         <CardContent className="p-0">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-gray-50/50">
               <TableRow>
-                <TableHead>Name</TableHead>
+                <TableHead className="w-[300px]">Agent Name</TableHead>
                 <TableHead>Country</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Total Workers</TableHead>
+                <TableHead className="text-center">Workers Brought</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="h-24 text-center">Loading agents...</TableCell></TableRow>
-              ) : filteredSubAgents.map((agent) => (
-                <TableRow
-                  key={agent._id}
-                  className="hover:bg-gray-50/50 cursor-pointer transition-colors"
-                  onClick={() => onSelectSubAgent(agent)}
-                >
-                  <TableCell className="font-medium text-blue-600">{agent.name}</TableCell>
-                  <TableCell>{agent.country}</TableCell>
-                  <TableCell className="font-mono text-sm">{agent.contact}</TableCell>
-                  <TableCell className="font-semibold text-center">
-                    {agent.totalWorkersBrought || 0}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(agent.status)}>
-                      {agent.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-gray-500 text-sm">
-                    {new Date(agent.createdAt).toLocaleDateString()}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!isLoading && filteredSubAgents.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-gray-500">
-                    No sub agents found matching "{searchTerm}"
+                  <TableCell colSpan={5} className="h-32 text-center text-gray-500">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      Loading agent data...
+                    </div>
                   </TableCell>
                 </TableRow>
+              ) : filteredSubAgents.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center text-gray-500">
+                    No agents found matching your search.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredSubAgents.map((agent) => (
+                  <TableRow
+                    key={agent._id}
+                    className="hover:bg-gray-50/50 cursor-pointer transition-colors group"
+                    onClick={() => onSelectSubAgent(agent)}
+                  >
+                    <TableCell className="font-semibold text-blue-600">
+                      {agent.name}
+                    </TableCell>
+                    <TableCell className="text-gray-600">{agent.country}</TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Users size={16} className="text-gray-400" />
+                        <span className="font-bold text-gray-900">
+                          {/* The backend now provides totalWorkersBrought via aggregation */}
+                          {agent.totalWorkersBrought || 0}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(agent.status)} className="capitalize">
+                        {agent.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="text-blue-500 text-sm font-medium group-hover:underline">
+                        View Details →
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
