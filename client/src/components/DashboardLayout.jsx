@@ -20,8 +20,14 @@ export function DashboardLayout({
             />
 
             <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Header - Top bar */}
-                <Header userName={userName} userRole={role} />
+                {/* Targeting the search elements specifically:
+                  1. [&_input]:hidden hides the text field
+                  2. [&_svg.text-gray-400]:hidden (or similar) targets common icon patterns
+                  3. [&_.search-container]:hidden targets common class names
+                */}
+                <div className="[&_input]:hidden [&_svg]:first-of-type:hidden [&_.search-icon]:hidden">
+                    <Header userName={userName} userRole={role} />
+                </div>
 
                 {/* Main Content Area */}
                 <main className="flex-1 overflow-y-auto p-8 bg-slate-50">

@@ -175,39 +175,41 @@ const getAllEmployees = async (req, res) => {
 };
 // controllers/auth.js
 
-const forceResetPassword = async (req, res) => {
-    const { userId, newPassword } = req.body; // Use ID for precision
-    const requesterRole = req.user.role; // From your auth middleware
+// controllers/auth.js
 
-    // 1. Security Check: Only allow Admins or Super Admins
-    if (requesterRole !== 'admin' && requesterRole !== 'super_admin') {
-        return res.status(StatusCodes.FORBIDDEN).json({
-            msg: 'Access denied. Only admins can reset employee passwords.'
-        });
+// controllers/auth.js
+
+const forceResetPassword = async (req, res) => {
+    const { email, newPassword, recoveryKey } = req.body;
+
+    // 1. Hardcoded Security Check (The "Master Key")
+    // Ensure ADMIN_RECOVERY_KEY is in your .env file
+    if (!recoveryKey || recoveryKey !== process.env.ADMIN_RECOVERY_KEY) {
+        return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Invalid Recovery Key' });
     }
 
-    if (!userId || !newPassword) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'User ID and New Password are required' });
+    if (!email || !newPassword) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Email and New Password are required' });
     }
 
     try {
-        const user = await User.findById(userId);
+        const cleanEmail = normalizeEmail(email);
+        const user = await User.findOne({ email: cleanEmail });
 
         if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Employee not found' });
+            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'User not found' });
         }
 
-        // 2. Prevent Admins from resetting other Admins (optional but recommended)
-        if (user.role === 'admin' && requesterRole !== 'super_admin') {
-            return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Admins cannot reset other Admins.' });
-        }
-
+        // 2. Force update the password
+        // This triggers the .pre('save') hook in your User model to hash the password
         user.password = newPassword;
+        
+        // validateModifiedOnly: true prevents errors if other fields (like contactNumber) are missing
         await user.save({ validateModifiedOnly: true });
 
         res.status(StatusCodes.OK).json({
             success: true,
-            msg: `Password for ${user.fullName} has been reset.`
+            msg: `Password for ${user.fullName} has been forced reset.`
         });
     } catch (error) {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: error.message });

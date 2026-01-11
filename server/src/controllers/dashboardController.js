@@ -20,25 +20,38 @@ const getDashboardData = async (req, res) => {
             ownershipFilter.createdBy = userId;
         }
 
+        // Calculation for "Urgent" tasks: Target date within the next 3 days
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const threeDaysFromNow = new Date();
+        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+        threeDaysFromNow.setHours(23, 59, 59, 999);
+
         const [
             employersCount,
             demandsCount,
             workersCount,
             agentsCount,
-            notes
+            notes,
+            urgentTasksCount
         ] = await Promise.all([
             Employer.countDocuments(ownershipFilter),
             JobDemand.countDocuments(ownershipFilter),
             Worker.countDocuments(ownershipFilter),
-
-            // CHANGE: Use ownershipFilter instead of companyWideFilter 
-            // This ensures the dashboard number matches the "Own Only" list.
             SubAgent.countDocuments(ownershipFilter),
-
             Note.find(ownershipFilter)
                 .populate('createdBy', 'fullName')
                 .sort({ createdAt: -1 })
-                .limit(10)
+                .limit(20), // Increased limit to ensure reminders are visible
+
+            // Dynamically count tasks that have a deadline approaching
+            Note.countDocuments({
+                ...ownershipFilter,
+                targetDate: { 
+                    $gte: today, 
+                    $lte: threeDaysFromNow 
+                }
+            })
         ]);
 
         res.status(StatusCodes.OK).json({
@@ -49,7 +62,7 @@ const getDashboardData = async (req, res) => {
                     activeJobDemands: demandsCount,
                     workersInProcess: workersCount,
                     activeSubAgents: agentsCount,
-                    tasksNeedingAttention: 0
+                    tasksNeedingAttention: urgentTasksCount // Real count from DB
                 },
                 notes
             }
@@ -61,14 +74,17 @@ const getDashboardData = async (req, res) => {
 
 const addNote = async (req, res) => {
     try {
-        const { content, category } = req.body;
+        // Included targetDate in destructuring
+        const { content, category, targetDate } = req.body;
+        
         if (!content) {
             return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Note content is required" });
         }
 
         const newNote = await Note.create({
             content,
-            category: category || 'General',
+            category: category || 'general',
+            targetDate: targetDate || null, // Saves the deadline from the calendar
             companyId: req.user.companyId,
             createdBy: req.user.userId
         });
@@ -82,9 +98,10 @@ const addNote = async (req, res) => {
 
 const updateNote = async (req, res) => {
     try {
+        // Using req.body allows targetDate, content, and category to be updated
         const note = await Note.findOneAndUpdate(
             { _id: req.params.id, companyId: req.user.companyId },
-            req.body,
+            req.body, 
             { new: true, runValidators: true }
         ).populate('createdBy', 'fullName');
 

@@ -11,18 +11,27 @@ const NoteSchema = new mongoose.Schema({
         enum: ['general', 'employer', 'worker', 'job-demand', 'reminder'],
         default: 'general'
     },
-    // This connects the note to the specific company
+    // --- ADDED FIELD FOR DEADLINES ---
+    targetDate: {
+        type: Date,
+        default: null
+    },
+    // ---------------------------------
     companyId: {
         type: mongoose.Schema.ObjectId,
         ref: 'Company',
         required: true
     },
-    // This tracks which employee wrote the note
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User', // This must match the name you gave your User model
+        ref: 'User', 
         required: true
     }
-}, { timestamps: true }); // This automatically adds 'createdAt' and 'updatedAt'
+}, { 
+    timestamps: true,
+    // This ensures that when we send data to frontend, virtuals like 'id' are included
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
 
 module.exports = mongoose.model('Note', NoteSchema);
