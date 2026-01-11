@@ -23,6 +23,7 @@ const EmployerSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
+  // CRITICAL: This makes virtuals visible in your JSON response
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
@@ -31,7 +32,7 @@ const EmployerSchema = new mongoose.Schema({
 EmployerSchema.virtual('totalJobDemands', {
   ref: 'JobDemand',
   localField: '_id',
-  foreignField: 'employerId', // Corrected to match JobDemand model
+  foreignField: 'employerId', 
   count: true 
 });
 
@@ -39,7 +40,7 @@ EmployerSchema.virtual('totalJobDemands', {
 EmployerSchema.virtual('totalHires', {
   ref: 'Worker',
   localField: '_id',
-  foreignField: 'employerId', // Matches Worker model field
+  foreignField: 'employerId', 
   count: true
 });
 

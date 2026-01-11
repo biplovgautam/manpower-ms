@@ -7,18 +7,20 @@ const { StatusCodes } = require('http-status-codes');
 exports.getEmployers = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
-        const { view } = req.query; // Get view from URL query
+        const { view } = req.query; 
 
         let filter = { companyId };
 
-        // If not admin AND NOT asking for all (dropdown view), filter by owner
         if (role !== 'admin' && view !== 'all') {
             filter.createdBy = userId;
         }
 
+        // UPDATED: Added populate for the two virtual count fields
         const employers = await Employer.find(filter)
             .populate('createdBy', 'fullName')
-            .sort({ employerName: 1 }); // Sorted alphabetically for dropdowns
+            .populate('totalJobDemands') // <--- This fixes the 0 Demands
+            .populate('totalHires')      // <--- This fixes the 0 Hires
+            .sort({ employerName: 1 }); 
 
         return res.status(StatusCodes.OK).json({
             success: true,
@@ -30,34 +32,42 @@ exports.getEmployers = async (req, res) => {
     }
 };
 
+// @desc    Get Single Employer Details
 exports.getEmployerDetails = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
 
-        // Secure the lookup: check ownership if not admin
         let filter = { _id: req.params.id, companyId };
         if (role !== 'admin') {
             filter.createdBy = userId;
         }
 
-        const employer = await Employer.findOne(filter).populate('createdBy', 'fullName');
+        // We populate the virtuals here too so the details page has the latest counts
+        const employer = await Employer.findOne(filter)
+            .populate('createdBy', 'fullName')
+            .populate('totalJobDemands')
+            .populate('totalHires');
 
         if (!employer) {
             return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
         }
 
+        // Fetch the actual lists for the details view
         const demands = await JobDemand.find({ employerId: req.params.id, companyId });
         const workers = await Worker.find({ employerId: req.params.id, companyId });
 
         return res.status(StatusCodes.OK).json({
             success: true,
-            data: { ...employer._doc, demands, workers },
+            data: { 
+                ...employer.toObject(), // Use toObject to include virtuals
+                demands, 
+                workers 
+            },
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 };
-
 
 // @desc    Create a new employer
 exports.createEmployer = async (req, res) => {
@@ -79,7 +89,6 @@ exports.createEmployer = async (req, res) => {
             data: newEmployer,
         });
     } catch (error) {
-        console.error("CREATE EMPLOYER ERROR:", error);
         res.status(StatusCodes.BAD_REQUEST).json({
             success: false,
             error: error.message,
@@ -115,7 +124,6 @@ exports.updateEmployer = async (req, res) => {
             data: employer,
         });
     } catch (error) {
-        console.error("UPDATE EMPLOYER ERROR:", error);
         res.status(StatusCodes.BAD_REQUEST).json({
             success: false,
             error: error.message,
@@ -140,15 +148,11 @@ exports.deleteEmployer = async (req, res) => {
             });
         }
 
-        // Optional: You might want to delete related JobDemands here as well
-        // await JobDemand.deleteMany({ employerId: id });
-
         res.status(StatusCodes.OK).json({
             success: true,
             message: "Employer deleted successfully"
         });
     } catch (error) {
-        console.error("DELETE EMPLOYER ERROR:", error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             success: false,
             error: error.message,
