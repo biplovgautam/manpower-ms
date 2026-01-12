@@ -30,9 +30,10 @@ import { Card, CardContent } from "../ui/Card";
 
 /**
  * Employee Dashboard (updated)
- * - Urgent toast shows every time dashboard mounts when urgent > 0
- * - Uses fixed toast id to avoid duplicates
- * - "View" button removed per request; new toast design and Close (X) button only
+ * - Removed "Reminder" option from the category select in new note form
+ * - Added dropdowns to the Reminder form to link reminders to entities (worker/employer/job-demand/sub-agent)
+ * - Saves linkedEntityId (and linkedEntityType) for reminders as well
+ * - Keeps the single urgent toast (no duplicates) with the updated design
  */
 
 /* ----------------------------- Constants -------------------------------- */
@@ -234,12 +235,17 @@ function useDashboard() {
     const [form, setForm] = useState(null);
     const [editId, setEditId] = useState(null);
     const [content, setContent] = useState("");
-    const [category, setCategory] = useState("general");
+    const [category, setCategory] = useState("general"); // categories for general notes (worker/employer/job-demand/sub-agent/general)
     const [date, setDate] = useState("");
     const [file, setFile] = useState(null);
     const [entity, setEntity] = useState("");
 
+    // For reminders: choose which entity type to link to (worker/employer/job-demand/sub-agent)
+    const [reminderLinkType, setReminderLinkType] = useState("worker");
+
     const [urgentCount, setUrgentCount] = useState(0);
+
+    const entityTypes = ["worker", "employer", "job-demand", "sub-agent"];
 
     const daysLeft = useCallback((targetDate) => {
         if (!targetDate) return null;
@@ -353,17 +359,28 @@ function useDashboard() {
         setDate("");
         setFile(null);
         setEntity("");
+        setReminderLinkType("worker");
     }, []);
 
     const saveNote = useCallback(async () => {
         if (!content.trim()) return toast.error("Content is required");
         const fd = new FormData();
         fd.append("content", content);
+
+        // For regular notes, category holds the type (general/worker/employer/job-demand/sub-agent)
+        // For reminders, backend expects category 'reminder' but we also allow linking an entity via reminderLinkType.
         fd.append("category", category);
+
         if (date) fd.append("targetDate", date);
         if (file) fd.append("attachment", file);
-        if (entity && ["worker", "employer", "job-demand", "sub-agent"].includes(category))
+
+        // If entity selected (either in general note or reminder), send linkedEntityId and linkedEntityType
+        if (entity) {
             fd.append("linkedEntityId", entity);
+            // For reminders, include the reminderLinkType so backend can know the type if needed
+            const linkedType = category === "reminder" ? reminderLinkType : category;
+            fd.append("linkedEntityType", linkedType);
+        }
 
         try {
             const config = {
@@ -383,7 +400,7 @@ function useDashboard() {
         } catch {
             toast.error("Failed to save");
         }
-    }, [content, category, date, file, entity, editId, fetchData, resetForm]);
+    }, [content, category, date, file, entity, reminderLinkType, editId, fetchData, resetForm]);
 
     const deleteNote = useCallback(
         async (id) => {
@@ -403,17 +420,48 @@ function useDashboard() {
         setForm(type);
         setCategory(type === "reminder" ? "reminder" : "general");
         setEntity("");
+        setReminderLinkType("worker");
         window.scrollTo({ top: 0, behavior: "smooth" });
     }, []);
 
-    const editNote = useCallback((n) => {
-        setEditId(n._id);
-        setContent(n.content || "");
-        setCategory(n.category || "general");
-        setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
-        setEntity(n.linkedEntityId || "");
-        setForm(n.category === "reminder" ? "reminder" : "note");
-    }, []);
+    const detectEntityType = useCallback(
+        (id) => {
+            if (!id) return null;
+            if ((dropdowns.workers || []).some((w) => w._id === id)) return "worker";
+            if ((dropdowns.employers || []).some((e) => e._id === id)) return "employer";
+            if ((dropdowns.demands || []).some((d) => d._id === id)) return "job-demand";
+            if ((dropdowns.subAgents || []).some((s) => s._id === id)) return "sub-agent";
+            return null;
+        },
+        [dropdowns]
+    );
+
+    const editNote = useCallback(
+        (n) => {
+            setEditId(n._id);
+            setContent(n.content || "");
+            // If note is a reminder, keep category 'reminder' and try to detect linked entity type
+            if (n.category === "reminder") {
+                setCategory("reminder");
+                if (n.linkedEntityId) {
+                    const detected = detectEntityType(n.linkedEntityId) || "worker";
+                    setReminderLinkType(detected);
+                    setEntity(n.linkedEntityId);
+                } else {
+                    setReminderLinkType("worker");
+                    setEntity("");
+                }
+                setForm("reminder");
+            } else {
+                // For regular notes categories (worker/employer/job-demand/sub-agent/general)
+                setCategory(n.category || "general");
+                setEntity(n.linkedEntityId || "");
+                setForm(n.category === "reminder" ? "reminder" : "note");
+            }
+            setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
+        },
+        [detectEntityType]
+    );
 
     return {
         isBS,
@@ -437,6 +485,9 @@ function useDashboard() {
         setFile,
         entity,
         setEntity,
+        reminderLinkType,
+        setReminderLinkType,
+        entityTypes,
         urgentCount,
         sortedReminders,
         logs,
@@ -474,6 +525,9 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         setFile,
         entity,
         setEntity,
+        reminderLinkType,
+        setReminderLinkType,
+        entityTypes,
         urgentCount,
         sortedReminders,
         logs,
@@ -516,6 +570,8 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         (note) => {
             if (!note?.linkedEntityId) return null;
             const id = note.linkedEntityId;
+
+            // Try to detect entity type from category first (old behavior)
             switch (note.category) {
                 case "worker": {
                     const w = workersMap[id];
@@ -534,6 +590,11 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                     return s ? s.name : id;
                 }
                 default:
+                    // If note.category isn't one of the types (e.g., 'reminder'), try detecting from dropdowns:
+                    if (workersMap[id]) return `${workersMap[id].name}${workersMap[id].passportNumber ? ` • ${workersMap[id].passportNumber}` : ""}`;
+                    if (employersMap[id]) return `${employersMap[id].employerName}${employersMap[id].country ? ` • ${employersMap[id].country}` : ""}`;
+                    if (demandsMap[id]) return demandsMap[id].jobTitle;
+                    if (subAgentsMap[id]) return subAgentsMap[id].name;
                     return id;
             }
         },
@@ -636,8 +697,8 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                             onChange={(e) => setCategory(e.target.value)}
                                             disabled={form === "reminder"}
                                         >
+                                            {/* removed the 'reminder' option as requested */}
                                             <option value="general">General</option>
-                                            <option value="reminder">Reminder</option>
                                             <option value="worker">Worker</option>
                                             <option value="employer">Employer</option>
                                             <option value="job-demand">Job Demand</option>
@@ -651,7 +712,65 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                         />
                                     </div>
 
-                                    {entityOpts.includes(category) && (
+                                    {/* If reminder form is open, show link-type and entity dropdowns similar to the general note */}
+                                    {form === "reminder" && (
+                                        <>
+                                            <div className="grid md:grid-cols-2 gap-4">
+                                                <select
+                                                    className="p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
+                                                    value={reminderLinkType}
+                                                    onChange={(e) => {
+                                                        setReminderLinkType(e.target.value);
+                                                        setEntity(""); // reset selected entity when link type changes
+                                                    }}
+                                                >
+                                                    <option value="worker">Worker</option>
+                                                    <option value="employer">Employer</option>
+                                                    <option value="job-demand">Job Demand</option>
+                                                    <option value="sub-agent">Sub Agent</option>
+                                                </select>
+
+                                                <select
+                                                    className="p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
+                                                    value={entity}
+                                                    onChange={(e) => setEntity(e.target.value)}
+                                                >
+                                                    <option value="">Select {reminderLinkType.replace("-", " ")}</option>
+
+                                                    {reminderLinkType === "worker" &&
+                                                        (dropdowns.workers || []).map((i) => (
+                                                            <option key={i._id} value={i._id}>
+                                                                {i.name} - {i.passportNumber || "N/A"}
+                                                            </option>
+                                                        ))}
+
+                                                    {reminderLinkType === "employer" &&
+                                                        (dropdowns.employers || []).map((i) => (
+                                                            <option key={i._id} value={i._id}>
+                                                                {i.employerName} - {i.country || "N/A"}
+                                                            </option>
+                                                        ))}
+
+                                                    {reminderLinkType === "job-demand" &&
+                                                        (dropdowns.demands || []).map((i) => (
+                                                            <option key={i._id} value={i._id}>
+                                                                {i.jobTitle}
+                                                            </option>
+                                                        ))}
+
+                                                    {reminderLinkType === "sub-agent" &&
+                                                        (dropdowns.subAgents || []).map((i) => (
+                                                            <option key={i._id} value={i._id}>
+                                                                {i.name}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    {/* For regular notes (form !== 'reminder'), show the entity dropdown when category is linkable */}
+                                    {form !== "reminder" && entityOpts.includes(category) && (
                                         <select
                                             className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
                                             value={entity}
