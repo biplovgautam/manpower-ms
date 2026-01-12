@@ -1,10 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const { getDashboardData, addNote, updateNote, deleteNote } = require('../controllers/dashboardController');
+const { getDashboardData, addNote, updateNote, deleteNote, markReminderAsDone } = require('../controllers/dashboardController');
 const { protect } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 router.route('/').get(protect, getDashboardData);
-router.route('/notes').post(protect, addNote);
-router.route('/notes/:id').patch(protect, updateNote).delete(protect, deleteNote);
+
+// Note: Key must be 'attachment'
+router.route('/notes')
+    .post(protect, upload.single('attachment'), addNote);
+
+router.route('/notes/:id')
+    .patch(protect, upload.single('attachment'), updateNote)
+    .delete(protect, deleteNote);
+router.patch('/notes/:id/done', protect, markReminderAsDone);
 
 module.exports = router;

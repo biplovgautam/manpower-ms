@@ -7,65 +7,44 @@ const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 
 /**
- * GET /api/dashboard
- * Fetches stats, employee counts, and notes/reminders
+ * @desc    Get Dashboard stats, notes, and dropdown data
+ * @route   GET /api/dashboard
  */
 const getDashboardData = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
+        const companyFilter = { companyId };
+        const notesFilter = { companyId, isCompleted: { $ne: true } }; // Exclude completed notes
 
-        /**
-         * ownershipFilter ensures:
-         * 1. Admins see all documents within their company.
-         * 2. Employees see only documents they created.
-         */
-        const ownershipFilter = { companyId };
         if (role !== 'admin' && role !== 'super_admin') {
-            ownershipFilter.createdBy = userId;
+            notesFilter.createdBy = userId;
         }
-
-        // Setup dates for Urgent Reminders (Target date within next 3 days)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const threeDaysFromNow = new Date();
-        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-        threeDaysFromNow.setHours(23, 59, 59, 999);
 
         const [
             employersCount,
             demandsCount,
             workersCount,
             agentsCount,
+            employeesCount,
             notes,
-            urgentTasksCount,
-            totalEmployeesCount // New count for total staff
+            employerList,
+            workerList,
+            demandList,
+            subAgentList
         ] = await Promise.all([
-            Employer.countDocuments(ownershipFilter),
-            JobDemand.countDocuments(ownershipFilter),
-            Worker.countDocuments(ownershipFilter),
-            SubAgent.countDocuments(ownershipFilter),
-
-            // Fetch both regular notes and reminders
-            Note.find(ownershipFilter)
+            Employer.countDocuments(companyFilter),
+            JobDemand.countDocuments(companyFilter),
+            Worker.countDocuments(companyFilter),
+            SubAgent.countDocuments(companyFilter),
+            User.countDocuments({ ...companyFilter, role: 'employee' }),
+            Note.find(notesFilter)
                 .populate('createdBy', 'fullName')
                 .sort({ createdAt: -1 })
-                .limit(30),
-
-            // Count tasks with a targetDate (reminders) approaching soon
-            Note.countDocuments({
-                ...ownershipFilter,
-                targetDate: {
-                    $gte: today,
-                    $lte: threeDaysFromNow
-                }
-            }),
-
-            // Total staff members registered in this company
-            User.countDocuments({
-                companyId,
-                role: 'employee'
-            })
+                .limit(20),
+            Employer.find(companyFilter).select('employerName country _id').sort('employerName'),
+            Worker.find(companyFilter).select('name passportNumber _id').sort('name'),
+            JobDemand.find(companyFilter).select('jobTitle _id').sort('jobTitle'),
+            SubAgent.find(companyFilter).select('name _id').sort('name')
         ]);
 
         res.status(StatusCodes.OK).json({
@@ -76,89 +55,150 @@ const getDashboardData = async (req, res) => {
                     activeJobDemands: demandsCount,
                     workersInProcess: workersCount,
                     activeSubAgents: agentsCount,
-                    tasksNeedingAttention: urgentTasksCount,
-                    totalEmployees: totalEmployeesCount // Passed to frontend
+                    totalEmployees: employeesCount
                 },
-                notes // Includes content, category, and targetDate (reminder)
+                notes,
+                dropdowns: {
+                    employers: employerList,
+                    workers: workerList,
+                    demands: demandList,
+                    subAgents: subAgentList
+                }
             }
         });
     } catch (error) {
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-            success: false,
-            msg: error.message
-        });
+        console.error(error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Failed to fetch dashboard data" });
     }
 };
 
 /**
- * POST /api/notes
- * Creates a new note or reminder
+ * @desc    Create a new note/reminder
+ * @route   POST /api/notes
  */
 const addNote = async (req, res) => {
     try {
-        const { content, category, targetDate } = req.body;
+        const { content, category, targetDate, linkedEntityId } = req.body;
+        const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-        if (!content) {
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                msg: "Note content is required"
-            });
-        }
-
-        const newNote = await Note.create({
+        const note = await Note.create({
             content,
             category: category || 'general',
-            targetDate: targetDate || null, // Saves the deadline (reminder)
+            targetDate: targetDate || null,
+            attachment: fileUrl,
+            linkedEntityId,
             companyId: req.user.companyId,
-            createdBy: req.user.userId
+            createdBy: req.user.userId,
+            isCompleted: false // default
         });
 
-        const note = await Note.findById(newNote._id).populate('createdBy', 'fullName');
-        res.status(StatusCodes.CREATED).json({ success: true, data: note });
+        const populatedNote = await Note.findById(note._id).populate('createdBy', 'fullName');
+        res.status(StatusCodes.CREATED).json({ success: true, data: populatedNote });
     } catch (error) {
         res.status(StatusCodes.BAD_REQUEST).json({ success: false, msg: error.message });
     }
 };
 
 /**
- * PATCH /api/notes/:id
- * Updates content or changes the reminder date
+ * @desc    Update an existing Note
+ * @route   PATCH /api/notes/:id
  */
 const updateNote = async (req, res) => {
     try {
-        // Ensure user can only update notes within their company
-        const note = await Note.findOneAndUpdate(
-            { _id: req.params.id, companyId: req.user.companyId },
-            req.body,
-            { new: true, runValidators: true }
-        ).populate('createdBy', 'fullName');
+        const { id } = req.params;
+        const { companyId, userId, role } = req.user;
 
-        if (!note) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Note not found' });
+        const filter = { _id: id, companyId };
+        if (role !== 'admin' && role !== 'super_admin') {
+            filter.createdBy = userId;
         }
 
-        res.status(StatusCodes.OK).json({ success: true, data: note });
+        const updateData = { ...req.body };
+        if (req.file) {
+            updateData.attachment = `/uploads/${req.file.filename}`;
+        }
+
+        const updatedNote = await Note.findOneAndUpdate(filter, updateData, {
+            new: true,
+            runValidators: true
+        }).populate('createdBy', 'fullName');
+
+        if (!updatedNote) {
+            return res.status(StatusCodes.NOT_FOUND).json({ success: false, msg: "Note not found or unauthorized" });
+        }
+
+        res.status(StatusCodes.OK).json({ success: true, data: updatedNote });
     } catch (error) {
-        res.status(StatusCodes.BAD_REQUEST).json({ msg: error.message });
+        res.status(StatusCodes.BAD_REQUEST).json({ success: false, msg: error.message });
     }
 };
 
 /**
- * DELETE /api/notes/:id
+ * @desc    Mark a reminder/note as done (archive)
+ * @route   PATCH /api/notes/:id/done
+ */
+const markReminderAsDone = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { companyId, userId, role } = req.user;
+
+        const filter = { _id: id, companyId };
+        if (role !== 'admin' && role !== 'super_admin') {
+            filter.createdBy = userId;
+        }
+
+        const updatedNote = await Note.findOneAndUpdate(
+            filter,
+            { isCompleted: true },
+            { new: true, runValidators: true }
+        ).populate('createdBy', 'fullName');
+
+        if (!updatedNote) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                msg: "Note not found or you don't have permission"
+            });
+        }
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            msg: "Reminder marked as done",
+            data: updatedNote
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            msg: "Failed to mark as done"
+        });
+    }
+};
+
+/**
+ * @desc    Delete a Note permanently
+ * @route   DELETE /api/notes/:id
  */
 const deleteNote = async (req, res) => {
     try {
-        const note = await Note.findOneAndDelete({
-            _id: req.params.id,
-            companyId: req.user.companyId
-        });
+        const { id } = req.params;
+        const { companyId, userId, role } = req.user;
 
-        if (!note) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Note not found' });
+        const filter = { _id: id, companyId };
+        if (role !== 'admin' && role !== 'super_admin') {
+            filter.createdBy = userId;
         }
 
-        res.status(StatusCodes.OK).json({ success: true });
+        const deletedNote = await Note.findOneAndDelete(filter);
+        if (!deletedNote) {
+            return res.status(StatusCodes.NOT_FOUND).json({
+                success: false,
+                msg: "Note not found or unauthorized"
+            });
+        }
+
+        res.status(StatusCodes.OK).json({ success: true, msg: "Note deleted permanently" });
     } catch (error) {
-        res.status(StatusCodes.BAD_REQUEST).json({ msg: error.message });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
     }
 };
 
@@ -166,5 +206,6 @@ module.exports = {
     getDashboardData,
     addNote,
     updateNote,
+    markReminderAsDone,   // ← NEW
     deleteNote
 };
