@@ -14,8 +14,9 @@ const getDashboardData = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
         const companyFilter = { companyId };
-        const notesFilter = { companyId, isCompleted: { $ne: true } }; // Exclude completed notes
 
+        // Admins get all notes (including completed). Non-admins get only their notes.
+        const notesFilter = { companyId };
         if (role !== 'admin' && role !== 'super_admin') {
             notesFilter.createdBy = userId;
         }
@@ -30,21 +31,25 @@ const getDashboardData = async (req, res) => {
             employerList,
             workerList,
             demandList,
-            subAgentList
+            subAgentList,
+            employeeList
         ] = await Promise.all([
             Employer.countDocuments(companyFilter),
             JobDemand.countDocuments(companyFilter),
             Worker.countDocuments(companyFilter),
             SubAgent.countDocuments(companyFilter),
             User.countDocuments({ ...companyFilter, role: 'employee' }),
+            // Return notes (no isCompleted filter so admin can see archived/completed)
             Note.find(notesFilter)
-                .populate('createdBy', 'fullName')
+                .populate('createdBy', 'fullName role email')
+                .populate('linkedEntityId') // uses refPath/categoryRef
                 .sort({ createdAt: -1 })
-                .limit(20),
+                .limit(200),
             Employer.find(companyFilter).select('employerName country _id').sort('employerName'),
             Worker.find(companyFilter).select('name passportNumber _id').sort('name'),
             JobDemand.find(companyFilter).select('jobTitle _id').sort('jobTitle'),
-            SubAgent.find(companyFilter).select('name _id').sort('name')
+            SubAgent.find(companyFilter).select('name _id').sort('name'),
+            User.find(companyFilter).select('fullName email _id').sort('fullName')
         ]);
 
         res.status(StatusCodes.OK).json({
@@ -62,7 +67,8 @@ const getDashboardData = async (req, res) => {
                     employers: employerList,
                     workers: workerList,
                     demands: demandList,
-                    subAgents: subAgentList
+                    subAgents: subAgentList,
+                    employees: employeeList
                 }
             }
         });
@@ -81,20 +87,34 @@ const addNote = async (req, res) => {
         const { content, category, targetDate, linkedEntityId } = req.body;
         const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
+        // map category to model name for refPath
+        const categoryModelMap = {
+            'employer': 'Employer',
+            'worker': 'Worker',
+            'job-demand': 'JobDemand',
+            'sub-agent': 'SubAgent'
+        };
+        const categoryRef = categoryModelMap[category] || null;
+
         const note = await Note.create({
             content,
             category: category || 'general',
             targetDate: targetDate || null,
             attachment: fileUrl,
-            linkedEntityId,
+            linkedEntityId: linkedEntityId || null,
+            categoryRef: linkedEntityId ? categoryRef : null,
             companyId: req.user.companyId,
             createdBy: req.user.userId,
             isCompleted: false // default
         });
 
-        const populatedNote = await Note.findById(note._id).populate('createdBy', 'fullName');
+        const populatedNote = await Note.findById(note._id)
+            .populate('createdBy', 'fullName role email')
+            .populate('linkedEntityId');
+
         res.status(StatusCodes.CREATED).json({ success: true, data: populatedNote });
     } catch (error) {
+        console.error(error);
         res.status(StatusCodes.BAD_REQUEST).json({ success: false, msg: error.message });
     }
 };
@@ -118,10 +138,29 @@ const updateNote = async (req, res) => {
             updateData.attachment = `/uploads/${req.file.filename}`;
         }
 
+        // update categoryRef when linkedEntityId or category is provided
+        if (updateData.linkedEntityId || updateData.category) {
+            const categoryModelMap = {
+                'employer': 'Employer',
+                'worker': 'Worker',
+                'job-demand': 'JobDemand',
+                'sub-agent': 'SubAgent'
+            };
+            const newCategory = updateData.category || (await Note.findById(id).select('category')).category;
+            updateData.categoryRef = categoryModelMap[newCategory] || null;
+            if (!updateData.linkedEntityId) {
+                // if linkedEntityId removed, clear categoryRef too
+                updateData.linkedEntityId = null;
+                updateData.categoryRef = null;
+            }
+        }
+
         const updatedNote = await Note.findOneAndUpdate(filter, updateData, {
             new: true,
             runValidators: true
-        }).populate('createdBy', 'fullName');
+        })
+            .populate('createdBy', 'fullName role email')
+            .populate('linkedEntityId');
 
         if (!updatedNote) {
             return res.status(StatusCodes.NOT_FOUND).json({ success: false, msg: "Note not found or unauthorized" });
@@ -129,6 +168,7 @@ const updateNote = async (req, res) => {
 
         res.status(StatusCodes.OK).json({ success: true, data: updatedNote });
     } catch (error) {
+        console.error(error);
         res.status(StatusCodes.BAD_REQUEST).json({ success: false, msg: error.message });
     }
 };
@@ -151,7 +191,9 @@ const markReminderAsDone = async (req, res) => {
             filter,
             { isCompleted: true },
             { new: true, runValidators: true }
-        ).populate('createdBy', 'fullName');
+        )
+            .populate('createdBy', 'fullName role email')
+            .populate('linkedEntityId');
 
         if (!updatedNote) {
             return res.status(StatusCodes.NOT_FOUND).json({
@@ -198,6 +240,7 @@ const deleteNote = async (req, res) => {
 
         res.status(StatusCodes.OK).json({ success: true, msg: "Note deleted permanently" });
     } catch (error) {
+        console.error(error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
     }
 };
@@ -206,6 +249,6 @@ module.exports = {
     getDashboardData,
     addNote,
     updateNote,
-    markReminderAsDone,   // ← NEW
+    markReminderAsDone,
     deleteNote
 };

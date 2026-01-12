@@ -8,7 +8,7 @@ const NoteSchema = new mongoose.Schema({
     },
     category: {
         type: String,
-        enum: ['general', 'employer', 'worker', 'job-demand', 'sub-agent', 'reminder'], // ← added 'reminder'
+        enum: ['general', 'employer', 'worker', 'job-demand', 'sub-agent', 'reminder'],
         default: 'general'
     },
     targetDate: {
@@ -21,10 +21,10 @@ const NoteSchema = new mongoose.Schema({
     },
     linkedEntityId: {
         type: mongoose.Schema.Types.ObjectId,
-        refPath: 'categoryRef', // dynamic reference based on category
+        refPath: 'categoryRef',
         default: null
     },
-    // Optional: helps with population when category changes
+    // categoryRef stores the model name used by refPath
     categoryRef: {
         type: String,
         enum: ['Employer', 'Worker', 'JobDemand', 'SubAgent', null],
@@ -50,9 +50,10 @@ const NoteSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-// Optional: Dynamic refPath logic (if you want automatic population based on category)
+// Optional: virtual to expose populated linkedEntity in a consistent field name if preferred
+// (If you prefer using .populate('linkedEntityId') directly, this virtual is not strictly necessary.)
 NoteSchema.virtual('linkedEntity', {
-    ref: 'categoryRef',
+    ref: doc => doc.categoryRef, // For Mongoose v6+ this form is supported for virtual population
     localField: 'linkedEntityId',
     foreignField: '_id',
     justOne: true
