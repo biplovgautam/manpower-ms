@@ -30,10 +30,11 @@ import { Card, CardContent } from "../ui/Card";
 
 /**
  * Employee Dashboard (updated)
- * - Removed "Reminder" option from the category select in new note form
- * - Added dropdowns to the Reminder form to link reminders to entities (worker/employer/job-demand/sub-agent)
- * - Saves linkedEntityId (and linkedEntityType) for reminders as well
- * - Keeps the single urgent toast (no duplicates) with the updated design
+ * - Detects reminders by presence of `targetDate` (matches your Reminder model)
+ * - Priority threshold: daysLeft <= 2
+ * - Urgent toast deduped with fixed id, re-shown on each visit when urgent > 0
+ * - Reminders UI: no entity dropdowns (as requested)
+ * - Notes (non-reminder) keep entity dropdowns
  */
 
 /* ----------------------------- Constants -------------------------------- */
@@ -159,7 +160,8 @@ const ReminderItem = memo(function ReminderItem({ rem, isBS, markDone, editNote,
     const d = daysLeft(rem.targetDate);
     const isOver = d < 0;
     const isToday = d === 0;
-    const isSoon = d > 0 && d <= 3;
+    // Priority threshold: 2 days or less
+    const isSoon = d > 0 && d <= 2;
 
     const border = isOver ? "border-red-600" : isToday ? "border-red-500" : isSoon ? "border-orange-500" : "border-blue-400";
     const bg = isOver ? "bg-rose-50/70" : isToday ? "bg-red-50/60" : isSoon ? "bg-orange-50/50" : "";
@@ -222,6 +224,7 @@ const ReminderItem = memo(function ReminderItem({ rem, isBS, markDone, editNote,
 
 /* --------------------------- useDashboard --------------------------------
    Encapsulates fetching, saving, deleting, state for the dashboard.
+   Reminders detected by presence of targetDate (matches your Reminder model).
 */
 
 function useDashboard() {
@@ -235,17 +238,12 @@ function useDashboard() {
     const [form, setForm] = useState(null);
     const [editId, setEditId] = useState(null);
     const [content, setContent] = useState("");
-    const [category, setCategory] = useState("general"); // categories for general notes (worker/employer/job-demand/sub-agent/general)
+    const [category, setCategory] = useState("general"); // for non-reminder notes
     const [date, setDate] = useState("");
     const [file, setFile] = useState(null);
     const [entity, setEntity] = useState("");
 
-    // For reminders: choose which entity type to link to (worker/employer/job-demand/sub-agent)
-    const [reminderLinkType, setReminderLinkType] = useState("worker");
-
     const [urgentCount, setUrgentCount] = useState(0);
-
-    const entityTypes = ["worker", "employer", "job-demand", "sub-agent"];
 
     const daysLeft = useCallback((targetDate) => {
         if (!targetDate) return null;
@@ -256,7 +254,7 @@ function useDashboard() {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            // IMPORTANT: backend must return completed notes too (see backend change below)
+            // backend should return reminders and notes together under API_BASE
             const res = await axios.get(API_BASE, { headers: authHeaders() });
             if (res.data?.success) {
                 setStats(res.data.data.stats || {});
@@ -277,17 +275,16 @@ function useDashboard() {
     useEffect(() => {
         if (loading || !notes.length) return;
 
+        // Identify reminders by presence of targetDate (your Reminder model uses targetDate)
+        // urgent: daysLeft <= 2 and not completed
         const urgent = notes.reduce((count, n) => {
-            if (n.category !== "reminder" || n.isCompleted) return count;
+            if (!n.targetDate || n.isCompleted) return count;
             const d = daysLeft(n.targetDate);
-            return d !== null && d >= 0 && d <= 3 ? count + 1 : count;
+            return d !== null && d >= 0 && d <= 2 ? count + 1 : count;
         }, 0);
 
-        // update state
         setUrgentCount(urgent);
 
-        // If there are urgent reminders, create/update the single toast (fixed id prevents duplicates).
-        // This will show every time the dashboard mounts and urgent > 0.
         if (urgent > 0) {
             const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
 
@@ -322,20 +319,20 @@ function useDashboard() {
                 }
             );
         } else {
-            // No urgent reminders — ensure toast is dismissed
             toast.dismiss(URGENT_TOAST_ID);
         }
     }, [notes, loading, daysLeft]);
 
     const sortedReminders = useMemo(() => {
-        const allReminders = notes.filter((n) => n.category === "reminder");
+        // Reminders are items that have a targetDate
+        const allReminders = notes.filter((n) => n.targetDate);
         const active = allReminders.filter((n) => !n.isCompleted && (daysLeft(n.targetDate) ?? 999) >= 0);
         const archived = allReminders.filter((n) => n.isCompleted || (daysLeft(n.targetDate) ?? 999) < 0);
         const displayed = showArchived ? archived : active;
         return [...displayed].sort((a, b) => (daysLeft(a.targetDate) ?? 9999) - (daysLeft(b.targetDate) ?? 9999));
     }, [notes, showArchived, daysLeft]);
 
-    const logs = useMemo(() => notes.filter((n) => n.category !== "reminder"), [notes]);
+    const logs = useMemo(() => notes.filter((n) => !n.targetDate), [notes]); // non-reminder notes
 
     const markDone = useCallback(
         async (id) => {
@@ -343,7 +340,7 @@ function useDashboard() {
             try {
                 await axios.patch(`${API_BASE}/notes/${id}/done`, {}, { headers: authHeaders() });
                 toast.success("Marked as done!");
-                await fetchData(); // fetch updated notes (backend must include completed notes)
+                await fetchData();
             } catch {
                 toast.error("Could not update status");
             }
@@ -359,7 +356,6 @@ function useDashboard() {
         setDate("");
         setFile(null);
         setEntity("");
-        setReminderLinkType("worker");
     }, []);
 
     const saveNote = useCallback(async () => {
@@ -367,19 +363,24 @@ function useDashboard() {
         const fd = new FormData();
         fd.append("content", content);
 
-        // For regular notes, category holds the type (general/worker/employer/job-demand/sub-agent)
-        // For reminders, backend expects category 'reminder' but we also allow linking an entity via reminderLinkType.
-        fd.append("category", category);
+        // If the form is the reminder form (form === 'reminder'), we send category based on backend contract.
+        // Since your Reminder model's category expects values from enum ['general','employer','worker','job-demand','sub-agent'],
+        // we will not send 'reminder' as category. If backend wants a different payload for reminders (e.g., POST /api/reminders),
+        // change this area as needed. For now, when creating a reminder we will send category = 'general' (or keep category as-is).
+        if (form === "reminder") {
+            // Use 'general' for reminder.category unless you want something else
+            fd.append("category", "general");
+        } else {
+            fd.append("category", category);
+        }
 
         if (date) fd.append("targetDate", date);
         if (file) fd.append("attachment", file);
 
-        // If entity selected (either in general note or reminder), send linkedEntityId and linkedEntityType
-        if (entity) {
+        // Non-reminder notes: allow linking
+        if (entity && form !== "reminder") {
             fd.append("linkedEntityId", entity);
-            // For reminders, include the reminderLinkType so backend can know the type if needed
-            const linkedType = category === "reminder" ? reminderLinkType : category;
-            fd.append("linkedEntityType", linkedType);
+            fd.append("linkedEntityType", category);
         }
 
         try {
@@ -400,7 +401,7 @@ function useDashboard() {
         } catch {
             toast.error("Failed to save");
         }
-    }, [content, category, date, file, entity, reminderLinkType, editId, fetchData, resetForm]);
+    }, [content, category, date, file, entity, form, editId, fetchData, resetForm]);
 
     const deleteNote = useCallback(
         async (id) => {
@@ -418,49 +419,29 @@ function useDashboard() {
 
     const openForm = useCallback((type) => {
         setForm(type);
+        // for reminders we mark form === 'reminder' but do not show link dropdowns
         setCategory(type === "reminder" ? "reminder" : "general");
         setEntity("");
-        setReminderLinkType("worker");
         window.scrollTo({ top: 0, behavior: "smooth" });
     }, []);
-
-    const detectEntityType = useCallback(
-        (id) => {
-            if (!id) return null;
-            if ((dropdowns.workers || []).some((w) => w._id === id)) return "worker";
-            if ((dropdowns.employers || []).some((e) => e._id === id)) return "employer";
-            if ((dropdowns.demands || []).some((d) => d._id === id)) return "job-demand";
-            if ((dropdowns.subAgents || []).some((s) => s._id === id)) return "sub-agent";
-            return null;
-        },
-        [dropdowns]
-    );
 
     const editNote = useCallback(
         (n) => {
             setEditId(n._id);
             setContent(n.content || "");
-            // If note is a reminder, keep category 'reminder' and try to detect linked entity type
-            if (n.category === "reminder") {
+            // Identify reminder by targetDate
+            if (n.targetDate) {
                 setCategory("reminder");
-                if (n.linkedEntityId) {
-                    const detected = detectEntityType(n.linkedEntityId) || "worker";
-                    setReminderLinkType(detected);
-                    setEntity(n.linkedEntityId);
-                } else {
-                    setReminderLinkType("worker");
-                    setEntity("");
-                }
+                setEntity(""); // per request, no entity dropdowns on reminder edit
                 setForm("reminder");
             } else {
-                // For regular notes categories (worker/employer/job-demand/sub-agent/general)
                 setCategory(n.category || "general");
                 setEntity(n.linkedEntityId || "");
-                setForm(n.category === "reminder" ? "reminder" : "note");
+                setForm("note");
             }
             setDate(n.targetDate ? new Date(n.targetDate).toISOString().split("T")[0] : "");
         },
-        [detectEntityType]
+        []
     );
 
     return {
@@ -485,9 +466,6 @@ function useDashboard() {
         setFile,
         entity,
         setEntity,
-        reminderLinkType,
-        setReminderLinkType,
-        entityTypes,
         urgentCount,
         sortedReminders,
         logs,
@@ -525,9 +503,6 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
         setFile,
         entity,
         setEntity,
-        reminderLinkType,
-        setReminderLinkType,
-        entityTypes,
         urgentCount,
         sortedReminders,
         logs,
@@ -571,7 +546,6 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
             if (!note?.linkedEntityId) return null;
             const id = note.linkedEntityId;
 
-            // Try to detect entity type from category first (old behavior)
             switch (note.category) {
                 case "worker": {
                     const w = workersMap[id];
@@ -590,7 +564,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                     return s ? s.name : id;
                 }
                 default:
-                    // If note.category isn't one of the types (e.g., 'reminder'), try detecting from dropdowns:
+                    // fallback: try detecting from dropdowns
                     if (workersMap[id]) return `${workersMap[id].name}${workersMap[id].passportNumber ? ` • ${workersMap[id].passportNumber}` : ""}`;
                     if (employersMap[id]) return `${employersMap[id].employerName}${employersMap[id].country ? ` • ${employersMap[id].country}` : ""}`;
                     if (demandsMap[id]) return demandsMap[id].jobTitle;
@@ -667,7 +641,8 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                         { t: "Employers", v: stats.employersAdded, i: <Building2 size={28} />, g: "from-blue-600 to-indigo-600", n: "employer" },
                         { t: "Job Demands", v: stats.activeJobDemands, i: <Briefcase size={28} />, g: "from-purple-600 to-indigo-600", n: "job-demand" },
                         { t: "Workers", v: stats.workersInProcess, i: <Users size={28} />, g: "from-emerald-600 to-teal-600", n: "worker" },
-                        { t: "Priority Tasks", v: stats.tasksNeedingAttention, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
+                        // show backend stat if present, otherwise fallback to urgentCount so you can see priority tasks immediately
+                        { t: "Priority Tasks", v: stats.tasksNeedingAttention ?? urgentCount, i: <AlertCircle size={28} />, g: "from-orange-500 to-rose-600" },
                         { t: "Sub Agents", v: stats.activeSubAgents, i: <UserCircle size={28} />, g: "from-slate-700 to-slate-900", n: "subagent" },
                     ].map((p) => (
                         <StatCard key={p.t} title={p.t} value={p.v} icon={p.i} gradient={p.g} onClick={p.n ? () => onNavigate(p.n) : undefined} />
@@ -680,8 +655,8 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                         {form && (
                             <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
                                 <h2 className="text-xl font-black mb-6 flex items-center gap-3">
-                                    {form === "reminder" ? <Bell className="text-rose-600" /> : <FileText className="text-indigo-600" />}
-                                    {form === "reminder" ? "New Reminder" : "New Note"}
+                                    {form && form === "reminder" ? <Bell className="text-rose-600" /> : <FileText className="text-indigo-600" />}
+                                    {form && form === "reminder" ? "New Reminder" : "New Note"}
                                 </h2>
                                 <div className="space-y-5">
                                     <textarea
@@ -697,7 +672,6 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                             onChange={(e) => setCategory(e.target.value)}
                                             disabled={form === "reminder"}
                                         >
-                                            {/* removed the 'reminder' option as requested */}
                                             <option value="general">General</option>
                                             <option value="worker">Worker</option>
                                             <option value="employer">Employer</option>
@@ -712,64 +686,7 @@ export default function EmployeeDashboard({ onNavigate = () => { } }) {
                                         />
                                     </div>
 
-                                    {/* If reminder form is open, show link-type and entity dropdowns similar to the general note */}
-                                    {form === "reminder" && (
-                                        <>
-                                            <div className="grid md:grid-cols-2 gap-4">
-                                                <select
-                                                    className="p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
-                                                    value={reminderLinkType}
-                                                    onChange={(e) => {
-                                                        setReminderLinkType(e.target.value);
-                                                        setEntity(""); // reset selected entity when link type changes
-                                                    }}
-                                                >
-                                                    <option value="worker">Worker</option>
-                                                    <option value="employer">Employer</option>
-                                                    <option value="job-demand">Job Demand</option>
-                                                    <option value="sub-agent">Sub Agent</option>
-                                                </select>
-
-                                                <select
-                                                    className="p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
-                                                    value={entity}
-                                                    onChange={(e) => setEntity(e.target.value)}
-                                                >
-                                                    <option value="">Select {reminderLinkType.replace("-", " ")}</option>
-
-                                                    {reminderLinkType === "worker" &&
-                                                        (dropdowns.workers || []).map((i) => (
-                                                            <option key={i._id} value={i._id}>
-                                                                {i.name} - {i.passportNumber || "N/A"}
-                                                            </option>
-                                                        ))}
-
-                                                    {reminderLinkType === "employer" &&
-                                                        (dropdowns.employers || []).map((i) => (
-                                                            <option key={i._id} value={i._id}>
-                                                                {i.employerName} - {i.country || "N/A"}
-                                                            </option>
-                                                        ))}
-
-                                                    {reminderLinkType === "job-demand" &&
-                                                        (dropdowns.demands || []).map((i) => (
-                                                            <option key={i._id} value={i._id}>
-                                                                {i.jobTitle}
-                                                            </option>
-                                                        ))}
-
-                                                    {reminderLinkType === "sub-agent" &&
-                                                        (dropdowns.subAgents || []).map((i) => (
-                                                            <option key={i._id} value={i._id}>
-                                                                {i.name}
-                                                            </option>
-                                                        ))}
-                                                </select>
-                                            </div>
-                                        </>
-                                    )}
-
-                                    {/* For regular notes (form !== 'reminder'), show the entity dropdown when category is linkable */}
+                                    {/* Reminder form: per request, no category/entity dropdowns shown here */}
                                     {form !== "reminder" && entityOpts.includes(category) && (
                                         <select
                                             className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
