@@ -1,13 +1,16 @@
-"use client";
-
 import adbs from 'ad-bs-converter';
 import axios from 'axios';
 import {
-  Bell, Briefcase, Building2, Contact, FileText,
-  Plus, RefreshCw, ShieldCheck, TrendingUp,
+  Bell, Briefcase, Building2, Contact,
+  Edit,
+  FileText,
+  Paperclip,
+  Plus, RefreshCw, ShieldCheck,
+  Trash2,
+  TrendingUp,
   UserCircle, UserPlus, Users
 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
 import {
   Area, AreaChart, Bar, BarChart, CartesianGrid,
@@ -19,6 +22,7 @@ import { Card, CardContent } from '../ui/Card';
 import { AddEmployeeForm } from './AddEmployeeForm';
 
 const API_BASE = 'http://localhost:5000/api/dashboard';
+const FILE_BASE = 'http://localhost:5000';
 const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
 
 const getNepalTime = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));
@@ -57,12 +61,27 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
   const [isBS, setIsBS] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [currentTime, setCurrentTime] = useState(getNepalTime());
-  const [newNote, setNewNote] = useState({ content: '', category: 'general', targetDate: '' });
+
+  // form state for admin-created notes
+  const [newNote, setNewNote] = useState({
+    content: '',
+    category: 'general',
+    targetDate: '',
+    linkedEmployeeId: '',
+    attachment: null,
+  });
 
   const [stats, setStats] = useState({ employersAdded: 0, activeJobDemands: 0, workersInProcess: 0, activeSubAgents: 0, totalEmployees: 0 });
-  const [allData, setAllData] = useState([]);
+  const [allData, setAllData] = useState([]); // all notes from backend (both admin and employee notes)
+  const [dropdowns, setDropdowns] = useState({});
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // UI helpers / filters
+  const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState('all');
+  const [editId, setEditId] = useState(null);
+
+  const currentUserId = localStorage.getItem('userId') || null; // optional: backend should provide id in token or set userId in localStorage
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -70,9 +89,10 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       const token = localStorage.getItem('token');
       const res = await axios.get(API_BASE, { headers: { Authorization: `Bearer ${token}` } });
       if (res.data.success) {
-        const s = res.data.data.stats;
+        const s = res.data.data.stats || {};
         setStats(s);
-        setAllData(res.data.data.notes);
+        setAllData(res.data.data.notes || []);
+        setDropdowns(res.data.data.dropdowns || {});
         setChartData([
           { name: 'Workers', count: s.workersInProcess },
           { name: 'Staff', count: s.totalEmployees },
@@ -80,8 +100,15 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           { name: 'Demands', count: s.activeJobDemands },
           { name: 'Agents', count: s.activeSubAgents },
         ]);
+      } else {
+        toast.error('Failed to load dashboard');
       }
-    } catch (err) { toast.error("Sync failed"); } finally { setLoading(false); }
+    } catch (err) {
+      console.error(err);
+      toast.error("Sync failed");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -90,16 +117,91 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     return () => clearInterval(timer);
   }, [fetchAdminData]);
 
+  const handleFileChange = (e) => setNewNote({ ...newNote, attachment: e.target.files?.[0] || null });
+
+  const isEditable = (note) => {
+    // Admin can CRUD notes that were created by admin (or by current user).
+    // We attempt several fallbacks:
+    if (!note?.createdBy) return false;
+    if (note.createdBy._id && currentUserId && note.createdBy._id === currentUserId) return true;
+    if (note.createdBy.role === 'admin' || note.createdBy.isAdmin || note.createdBy.isStaff) return true;
+    // fallback: if createdBy has email matching admin's email in localStorage (optional)
+    const myEmail = localStorage.getItem('userEmail');
+    if (myEmail && note.createdBy.email === myEmail) return true;
+    return false;
+  };
+
+  const resetForm = () => {
+    setNewNote({ content: '', category: 'general', targetDate: '', linkedEmployeeId: '', attachment: null });
+    setEditId(null);
+  };
+
   const handleAddNote = async (e) => {
     e.preventDefault();
-    if (!newNote.content) return toast.error("Content is required");
+    if (!newNote.content?.trim()) return toast.error("Content is required");
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE}/notes`, newNote, { headers: { Authorization: `Bearer ${token}` } });
-      toast.success("Note added!");
-      setNewNote({ content: '', category: 'general', targetDate: '' });
+
+      // If there is an attachment, send as multipart/form-data; otherwise send JSON.
+      if (newNote.attachment) {
+        const fd = new FormData();
+        fd.append('content', newNote.content);
+        fd.append('category', newNote.category);
+        if (newNote.targetDate) fd.append('targetDate', newNote.targetDate);
+        if (newNote.linkedEmployeeId) fd.append('linkedEntityId', newNote.linkedEmployeeId);
+        fd.append('attachment', newNote.attachment);
+        if (editId) {
+          await axios.patch(`${API_BASE}/notes/${editId}`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+        } else {
+          await axios.post(`${API_BASE}/notes`, fd, { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' } });
+        }
+      } else {
+        const payload = {
+          content: newNote.content,
+          category: newNote.category,
+          targetDate: newNote.targetDate || undefined,
+          linkedEntityId: newNote.linkedEmployeeId || undefined,
+        };
+        if (editId) {
+          await axios.patch(`${API_BASE}/notes/${editId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        } else {
+          await axios.post(`${API_BASE}/notes`, payload, { headers: { Authorization: `Bearer ${token}` } });
+        }
+      }
+
+      toast.success(editId ? "Updated successfully" : "Note added!");
+      resetForm();
       fetchAdminData();
-    } catch (err) { toast.error("Failed to add note"); }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save note");
+    }
+  };
+
+  const handleEdit = (note) => {
+    if (!isEditable(note)) return;
+    setEditId(note._id);
+    setNewNote({
+      content: note.content || '',
+      category: note.category || 'general',
+      targetDate: note.targetDate ? new Date(note.targetDate).toISOString().split('T')[0] : '',
+      linkedEmployeeId: note.linkedEntityId || '',
+      attachment: null, // attachments can't be prefilled client-side
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete permanently?')) return;
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${API_BASE}/notes/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      toast.success('Deleted');
+      fetchAdminData();
+    } catch (err) {
+      console.error(err);
+      toast.error('Delete failed');
+    }
   };
 
   const getDaysRemaining = (date) => {
@@ -108,10 +210,26 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   };
 
+  // Build employees map for quick lookup and the employee dropdown for admin
+  const employees = dropdowns.employees || [];
+  const employeesMap = useMemo(() => {
+    const m = {};
+    (employees || []).forEach(e => (m[e._id] = e));
+    return m;
+  }, [employees]);
+
+  // split notes: reminders vs other; admin-created vs employee-created
   const reminders = allData.filter(n => n.category === 'reminder').sort((a, b) => new Date(a.targetDate) - new Date(b.targetDate));
   const activeReminders = reminders.filter(n => (getDaysRemaining(n.targetDate) ?? 0) >= 0);
   const archivedReminders = reminders.filter(n => (getDaysRemaining(n.targetDate) ?? 0) < 0);
   const notes = allData.filter(n => n.category !== 'reminder');
+
+  // apply employee filter to notes listing (for the right column)
+  const filteredNotes = notes.filter(n => {
+    if (selectedEmployeeFilter === 'all') return true;
+    // consider linkedEntityId as the link to employee OR if createdBy is that employee
+    return n.linkedEntityId === selectedEmployeeFilter || n.createdBy?._id === selectedEmployeeFilter;
+  });
 
   if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50"><RefreshCw className="animate-spin text-indigo-600" size={48} /></div>;
 
@@ -190,9 +308,35 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                   onChange={(e) => setNewNote({ ...newNote, targetDate: e.target.value })}
                 />
               </div>
-              <Button type="submit" className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-xl font-bold">
-                Save Note / Reminder
-              </Button>
+
+              {/* Employee dropdown for admin to link a note to an employee */}
+              <select
+                className="w-full p-3 rounded-xl border border-slate-200 font-bold text-sm bg-slate-50"
+                value={newNote.linkedEmployeeId}
+                onChange={(e) => setNewNote({ ...newNote, linkedEmployeeId: e.target.value })}
+              >
+                <option value="">Link to employee (optional)</option>
+                {employees.map(emp => (
+                  <option key={emp._id} value={emp._id}>
+                    {emp.fullName || emp.name} — {emp.employeeCode || emp.email || 'N/A'}
+                  </option>
+                ))}
+              </select>
+
+              <input
+                type="file"
+                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
+                onChange={handleFileChange}
+              />
+
+              <div className="flex gap-3">
+                <Button type="submit" className="flex-1 bg-slate-900 hover:bg-black text-white py-4 rounded-xl font-bold">
+                  {editId ? 'Update' : 'Save'} Note / Reminder
+                </Button>
+                <Button variant="outline" onClick={resetForm} className="flex-0 py-4 rounded-xl font-bold">
+                  Cancel
+                </Button>
+              </div>
             </form>
           </Card>
 
@@ -211,6 +355,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                 const bs = convertADtoBS(rem.targetDate);
                 const adDate = new Date(rem.targetDate);
                 const adMonth = adDate.toLocaleString('en-US', { month: 'short' });
+                const linkedEmployee = rem.linkedEntityId ? employeesMap[rem.linkedEntityId] : null;
                 return (
                   <div key={rem._id} className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-red-600 flex gap-5 hover:shadow-md transition-all">
                     <div className="flex flex-col items-center justify-center w-16 h-16 bg-red-50 rounded-2xl shrink-0 border border-red-100">
@@ -219,10 +364,24 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
                     </div>
                     <div className="flex-1">
                       <p className="text-md font-bold text-slate-900 leading-snug">{rem.content}</p>
+
+                      {linkedEmployee && (
+                        <div className="text-sm text-slate-500 mt-2">
+                          Linked employee: <span className="font-bold text-slate-700">{linkedEmployee.fullName || linkedEmployee.name}</span>
+                        </div>
+                      )}
+
                       <div className="mt-4 flex items-center gap-4">
                         <Badge className={`text-xs font-black px-3 py-1 border-none ${days <= 1 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700'}`}>
                           {days === 0 ? 'TODAY' : days < 0 ? 'OVERDUE' : `${days} DAYS LEFT`}
                         </Badge>
+
+                        {/* if there is an attachment, show paperclip */}
+                        {rem.attachment && (
+                          <a href={`${FILE_BASE}/${rem.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 ml-2">
+                            <Paperclip size={16} />
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -234,24 +393,86 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
 
         {/* LOGS (Right) */}
         <div className="lg:col-span-7 space-y-6">
-          <h2 className="text-xl font-black flex items-center gap-3 px-2">
-            <FileText size={24} className="text-indigo-600" /> Operational Logs
-          </h2>
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-xl font-black flex items-center gap-3">
+              <FileText size={24} className="text-indigo-600" /> Operational Logs
+            </h2>
+
+            <div className="flex items-center gap-3">
+              <select
+                className="p-2 rounded-xl border border-slate-200 bg-white text-sm"
+                value={selectedEmployeeFilter}
+                onChange={(e) => setSelectedEmployeeFilter(e.target.value)}
+              >
+                <option value="all">All employees / notes</option>
+                {employees.map(emp => (
+                  <option key={emp._id} value={emp._id}>
+                    {emp.fullName || emp.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[850px] overflow-y-auto pr-2 custom-scrollbar">
-            {notes.map(note => (
-              <div key={note._id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors">
-                <div>
-                  <Badge className={`${note.category === 'urgent' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'} border-none text-[10px] font-black uppercase mb-4 px-3`}>
-                    {note.category}
-                  </Badge>
-                  <p className="text-md text-slate-700 font-bold leading-relaxed">{note.content}</p>
-                </div>
-                <div className="mt-6 pt-4 border-t border-slate-50 flex justify-between items-center">
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">By {note.createdBy?.fullName || 'System'}</p>
-                  <span className="text-[10px] text-slate-300 font-bold">{new Date(note.createdAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-            ))}
+            {filteredNotes.length === 0 ? (
+              <p className="text-center text-slate-400 py-12 col-span-2">No notes yet</p>
+            ) : (
+              filteredNotes.map(note => {
+                const linkedEmployee = note.linkedEntityId ? employeesMap[note.linkedEntityId] : null;
+                const canEdit = isEditable(note);
+
+                return (
+                  <div key={note._id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:border-indigo-200 transition-colors group">
+                    <div>
+                      <div className="flex justify-between items-start mb-4">
+                        <Badge className={`${note.category === 'urgent' ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'} border-none text-[10px] font-black uppercase px-3 py-1`}>
+                          {note.category}
+                        </Badge>
+
+                        {/* show attachment icon */}
+                        {note.attachment && (
+                          <a href={`${FILE_BASE}/${note.attachment}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100">
+                            <Paperclip size={16} />
+                          </a>
+                        )}
+                      </div>
+
+                      <p className="text-md text-slate-700 font-bold leading-relaxed line-clamp-4">{note.content}</p>
+
+                      {linkedEmployee && (
+                        <div className="text-sm text-slate-500 mt-2">
+                          Linked: <span className="font-bold text-slate-700">{linkedEmployee.fullName || linkedEmployee.name}</span>
+                        </div>
+                      )}
+
+                      <div className="text-xs text-slate-400 mt-2">By {note.createdBy?.fullName || 'System'}</div>
+                    </div>
+
+                    <div className="mt-6 pt-4 border-t border-slate-50 flex justify-between items-center">
+                      <div className="flex gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* Only allow admin CRUD on notes that are editable by admin */}
+                        {canEdit ? (
+                          <>
+                            <button onClick={() => handleEdit(note)} className="text-slate-400 hover:text-indigo-600">
+                              <Edit size={16} />
+                            </button>
+                            <button onClick={() => handleDelete(note._id)} className="text-slate-400 hover:text-rose-600">
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          // read-only icon set (no edit/delete)
+                          <div className="text-sm text-slate-400 px-3 py-1 rounded-md">Read-only</div>
+                        )}
+                      </div>
+
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{new Date(note.createdAt).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
