@@ -12,14 +12,8 @@ const { StatusCodes } = require('http-status-codes');
  */
 const getDashboardData = async (req, res) => {
     try {
-        const { companyId, userId, role } = req.user;
+        const { companyId } = req.user;
         const companyFilter = { companyId };
-
-        // Admins get all notes. Non-admins get only their own notes.
-        const notesFilter = { companyId };
-        if (role !== 'admin' && role !== 'super_admin') {
-            notesFilter.createdBy = userId;
-        }
 
         const [
             employersCount,
@@ -39,9 +33,8 @@ const getDashboardData = async (req, res) => {
             Worker.countDocuments(companyFilter),
             SubAgent.countDocuments(companyFilter),
             User.countDocuments({ ...companyFilter, role: 'employee' }),
-            // Populate both createdBy and linkedEntityId (linkedEntityId uses refPath -> categoryRef)
-            Note.find(notesFilter)
-                .populate('createdBy', 'fullName role email')
+            Note.find({ companyId })
+                .populate('createdBy', '_id fullName role email')
                 .populate('linkedEntityId')
                 .sort({ createdAt: -1 })
                 .limit(200),
@@ -74,7 +67,10 @@ const getDashboardData = async (req, res) => {
         });
     } catch (error) {
         console.error(error);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Failed to fetch dashboard data" });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            msg: "Failed to fetch dashboard data"
+        });
     }
 };
 
@@ -87,29 +83,19 @@ const addNote = async (req, res) => {
         const { content, category, targetDate, linkedEntityId } = req.body;
         const fileUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-        // map category to model name for refPath
-        const categoryModelMap = {
-            'employer': 'Employer',
-            'worker': 'Worker',
-            'job-demand': 'JobDemand',
-            'sub-agent': 'SubAgent'
-        };
-        const categoryRef = categoryModelMap[category] || null;
-
         const note = await Note.create({
             content,
             category: category || 'general',
             targetDate: targetDate || null,
             attachment: fileUrl,
             linkedEntityId: linkedEntityId || null,
-            categoryRef: linkedEntityId ? categoryRef : null,
             companyId: req.user.companyId,
             createdBy: req.user.userId,
             isCompleted: false
         });
 
         const populatedNote = await Note.findById(note._id)
-            .populate('createdBy', 'fullName role email')
+            .populate('createdBy', '_id fullName role email')
             .populate('linkedEntityId');
 
         res.status(StatusCodes.CREATED).json({ success: true, data: populatedNote });
@@ -126,11 +112,19 @@ const addNote = async (req, res) => {
 const updateNote = async (req, res) => {
     try {
         const { id } = req.params;
-        const { companyId, userId, role } = req.user;
+        const { companyId, userId } = req.user;
 
-        const filter = { _id: id, companyId };
-        if (role !== 'admin' && role !== 'super_admin') {
-            filter.createdBy = userId;
+        const note = await Note.findOne({
+            _id: id,
+            companyId,
+            createdBy: userId
+        });
+
+        if (!note) {
+            return res.status(StatusCodes.FORBIDDEN).json({
+                success: false,
+                msg: "You can only edit your own notes"
+            });
         }
 
         const updateData = { ...req.body };
@@ -138,7 +132,7 @@ const updateNote = async (req, res) => {
             updateData.attachment = `/uploads/${req.file.filename}`;
         }
 
-        // update categoryRef when linkedEntityId or category is provided
+        // Handle categoryRef if needed
         if (updateData.linkedEntityId || updateData.category) {
             const categoryModelMap = {
                 'employer': 'Employer',
@@ -146,25 +140,17 @@ const updateNote = async (req, res) => {
                 'job-demand': 'JobDemand',
                 'sub-agent': 'SubAgent'
             };
-            const newCategory = updateData.category || (await Note.findById(id).select('category')).category;
+            const newCategory = updateData.category || note.category;
             updateData.categoryRef = categoryModelMap[newCategory] || null;
-            if (!updateData.linkedEntityId) {
-                // cleared the link
-                updateData.linkedEntityId = null;
-                updateData.categoryRef = null;
-            }
         }
 
-        const updatedNote = await Note.findOneAndUpdate(filter, updateData, {
-            new: true,
-            runValidators: true
-        })
-            .populate('createdBy', 'fullName role email')
+        const updatedNote = await Note.findByIdAndUpdate(
+            id,
+            updateData,
+            { new: true, runValidators: true }
+        )
+            .populate('createdBy', '_id fullName role email')
             .populate('linkedEntityId');
-
-        if (!updatedNote) {
-            return res.status(StatusCodes.NOT_FOUND).json({ success: false, msg: "Note not found or unauthorized" });
-        }
 
         res.status(StatusCodes.OK).json({ success: true, data: updatedNote });
     } catch (error) {
@@ -174,33 +160,34 @@ const updateNote = async (req, res) => {
 };
 
 /**
- * @desc    Mark a reminder/note as done (archive)
+ * @desc    Mark a reminder/note as done
  * @route   PATCH /api/notes/:id/done
  */
 const markReminderAsDone = async (req, res) => {
     try {
         const { id } = req.params;
-        const { companyId, userId, role } = req.user;
+        const { companyId, userId } = req.user;
 
-        const filter = { _id: id, companyId };
-        if (role !== 'admin' && role !== 'super_admin') {
-            filter.createdBy = userId;
+        const note = await Note.findOne({
+            _id: id,
+            companyId,
+            createdBy: userId
+        });
+
+        if (!note) {
+            return res.status(StatusCodes.FORBIDDEN).json({
+                success: false,
+                msg: "You can only mark your own reminders as done"
+            });
         }
 
-        const updatedNote = await Note.findOneAndUpdate(
-            filter,
+        const updatedNote = await Note.findByIdAndUpdate(
+            id,
             { isCompleted: true },
             { new: true, runValidators: true }
         )
-            .populate('createdBy', 'fullName role email')
+            .populate('createdBy', '_id fullName role email')
             .populate('linkedEntityId');
-
-        if (!updatedNote) {
-            return res.status(StatusCodes.NOT_FOUND).json({
-                success: false,
-                msg: "Note not found or you don't have permission"
-            });
-        }
 
         res.status(StatusCodes.OK).json({
             success: true,
@@ -223,25 +210,31 @@ const markReminderAsDone = async (req, res) => {
 const deleteNote = async (req, res) => {
     try {
         const { id } = req.params;
-        const { companyId, userId, role } = req.user;
+        const { companyId, userId } = req.user;
 
-        const filter = { _id: id, companyId };
-        if (role !== 'admin' && role !== 'super_admin') {
-            filter.createdBy = userId;
-        }
+        const note = await Note.findOneAndDelete({
+            _id: id,
+            companyId,
+            createdBy: userId
+        });
 
-        const deletedNote = await Note.findOneAndDelete(filter);
-        if (!deletedNote) {
-            return res.status(StatusCodes.NOT_FOUND).json({
+        if (!note) {
+            return res.status(StatusCodes.FORBIDDEN).json({
                 success: false,
-                msg: "Note not found or unauthorized"
+                msg: "You can only delete your own notes"
             });
         }
 
-        res.status(StatusCodes.OK).json({ success: true, msg: "Note deleted permanently" });
+        res.status(StatusCodes.OK).json({
+            success: true,
+            msg: "Note deleted successfully"
+        });
     } catch (error) {
         console.error(error);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            msg: error.message
+        });
     }
 };
 
