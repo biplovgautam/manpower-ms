@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { ReportsPage } from '../../../../components/Employee/ReportPage';
 
@@ -11,20 +11,29 @@ export default function ReportsDashboard() {
     const [loading, setLoading] = useState(true);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
 
+    // Centralized logout helper
+    const handleLogout = () => {
+        localStorage.clear();
+        router.push('/login');
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
-        
-        if (!token || role !== 'employee') {
-            router.push('/login');
+        // FIX: Changed 'userRole' to 'role' to match your Login logic
+        const role = localStorage.getItem('role');
+
+        // Robust Auth Guard
+        if (!token || role?.toLowerCase() !== 'employee') {
+            console.warn("Unauthorized access to Reports. Redirecting...");
+            handleLogout();
             return;
         }
 
-        setUserData({ 
-            fullName: localStorage.getItem('fullName') || 'Employee', 
-            role 
+        setUserData({
+            fullName: localStorage.getItem('fullName') || 'Employee',
+            role: role
         });
-        
+
         fetchReportStats(token);
     }, [router]);
 
@@ -33,10 +42,17 @@ export default function ReportsDashboard() {
             const res = await fetch('http://localhost:5000/api/reports/performance-stats', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
+
+            // Handle session expiration
+            if (res.status === 401) {
+                handleLogout();
+                return;
+            }
+
             const result = await res.json();
-            
+
             // If backend has data, use it. Otherwise, stay null to trigger Mock Data.
-            if (result.success && result.data.length > 0) {
+            if (result.success && result.data && result.data.length > 0) {
                 setRealData(result.data);
             }
         } catch (err) {
@@ -47,22 +63,25 @@ export default function ReportsDashboard() {
     };
 
     return (
-        <DashboardLayout 
+        <DashboardLayout
             role="employee"
             userName={userData.fullName}
             currentPath="/dashboard/employee/report"
-            onLogout={() => { localStorage.clear(); router.push('/login'); }}
+            onLogout={handleLogout}
         >
-            {loading ? (
-                <div className="flex h-[60vh] items-center justify-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-                </div>
-            ) : (
-                /* If realData is null, the ReportsPage internal default 
-                   generateMockData() will automatically take over.
-                */
-                <ReportsPage data={realData || undefined} />
-            )}
+            <div className="p-4 sm:p-6 lg:p-8">
+                {loading ? (
+                    <div className="flex h-[60vh] flex-col items-center justify-center gap-4">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                        <p className="text-gray-500 font-medium">Gathering analytics...</p>
+                    </div>
+                ) : (
+                    /* If realData is null, ReportsPage will use its internal mock data.
+                       Passing 'undefined' allows the component's default props to kick in.
+                    */
+                    <ReportsPage data={realData || undefined} />
+                )}
+            </div>
         </DashboardLayout>
     );
 }

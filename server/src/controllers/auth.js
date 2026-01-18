@@ -1,11 +1,15 @@
 const User = require('../models/User');
 const Company = require('../models/Company');
+const Employer = require('../models/Employers');
+const JobDemand = require('../models/JobDemand');
+const Worker = require('../models/Worker');
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail');
 const sendNepaliSMS = require('../utils/sendSMS');
 
+// --- HELPER FUNCTIONS ---
 const normalizeEmail = (email) => {
     if (!email || typeof email !== 'string' || email.trim() === '') return undefined;
     const [local, domain] = email.toLowerCase().trim().split('@');
@@ -21,10 +25,9 @@ const normalizeIdentifier = (id) => {
     return val;
 };
 
-// 1. REGISTER ADMIN & COMPANY
+// --- 1. REGISTER ADMIN & COMPANY ---
 const register = async (req, res) => {
     const { agencyName, fullAddress, fullName, email, contactNumber, password } = req.body;
-
     if (!agencyName || !fullName || !contactNumber || !fullAddress || !password) {
         return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'All fields required.' });
     }
@@ -39,7 +42,7 @@ const register = async (req, res) => {
         const existingUser = await User.findOne({ contactNumber: cleanPhone }).session(session);
         if (existingUser) {
             await session.abortTransaction();
-            return res.status(StatusCodes.BAD_REQUEST).json({ msg: `Account with this phone number already exists.` });
+            return res.status(StatusCodes.BAD_REQUEST).json({ msg: `Account already exists.` });
         }
 
         const adminId = new mongoose.Types.ObjectId();
@@ -63,24 +66,9 @@ const register = async (req, res) => {
         }], { session });
 
         await session.commitTransaction();
-
-        // Send Welcome Email if email is provided
-        if (cleanEmail) {
-            sendEmail({
-                to: cleanEmail,
-                subject: 'Welcome to ManpowerMS',
-                html: `<h1>Welcome ${fullName}</h1><p>Your admin account for ${agencyName} has been created.</p>`
-            }).catch(err => console.error("Email failed:", err.message));
-        }
-
         res.status(StatusCodes.CREATED).json({
             success: true,
-            user: {
-                fullName: user[0].fullName,
-                role: user[0].role,
-                companyName: company[0].name,
-                companyLogo: company[0].logo
-            },
+            user: { fullName: user[0].fullName, role: user[0].role },
             token: user[0].createJWT()
         });
     } catch (error) {
@@ -89,7 +77,7 @@ const register = async (req, res) => {
     } finally { session.endSession(); }
 };
 
-// 2. REGISTER EMPLOYEE
+// --- 2. REGISTER EMPLOYEE ---
 const registerEmployee = async (req, res) => {
     const { fullName, email, password, contactNumber, address } = req.body;
     const cleanPhone = normalizeIdentifier(contactNumber);
@@ -97,11 +85,9 @@ const registerEmployee = async (req, res) => {
 
     try {
         const existing = await User.findOne({ contactNumber: cleanPhone });
-        if (existing) {
-            return res.status(400).json({ msg: `Account with this phone number already exists.` });
-        }
+        if (existing) return res.status(400).json({ msg: `Phone number already exists.` });
 
-        const newEmployee = await User.create({
+        await User.create({
             fullName,
             email: cleanEmail,
             password,
@@ -111,43 +97,66 @@ const registerEmployee = async (req, res) => {
             companyId: req.user.companyId
         });
 
-        // Prepare Notification Content
-        const welcomeMessage = `Welcome ${fullName}! Your account is ready. Login: ${contactNumber}, Pass: ${password}`;
-
-        // 1. Send SMS (Primary for Nepal)
-        sendNepaliSMS(cleanPhone, welcomeMessage);
-
-        // 2. Send Email (Only if email was provided)
-        if (cleanEmail) {
-            sendEmail({
-                to: cleanEmail,
-                subject: 'Your Staff Account Credentials',
-                html: `
-                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
-                        <h2>Welcome to the Team, ${fullName}!</h2>
-                        <p>Your staff account has been created successfully.</p>
-                        <p><b>Login ID:</b> ${contactNumber} or ${cleanEmail}</p>
-                        <p><b>Password:</b> ${password}</p>
-                        <br/>
-                        <p>Please change your password after your first login.</p>
-                    </div>
-                `
-            }).catch(err => console.error("Employee Email notification failed:", err.message));
-        }
-
-        res.status(201).json({
-            success: true,
-            msg: cleanEmail
-                ? 'Employee registered. Credentials sent via SMS and Email.'
-                : 'Employee registered. Credentials sent via SMS.'
-        });
+        sendNepaliSMS(cleanPhone, `Welcome ${fullName}! Login: ${contactNumber}, Pass: ${password}`);
+        res.status(201).json({ success: true, msg: 'Employee registered.' });
     } catch (e) {
         res.status(500).json({ msg: e.message });
     }
 };
 
+// --- 3. GET ALL EMPLOYEES (Stats) ---
+const getAllEmployees = async (req, res) => {
+    try {
+        const employees = await User.find({
+            companyId: req.user.companyId,
+            role: 'employee'
+        }).select('-password').sort({ createdAt: -1 }).lean();
 
-// 3. LOGIN (Stays similar, but usually users should login with phone if emails are shared)
+        const employeesWithStats = await Promise.all(employees.map(async (employee) => {
+            return {
+                ...employee,
+                employersAdded: await Employer.countDocuments({ createdBy: employee._id }),
+                jobDemandsCreated: await JobDemand.countDocuments({ createdBy: employee._id }),
+                workersManaged: await Worker.countDocuments({ createdBy: employee._id })
+            };
+        }));
+
+        res.status(StatusCodes.OK).json({ success: true, data: employeesWithStats });
+    } catch (err) {
+        res.status(500).json({ msg: 'Failed to fetch employees.' });
+    }
+};
+
+// --- 4. GET SINGLE EMPLOYEE DETAILS (Data Isolation Fix) ---
+const getSingleEmployeeDetails = async (req, res) => {
+    try {
+        const { id } = req.params; // The ID of the employee (e.g. Hari)
+
+        const employee = await User.findById(id).select('-password');
+        if (!employee) return res.status(404).json({ msg: 'Employee not found' });
+
+        // Fetch data strictly created by this employee
+        const [workers, demands, employers] = await Promise.all([
+            Worker.find({ createdBy: id }).sort({ createdAt: -1 }),
+            JobDemand.find({ createdBy: id }).sort({ createdAt: -1 }),
+            Employer.find({ createdBy: id }).sort({ createdAt: -1 }) // Added Employers
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                ...employee.toObject(),
+                workers,
+                demands,
+                employers // Now returning all 3 lists
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ msg: error.message });
+    }
+};
+
+// --- 5. LOGIN ---
 const login = async (req, res) => {
     try {
         const { identifier, password } = req.body;
@@ -170,8 +179,8 @@ const login = async (req, res) => {
                 fullName: user.fullName,
                 role: user.role,
                 companyId: user.companyId,
-                companyName: company ? company.name : (user.role === 'super_admin' ? 'System Control' : 'ManpowerMS'),
-                companyLogo: company ? company.logo : null
+                companyName: company?.name || 'ManpowerMS',
+                companyLogo: company?.logo || null
             },
             token: user.createJWT()
         });
@@ -180,17 +189,12 @@ const login = async (req, res) => {
     }
 };
 
-
-// 1. UPDATE FORGOT PASSWORD
+// --- 6. PASSWORD MANAGEMENT ---
 const forgotPassword = async (req, res) => {
     try {
         const cleanId = normalizeIdentifier(req.body.identifier);
         const user = await User.findOne({ $or: [{ email: cleanId }, { contactNumber: cleanId }] });
-
-        // BUG FIX: Change this from 200 to 404
-        if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Account not found with this email/phone.' });
-        }
+        if (!user) return res.status(404).json({ msg: 'Account not found.' });
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpRef = crypto.randomBytes(2).toString('hex').toUpperCase();
@@ -201,78 +205,33 @@ const forgotPassword = async (req, res) => {
         await user.save();
 
         await sendNepaliSMS(user.contactNumber, `OTP: ${otp} (Ref: ${otpRef})`);
-        if (user.email) await sendEmail({ to: user.email, subject: 'Reset OTP', html: `OTP: ${otp}` });
-
         res.status(StatusCodes.OK).json({ success: true, otpReference: otpRef });
     } catch (err) {
         res.status(500).json({ msg: 'Error sending OTP' });
     }
 };
 
-// 2. UPDATE RESEND OTP
 const resendOTP = async (req, res) => {
     try {
-        const { identifier } = req.body;
-        if (!identifier) {
-            return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Identifier is required.' });
-        }
+        const cleanId = normalizeIdentifier(req.body.identifier);
+        const user = await User.findOne({ $or: [{ email: cleanId }, { contactNumber: cleanId }] });
+        if (!user) return res.status(404).json({ msg: 'Account not found.' });
 
-        const cleanId = normalizeIdentifier(identifier);
-        const user = await User.findOne({
-            $or: [{ email: cleanId }, { contactNumber: cleanId }]
-        });
-
-        // FIX: Reject if user doesn't exist
-        if (!user) {
-            return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Account not found.' });
-        }
-
-        // Generate New OTP and Reference
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const otpRef = crypto.randomBytes(2).toString('hex').toUpperCase();
 
-        // Update Database (Using SHA256 to match resetPassword logic)
         user.passwordResetToken = crypto.createHash('sha256').update(otp).digest('hex');
         user.passwordResetExpires = Date.now() + 10 * 60 * 1000;
         user.otpReference = otpRef;
         await user.save();
 
-        // --- DUAL SENDING LOGIC ---
-
-        // 1. Send SMS (Primary)
-        const smsPromise = sendNepaliSMS(user.contactNumber, `Your new OTP is ${otp}. Ref: ${otpRef}`);
-
-        // 2. Send Email (If user has one)
-        let emailPromise = Promise.resolve();
-        if (user.email) {
-            emailPromise = sendEmail({
-                to: user.email,
-                subject: 'Your Password Reset OTP',
-                html: `
-                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
-                        <h2>Password Reset Request</h2>
-                        <p>Your new OTP code is: <strong style="font-size: 20px; color: #2563eb;">${otp}</strong></p>
-                        <p>Reference: ${otpRef}</p>
-                        <p>This code will expire in 10 minutes.</p>
-                    </div>
-                `
-            });
-        }
-
-        // Wait for both to process
-        await Promise.all([smsPromise, emailPromise]);
-
-        res.status(StatusCodes.OK).json({
-            success: true,
-            msg: user.email ? 'OTP sent to Email and SMS.' : 'OTP sent via SMS.'
-        });
-
+        await sendNepaliSMS(user.contactNumber, `New OTP: ${otp} (Ref: ${otpRef})`);
+        res.status(200).json({ success: true, msg: 'OTP resent.' });
     } catch (err) {
-        console.error("Resend Error:", err);
-        res.status(500).json({ msg: 'Failed to send OTP. Please try again later.' });
+        res.status(500).json({ msg: 'Resend failed.' });
     }
 };
-// 6. RESET PASSWORD
+
 const resetPassword = async (req, res) => {
     const { identifier, otp, newPassword } = req.body;
     const cleanId = normalizeIdentifier(identifier);
@@ -284,7 +243,7 @@ const resetPassword = async (req, res) => {
         passwordResetExpires: { $gt: Date.now() }
     });
 
-    if (!user) return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Invalid/Expired OTP.' });
+    if (!user) return res.status(400).json({ msg: 'Invalid or Expired OTP.' });
 
     user.password = newPassword;
     user.passwordResetToken = undefined;
@@ -292,21 +251,7 @@ const resetPassword = async (req, res) => {
     user.otpReference = undefined;
     await user.save();
 
-    res.status(StatusCodes.OK).json({ success: true, msg: 'Password updated.' });
-};
-
-// 7. GET EMPLOYEES
-const getAllEmployees = async (req, res) => {
-    try {
-        const employees = await User.find({
-            companyId: req.user.companyId,
-            role: 'employee'
-        }).select('-password').sort({ createdAt: -1 });
-
-        res.status(StatusCodes.OK).json({ success: true, data: employees });
-    } catch (err) {
-        res.status(500).json({ msg: 'Failed to fetch employees' });
-    }
+    res.status(200).json({ success: true, msg: 'Password updated.' });
 };
 
 module.exports = {
@@ -314,6 +259,7 @@ module.exports = {
     login,
     registerEmployee,
     getAllEmployees,
+    getSingleEmployeeDetails,
     forgotPassword,
     resendOTP,
     resetPassword

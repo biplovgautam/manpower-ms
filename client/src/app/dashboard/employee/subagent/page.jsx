@@ -15,14 +15,29 @@ export default function SubAgentPage() {
     const [userData, setUserData] = useState({ fullName: '', role: '' });
     const [loading, setLoading] = useState(true);
 
+    // Centralized logout
+    const handleLogout = () => {
+        localStorage.clear();
+        router.push('/login');
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
-        if (!token || role !== 'employee') {
-            router.push('/login');
+        // FIX: Changed 'userRole' to 'role' to match your Login component logic
+        const role = localStorage.getItem('role');
+
+        // 1. Auth Guard with case-insensitive check
+        if (!token || role?.toLowerCase() !== 'employee') {
+            console.warn("Access denied: Invalid session or role mismatch.");
+            handleLogout();
             return;
         }
-        setUserData({ fullName: localStorage.getItem('fullName') || 'Employee', role });
+
+        setUserData({
+            fullName: localStorage.getItem('fullName') || 'Employee',
+            role: role
+        });
+
         fetchAgents(token);
     }, [router]);
 
@@ -39,6 +54,12 @@ export default function SubAgentPage() {
                 })
             ]);
 
+            // Handle session expiration (401)
+            if (agentsRes.status === 401 || workersRes.status === 401) {
+                handleLogout();
+                return;
+            }
+
             const agentsResult = await agentsRes.json();
             const workersResult = await workersRes.json();
 
@@ -47,26 +68,20 @@ export default function SubAgentPage() {
 
                 // 2. Map and Attach Count
                 const processedAgents = agentsResult.data.map(agent => {
-                    // Find all workers where the agent ID matches
                     const matchingWorkers = allWorkers.filter(worker => {
-                        // Check subAgentId (could be string or object)
                         const wId = worker.subAgentId?._id || worker.subAgentId;
-                        // Check worker.agent (alternative field name)
                         const aId = worker.agent?._id || worker.agent;
-
                         const targetId = wId || aId;
 
                         return String(targetId) === String(agent._id);
                     });
 
-                    // Attach the count to the agent object
                     return {
                         ...agent,
                         totalWorkersBrought: matchingWorkers.length
                     };
                 });
 
-                console.log("Agents with calculated counts:", processedAgents);
                 setSubAgents(processedAgents);
             }
         } catch (err) {
@@ -81,7 +96,10 @@ export default function SubAgentPage() {
         try {
             const res = await fetch('http://localhost:5000/api/sub-agents', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify(agentData),
             });
             const result = await res.json();
@@ -91,7 +109,9 @@ export default function SubAgentPage() {
                 return true;
             }
             return false;
-        } catch (err) { return false; }
+        } catch (err) {
+            return false;
+        }
     };
 
     return (
@@ -99,12 +119,13 @@ export default function SubAgentPage() {
             role="employee"
             userName={userData.fullName}
             currentPath="/dashboard/employee/subagent"
-            onLogout={() => { localStorage.clear(); router.push('/login'); }}
+            onLogout={handleLogout}
         >
             <div className="p-6 max-w-7xl mx-auto">
                 {loading && view === 'list' ? (
-                    <div className="flex h-[60vh] items-center justify-center">
+                    <div className="flex h-[60vh] flex-col items-center justify-center gap-4">
                         <Loader2 className="animate-spin text-blue-600" size={32} />
+                        <p className="text-gray-500 font-medium">Loading agents and worker data...</p>
                     </div>
                 ) : (
                     <>

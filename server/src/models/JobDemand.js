@@ -1,3 +1,4 @@
+// models/JobDemand.js
 const mongoose = require('mongoose');
 
 const JobDemandSchema = new mongoose.Schema({
@@ -15,11 +16,13 @@ const JobDemandSchema = new mongoose.Schema({
     type: Number,
     required: [true, 'Please specify the number of workers'],
   },
-  // ADDED: The workers field to store an array of Worker IDs
-  // This allows the .populate('workers') call in your controller to work
+  tenure: {
+    type: String,
+    required: [true, 'Please specify the contract tenure (e.g., 2 Years)'],
+  },
   workers: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Worker', // Ensure this matches exactly with your Worker model name
+    ref: 'Worker',
   }],
   description: {
     type: String,
@@ -39,12 +42,14 @@ const JobDemandSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['open', 'pending', 'in-progress', 'closed'],
+    enum: ['open', 'in-progress', 'closed'],
     default: 'open',
   },
   documents: [{
     name: String,
     url: String,
+    fileType: String,
+    uploadedAt: { type: Date, default: Date.now }
   }],
   companyId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -58,7 +63,6 @@ const JobDemandSchema = new mongoose.Schema({
   },
 }, {
   timestamps: true,
-  // If you decide to use Virtuals later, these options are helpful:
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
