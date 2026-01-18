@@ -10,12 +10,8 @@ const { StatusCodes } = require('http-status-codes');
 exports.getAllWorkers = async (req, res) => {
   try {
     const { companyId, userId, role } = req.user;
-
-    // Filter Logic
     let filter = { companyId };
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
     const workers = await Worker.find(filter)
       .populate('employerId', 'name employerName companyName')
@@ -25,27 +21,20 @@ exports.getAllWorkers = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      count: workers.length,
-      data: workers
-    });
+    res.status(StatusCodes.OK).json({ success: true, count: workers.length, data: workers });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Get Worker by ID (Ownership Protected)
+ * @desc    Get Worker by ID
  */
 exports.getWorkerById = async (req, res) => {
   try {
     const { companyId, userId, role } = req.user;
-
     let filter = { _id: req.params.id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
     const worker = await Worker.findOne(filter)
       .populate('employerId', 'name employerName companyName')
@@ -54,10 +43,7 @@ exports.getWorkerById = async (req, res) => {
       .populate('createdBy', 'fullName')
       .lean();
 
-    if (!worker) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found or unauthorized' });
-    }
-
+    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
     res.status(StatusCodes.OK).json({ success: true, data: worker });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
@@ -65,7 +51,7 @@ exports.getWorkerById = async (req, res) => {
 };
 
 /**
- * @desc    Update Worker (Ownership Protected)
+ * @desc    Update Worker Info (Matches router.put)
  */
 exports.updateWorker = async (req, res) => {
   try {
@@ -73,19 +59,15 @@ exports.updateWorker = async (req, res) => {
     const { companyId, userId, role } = req.user;
     const updateData = { ...req.body };
 
-    // Security Check: Find first to verify ownership
     let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
     const oldWorker = await Worker.findOne(filter);
-    if (!oldWorker) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found or unauthorized' });
-    }
+    if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
 
     if (req.body.dob) updateData.dob = new Date(req.body.dob);
 
+    // Handle File Uploads
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file) => ({
         name: file.originalname,
@@ -97,14 +79,11 @@ exports.updateWorker = async (req, res) => {
 
     const updatedWorker = await Worker.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
       .populate('employerId', 'name employerName companyName')
-      .populate('subAgentId', 'name')
       .populate('jobDemandId', 'jobTitle');
 
-    // SYNC JOB DEMANDS IF CHANGED
+    // Sync Job Demand References
     if (updateData.jobDemandId && updateData.jobDemandId.toString() !== oldWorker.jobDemandId?.toString()) {
-      if (oldWorker.jobDemandId) {
-        await JobDemand.findByIdAndUpdate(oldWorker.jobDemandId, { $pull: { workers: id } });
-      }
+      if (oldWorker.jobDemandId) await JobDemand.findByIdAndUpdate(oldWorker.jobDemandId, { $pull: { workers: id } });
       await JobDemand.findByIdAndUpdate(updateData.jobDemandId, { $addToSet: { workers: id } });
     }
 
@@ -115,38 +94,7 @@ exports.updateWorker = async (req, res) => {
 };
 
 /**
- * @desc    Delete Worker (Ownership Protected)
- */
-exports.deleteWorker = async (req, res) => {
-  try {
-    const { companyId, userId, role } = req.user;
-
-    let filter = { _id: req.params.id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
-
-    const worker = await Worker.findOne(filter);
-
-    if (!worker) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found or unauthorized' });
-    }
-
-    // Sync reference removal before deleting
-    if (worker.jobDemandId) {
-      await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
-    }
-
-    await worker.deleteOne();
-
-    res.status(StatusCodes.OK).json({ success: true, message: 'Worker removed' });
-  } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
-  }
-};
-
-/**
- * @desc    Update Stage (Ownership Protected)
+ * @desc    Update Stage & Auto-calculate Worker Status
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
@@ -154,76 +102,95 @@ exports.updateWorkerStage = async (req, res) => {
     const { status, notes } = req.body;
     const { companyId, userId, role } = req.user;
 
-    // Filter to ensure you own the worker you are updating the stage for
-    let filter = { _id: id, companyId, "stageTimeline._id": stageId };
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
+    let filter = { _id: id, companyId };
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+
+    const worker = await Worker.findOne(filter);
+    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
+
+    const stageIndex = worker.stageTimeline.findIndex(s => s._id.toString() === stageId);
+    if (stageIndex === -1) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Stage not found' });
+
+    worker.stageTimeline[stageIndex].status = status;
+    worker.stageTimeline[stageIndex].notes = notes || "";
+    worker.stageTimeline[stageIndex].date = new Date();
+
+    // Auto-Status Logic
+    const timeline = worker.stageTimeline;
+    const anyRejected = timeline.some(s => s.status === 'rejected');
+    const allCompleted = timeline.every(s => s.status === 'completed');
+    const docCollectionDone = timeline.find(s => s.stage === 'document-collection')?.status === 'completed';
+
+    if (anyRejected) {
+      worker.status = 'rejected';
+    } else if (allCompleted) {
+      worker.status = 'deployed';
+    } else if (docCollectionDone) {
+      worker.status = 'processing';
+    } else {
+      worker.status = 'pending';
     }
 
-    const updatedWorker = await Worker.findOneAndUpdate(
-      filter,
-      {
-        $set: {
-          "stageTimeline.$.status": status,
-          "stageTimeline.$.notes": notes || "",
-          "stageTimeline.$.date": new Date()
-        }
-      },
-      { new: true }
-    ).populate('employerId', 'name employerName').populate('jobDemandId', 'jobTitle');
+    const lastCompleted = [...timeline].reverse().find(s => s.status === 'completed');
+    if (lastCompleted) worker.currentStage = lastCompleted.stage;
 
-    if (!updatedWorker) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker or Stage not found/unauthorized' });
-    }
+    await worker.save();
+    const populated = await Worker.findById(worker._id).populate('employerId jobDemandId subAgentId');
 
-    res.status(StatusCodes.OK).json({ success: true, data: updatedWorker });
+    res.status(StatusCodes.OK).json({ success: true, data: populated });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
-// addWorker logic remains largely the same as it correctly assigns creatorId and companyId
+/**
+ * @desc    Add Worker with 11 Stages
+ */
 exports.addWorker = async (req, res) => {
   try {
-    const { passportNumber, employerId, jobDemandId } = req.body;
-    const creatorId = req.user.userId;
-    const companyId = req.user.companyId;
+    const { passportNumber, jobDemandId } = req.body;
+    const existingWorker = await Worker.findOne({ passportNumber, companyId: req.user.companyId });
+    if (existingWorker) return res.status(StatusCodes.BAD_REQUEST).json({ message: 'Passport number already exists' });
 
-    const existingWorker = await Worker.findOne({ passportNumber });
-    if (existingWorker) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Passport number already exists.' });
-    }
-
-    const documentFiles = req.files ? req.files.map(file => ({
-      name: file.originalname, path: file.path, category: 'other', uploadedAt: new Date()
-    })) : [];
+    const initialStages = [
+      'document-collection', 'document-verification', 'interview',
+      'medical-examination', 'police-clearance', 'training',
+      'visa-application', 'visa-approval', 'ticket-booking',
+      'pre-departure-orientation', 'deployed'
+    ].map(name => ({ stage: name, status: 'pending', date: new Date() }));
 
     const newWorker = new Worker({
       ...req.body,
-      createdBy: creatorId,
-      companyId: companyId,
-      assignedTo: creatorId,
-      documents: documentFiles,
-      stageTimeline: [
-        { stage: 'document-collection', status: 'completed', date: new Date() },
-        { stage: 'document-verification', status: 'in-progress', date: new Date() },
-        { stage: 'medical-checkup', status: 'pending', date: new Date() },
-        { stage: 'visa-processing', status: 'pending', date: new Date() },
-      ]
+      createdBy: req.user.userId,
+      companyId: req.user.companyId,
+      stageTimeline: initialStages,
+      status: 'pending'
     });
 
     await newWorker.save();
+    if (jobDemandId) await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
 
-    if (jobDemandId) {
-      await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
-    }
+    res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
+  } catch (error) {
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+  }
+};
 
-    const populated = await Worker.findById(newWorker._id)
-      .populate('employerId', 'name employerName companyName')
-      .populate('subAgentId', 'name')
-      .populate('createdBy', 'fullName');
+/**
+ * @desc    Delete Worker
+ */
+exports.deleteWorker = async (req, res) => {
+  try {
+    const { companyId, userId, role } = req.user;
+    let filter = { _id: req.params.id, companyId };
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
-    res.status(StatusCodes.CREATED).json({ success: true, data: populated });
+    const worker = await Worker.findOneAndDelete(filter);
+    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
+
+    if (worker.jobDemandId) await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
+
+    res.status(StatusCodes.OK).json({ success: true, message: 'Worker removed successfully' });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
