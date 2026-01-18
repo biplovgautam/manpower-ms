@@ -49,7 +49,7 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">My Employers</h1>
-                    <p className="text-gray-500 mt-2 text-lg">
+                    <p className="text-gray-500 mt-2 text-lg font-medium italic">
                         Manage your hiring partners, job demands, and placement stats.
                     </p>
                 </div>

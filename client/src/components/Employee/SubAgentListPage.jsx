@@ -101,14 +101,14 @@ export function SubAgentListPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Sub Agents</h1>
-          <p className="text-gray-600 mt-1">Manage recruitment partners and their performance</p>
+          <h1 className="text-3xl font-extrabold text-gray-900">Sub Agents</h1>
+          <p className="text-gray-600 mt-1 ">Manage recruitment partners and their performance</p>
         </div>
-        <Button
-  onClick={() => onNavigate('add-sub-agent')}
+      <Button
+  onClick={() => setView('add')}
   className="flex items-center justify-center h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 transition-all hover:brightness-110 active:scale-95 whitespace-nowrap"
 >
-  <Plus size={18} className="mr-2 stroke-[3px]" />
+  <Plus size={18} className="mr-2 stroke-[3px]" /> 
   <span>Add Sub Agent</span>
 </Button>
       </div>
