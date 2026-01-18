@@ -61,13 +61,13 @@ export function JobDemandListPage({
             Manage hiring quotas and recruitment pipelines.
           </p>
         </div>
-        <Button
-          onClick={() => onNavigate('create')}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 h-12 rounded-xl shadow-lg shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95"
-        >
-          <Plus size={20} className="mr-2 stroke-[3px]" />
-          Create New Demand
-        </Button>
+       <Button
+  onClick={() => onNavigate('create')}
+  className="flex items-center justify-center h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-md shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95"
+>
+  <Plus size={18} className="mr-2 stroke-[2.5px]" />
+  <span>Create New Demand</span>
+</Button>
       </div>
 
       {/* 2. Refined Search */}

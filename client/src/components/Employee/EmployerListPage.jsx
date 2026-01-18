@@ -53,13 +53,13 @@ export function EmployerListPage({ employers = [], onNavigate, onSelectEmployer 
                         Manage your hiring partners, job demands, and placement stats.
                     </p>
                 </div>
-                <Button
-                    onClick={() => onNavigate('add')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 transition-all active:scale-95 px-6"
-                >
-                    <Plus size={20} className="mr-2" />
-                    Add Employer
-                </Button>
+              <Button
+  onClick={() => onNavigate('add')}
+  className="flex items-center justify-center h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full font-semibold shadow-lg shadow-indigo-200 transition-all hover:brightness-110 active:scale-95"
+>
+  <Plus size={20} className="mr-2 stroke-[3px]" />
+  Add Employer
+</Button>
             </div>
 
             {/* --- TABLE CARD --- */}
