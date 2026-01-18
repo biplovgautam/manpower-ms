@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from 'next/navigation'; // Added useSearchParams
-import { useCallback, useEffect, useState, Suspense } from 'react'; // Added Suspense
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 import { JobDemandDetailsPage } from '../../../../components/Employee/JobDemandDetailsPage';
@@ -9,8 +9,8 @@ import { JobDemandListPage } from '../../../../components/Employee/JobDemandList
 
 function JobDemandsContent() {
     const router = useRouter();
-    const searchParams = useSearchParams(); // Hook to read URL params
-    
+    const searchParams = useSearchParams();
+
     const [view, setView] = useState('list');
     const [isLoading, setIsLoading] = useState(true);
     const [jobDemands, setJobDemands] = useState([]);
@@ -27,7 +27,11 @@ function JobDemandsContent() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
-            if (result.success) setJobDemands(result.data);
+            if (result.success) {
+                setJobDemands(result.data);
+            } else if (res.status === 401) {
+                handleLogout(); // Force logout if token is rejected
+            }
         } catch (error) {
             console.error("Failed to fetch job demands:", error);
         }
@@ -45,8 +49,65 @@ function JobDemandsContent() {
         }
     }, []);
 
+    const handleLogout = () => {
+        localStorage.clear();
+        router.push('/login');
+    };
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        // FIX: Changed 'userRole' to 'role' to match your Login logic
+        const role = localStorage.getItem('role');
+
+        // 1. Robust Auth Check
+        if (!token || role?.toLowerCase() !== 'employee') {
+            console.warn("Unauthorized: Missing token or incorrect role.");
+            router.push('/login');
+            return;
+        }
+
+        setUserData({
+            fullName: localStorage.getItem('fullName') || 'Employee',
+            role: role
+        });
+
+        const loadInitialData = async () => {
+            setIsLoading(true);
+            // Wait for both lists to load
+            await Promise.all([fetchJobDemands(token), fetchEmployers(token)]);
+
+            // Handle URL action parameter
+            const action = searchParams.get('action');
+            if (action === 'add') {
+                setView('create');
+            } else {
+                setView('list');
+            }
+
+            setIsLoading(false);
+        };
+
+        loadInitialData();
+    }, [router, searchParams, fetchJobDemands, fetchEmployers]);
+
+    // Navigation and Action Handlers
+    const handleNavigate = (targetView, data = null) => {
+        if (targetView === 'details') {
+            if (data?._id) fetchSingleJobDemand(data._id);
+        } else if (targetView === 'edit' && data) {
+            setSelectedJobDemand(data);
+            setView('edit');
+        } else if (targetView === 'list') {
+            setSelectedJobDemand(null);
+            setView('list');
+            router.replace('/dashboard/employee/job-demand');
+        } else {
+            if (data) setSelectedJobDemand(data);
+            setView(targetView);
+        }
+    };
+
     const fetchSingleJobDemand = async (id) => {
-        if (!id) return;
         setIsLoading(true);
         try {
             const token = localStorage.getItem('token');
@@ -63,59 +124,8 @@ function JobDemandsContent() {
             }
         } catch (error) {
             console.error("Fetch Error:", error);
-            alert("Network error. Is the server running?");
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
-
-        if (!token || role !== 'employee') {
-            router.push('/login');
-            return;
-        }
-
-        setUserData({
-            fullName: localStorage.getItem('fullName') || 'Employee',
-            role
-        });
-
-        const loadInitialData = async () => {
-            setIsLoading(true);
-            await Promise.all([fetchJobDemands(token), fetchEmployers(token)]);
-            
-            // NAVIGATION LOGIC: Check for ?action=add
-            const action = searchParams.get('action');
-            if (action === 'add') {
-                setView('create');
-            } else {
-                setView('list');
-            }
-            
-            setIsLoading(false);
-        };
-
-        loadInitialData();
-    }, [router, searchParams, fetchJobDemands, fetchEmployers]);
-
-    const handleNavigate = (targetView, data = null) => {
-        if (targetView === 'details') {
-            const targetId = data?._id;
-            if (targetId) fetchSingleJobDemand(targetId);
-        } else if (targetView === 'edit' && data) {
-            setSelectedJobDemand(data);
-            setView('edit');
-        } else if (targetView === 'list') {
-            setSelectedJobDemand(null);
-            setView('list');
-            // Clear URL params when going back to list
-            router.replace('/dashboard/employee/job-demand');
-        } else {
-            if (data) setSelectedJobDemand(data);
-            setView(targetView);
         }
     };
 
@@ -164,7 +174,7 @@ function JobDemandsContent() {
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm("Delete this record?")) return;
+        if (!window.confirm("Are you sure you want to delete this job demand?")) return;
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`${API_URL}/${id}`, {
@@ -186,11 +196,13 @@ function JobDemandsContent() {
             role="employee"
             userName={userData.fullName}
             currentPath="/dashboard/employee/job-demand"
+            onLogout={handleLogout}
         >
             <div className="container mx-auto p-4">
                 {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
+                    <div className="flex flex-col justify-center items-center h-64 gap-4">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                        <p className="text-gray-500">Updating dashboard...</p>
                     </div>
                 ) : (
                     <>
@@ -234,10 +246,13 @@ function JobDemandsContent() {
     );
 }
 
-// Wrap in Suspense to handle useSearchParams in Next.js
 export default function JobDemandsPage() {
     return (
-        <Suspense fallback={<div>Loading Job Demands...</div>}>
+        <Suspense fallback={
+            <div className="h-screen flex items-center justify-center">
+                <div className="animate-pulse text-indigo-600 font-medium">Initializing...</div>
+            </div>
+        }>
             <JobDemandsContent />
         </Suspense>
     );

@@ -1,32 +1,42 @@
 "use client";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
-import { EmployerListPage } from '../../../../components/Employee/EmployerListPage';
 import { AddEmployerPage } from '../../../../components/Employee/AddEmployer';
-import { EmployerDetailsPage } from '../../../../components/Employee/EmployerDetailPage';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
+import { EmployerDetailsPage } from '../../../../components/Employee/EmployerDetailPage';
+import { EmployerListPage } from '../../../../components/Employee/EmployerListPage';
 
 function EmployersContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    
+
     const [view, setView] = useState('list'); // views: 'list', 'add', 'details', 'edit', 'createDemand'
     const [employers, setEmployers] = useState([]);
     const [selectedEmployer, setSelectedEmployer] = useState(null);
     const [isLoadingDetails, setIsLoadingDetails] = useState(false);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
 
+    // Centralized Logout helper
+    const handleLogout = () => {
+        localStorage.clear();
+        router.push('/login');
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('userRole');
-        
-        if (!token || role !== 'employee') {
-            router.push('/login');
+        // FIX: Changed 'userRole' to 'role' to match your login logic
+        const role = localStorage.getItem('role');
+        const fullName = localStorage.getItem('fullName');
+
+        // Robust check: prevent redirect loop if role exists but key was wrong
+        if (!token || role?.toLowerCase() !== 'employee') {
+            console.warn("Auth check failed. Token exists:", !!token, "Role:", role);
+            handleLogout();
             return;
         }
-        
-        setUserData({ fullName: localStorage.getItem('fullName'), role });
+
+        setUserData({ fullName: fullName || 'Employee', role });
         fetchEmployers(token);
 
         // CHECK FOR ACTION PARAMETER
@@ -42,7 +52,12 @@ function EmployersContent() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
-            if (result.success) setEmployers(result.data);
+
+            if (result.success) {
+                setEmployers(result.data);
+            } else if (res.status === 401) {
+                handleLogout();
+            }
         } catch (error) {
             console.error("Failed to fetch:", error);
         }
@@ -58,7 +73,11 @@ function EmployersContent() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
-            if (result.success) setSelectedEmployer(result.data);
+            if (result.success) {
+                setSelectedEmployer(result.data);
+            } else if (res.status === 401) {
+                handleLogout();
+            }
         } catch (error) {
             console.error("Failed to load details:", error);
         } finally {
@@ -70,12 +89,12 @@ function EmployersContent() {
         try {
             const token = localStorage.getItem('token');
             const targetEmployer = employers.find(e => e.employerName === submissionData.employerName);
-            
+
             const res = await fetch('http://localhost:5000/api/demands', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${token}` 
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
                     ...submissionData,
@@ -99,10 +118,9 @@ function EmployersContent() {
             body: JSON.stringify(formData)
         });
         const result = await res.json();
-        if (res.ok && result.success) { 
-            fetchEmployers(token); 
-            setView('list'); 
-            // Clear URL params after saving
+        if (res.ok && result.success) {
+            fetchEmployers(token);
+            setView('list');
             router.replace('/dashboard/employee/employer');
         }
     };
@@ -114,7 +132,11 @@ function EmployersContent() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(formData)
         });
-        if (res.ok) { fetchEmployers(token); setView('list'); setSelectedEmployer(null); }
+        if (res.ok) {
+            fetchEmployers(token);
+            setView('list');
+            setSelectedEmployer(null);
+        }
     };
 
     const handleDelete = async (id) => {
@@ -125,43 +147,76 @@ function EmployersContent() {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (res.ok) { fetchEmployers(token); setView('list'); }
-        } catch (error) { console.error(error); }
+            if (res.ok) {
+                fetchEmployers(token);
+                setView('list');
+            }
+        } catch (error) {
+            console.error(error);
+        }
     };
 
     return (
-        <DashboardLayout 
-            role="employee" userName={userData.fullName} 
-            currentPath="/dashboard/employee/employer" 
-            onLogout={() => { localStorage.clear(); router.push('/login'); }}
+        <DashboardLayout
+            role="employee"
+            userName={userData.fullName}
+            currentPath="/dashboard/employee/employer"
+            onLogout={handleLogout}
         >
-            {view === 'list' && (
-                <EmployerListPage employers={employers} onNavigate={setView} onSelectEmployer={handleSelectEmployer} onDelete={handleDelete} />
-            )}
-            {view === 'add' && <AddEmployerPage onNavigate={() => setView('list')} onSave={handleSave} />}
-            {view === 'edit' && <AddEmployerPage onNavigate={() => setView('list')} onSave={handleUpdate} initialData={selectedEmployer} isEdit={true} />}
-            
-            {view === 'details' && (
-                <EmployerDetailsPage 
-                    employer={selectedEmployer} onNavigate={setView} onDelete={handleDelete} 
-                    isLoading={isLoadingDetails} onCreateDemand={() => setView('createDemand')}
-                />
-            )}
+            <div className="p-4">
+                {view === 'list' && (
+                    <EmployerListPage
+                        employers={employers}
+                        onNavigate={setView}
+                        onSelectEmployer={handleSelectEmployer}
+                        onDelete={handleDelete}
+                    />
+                )}
+                {view === 'add' && (
+                    <AddEmployerPage
+                        onNavigate={() => setView('list')}
+                        onSave={handleSave}
+                    />
+                )}
+                {view === 'edit' && (
+                    <AddEmployerPage
+                        onNavigate={() => setView('list')}
+                        onSave={handleUpdate}
+                        initialData={selectedEmployer}
+                        isEdit={true}
+                    />
+                )}
 
-            {view === 'createDemand' && (
-                <CreateJobDemandPage 
-                    employers={employers} initialData={{ employerName: selectedEmployer?.employerName }}
-                    onNavigate={() => setView('details')} onSave={handleSaveDemand}
-                />
-            )}
+                {view === 'details' && (
+                    <EmployerDetailsPage
+                        employer={selectedEmployer}
+                        onNavigate={setView}
+                        onDelete={handleDelete}
+                        isLoading={isLoadingDetails}
+                        onCreateDemand={() => setView('createDemand')}
+                    />
+                )}
+
+                {view === 'createDemand' && (
+                    <CreateJobDemandPage
+                        employers={employers}
+                        initialData={{ employerName: selectedEmployer?.employerName }}
+                        onNavigate={() => setView('details')}
+                        onSave={handleSaveDemand}
+                    />
+                )}
+            </div>
         </DashboardLayout>
     );
 }
 
-// Main Export with Suspense wrapper
 export default function EmployersPage() {
     return (
-        <Suspense fallback={<div className="p-8">Loading Employer Management...</div>}>
+        <Suspense fallback={
+            <div className="flex items-center justify-center h-screen">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+            </div>
+        }>
             <EmployersContent />
         </Suspense>
     );

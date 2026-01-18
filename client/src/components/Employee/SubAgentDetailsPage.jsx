@@ -31,10 +31,14 @@ export function SubAgentDetailsPage({ subAgent, onBack }) {
         setLoading(true);
         const token = localStorage.getItem('token');
         try {
-            // Fetch workers specifically registered under this sub-agent
-            const res = await fetch(`http://localhost:5000/api/workers?subAgentId=${subAgent._id}`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            // Using the specific sub-agent workers endpoint for accurate filtering
+            const res = await fetch(`http://localhost:5000/api/sub-agents/${subAgent._id}/workers`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
             });
+
             const result = await res.json();
             if (result.success) {
                 setWorkers(result.data || []);
@@ -46,7 +50,6 @@ export function SubAgentDetailsPage({ subAgent, onBack }) {
         }
     };
 
-    // --- REAL-TIME ANALYTICS ---
     const stats = {
         total: workers.length,
         active: workers.filter(w => w.status === 'active' || w.status === 'deployed').length,
@@ -187,7 +190,6 @@ export function SubAgentDetailsPage({ subAgent, onBack }) {
                                         <TableRow>
                                             <TableHead className="font-bold py-4">Full Name</TableHead>
                                             <TableHead className="font-bold">Passport</TableHead>
-                                            <TableHead className="font-bold">Employer</TableHead>
                                             <TableHead className="font-bold">Process Status</TableHead>
                                             <TableHead className="font-bold text-right">Registered</TableHead>
                                         </TableRow>
@@ -197,9 +199,6 @@ export function SubAgentDetailsPage({ subAgent, onBack }) {
                                             <TableRow key={worker._id} className="hover:bg-slate-50 transition-colors">
                                                 <TableCell className="font-bold text-blue-700">{worker.name}</TableCell>
                                                 <TableCell className="font-mono text-sm text-gray-600">{worker.passportNumber}</TableCell>
-                                                <TableCell className="text-gray-700 font-medium">
-                                                    {worker.employerId?.employerName || worker.employerName || "Unassigned"}
-                                                </TableCell>
                                                 <TableCell>
                                                     <Badge
                                                         variant={

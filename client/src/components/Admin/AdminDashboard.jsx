@@ -8,7 +8,8 @@ import {
   Edit, FileText, Paperclip,
   Plus, RefreshCw, ShieldCheck,
   Trash2, TrendingUp,
-  UserCircle, UserPlus, Users
+  UserCircle, UserPlus, Users,
+  X
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
@@ -88,6 +89,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
   const [loading, setLoading] = useState(true);
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(currentUserId || 'all');
   const [editId, setEditId] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false); // Controls modal visibility
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -137,6 +139,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       attachment: null,
     });
     setEditId(null);
+    setShowAddModal(false);
   };
 
   const handleAddNote = async (e) => {
@@ -191,6 +194,8 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
       attachment: null,
     });
 
+    setShowAddModal(true);
+    // Optional: scroll to top if modal is large
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -275,7 +280,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#F1F5F9] p-6 md:p-10 space-y-10 text-slate-800">
+    <div className="min-h-screen bg-[#F1F5F9] p-6 md:p-10 space-y-10 text-slate-800 relative">
       <Toaster position="top-right" />
 
       {/* Header */}
@@ -292,7 +297,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex bg-slate-200 p-1.5 rounded-xl font-bold">
             <button
               onClick={() => setIsBS(false)}
@@ -310,9 +315,20 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
 
           <Button
             onClick={() => setView('register-employee')}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-8 h-14 text-lg font-bold shadow-lg flex items-center gap-3"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 h-12 font-bold shadow-lg flex items-center gap-2"
           >
-            <UserPlus size={22} /> Register Staff
+            <UserPlus size={18} /> Register Staff
+          </Button>
+
+          {/* Separate Add Note Button */}
+          <Button
+            onClick={() => {
+              resetForm();
+              setShowAddModal(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-6 h-12 font-bold shadow-lg flex items-center gap-2"
+          >
+            <Plus size={18} /> Add Note
           </Button>
         </div>
       </div>
@@ -326,157 +342,220 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         <AdminStatCard title="Sub Agents" value={stats.activeSubAgents} icon={<Users />} gradient="from-slate-700 to-slate-900" onClick={() => onNavigate('subagent')} />
       </div>
 
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Left - Quick Add + Reminders */}
-        <div className="lg:col-span-5 space-y-8">
-          {/* Quick Add Form */}
-          <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
-            <h2 className="text-xl font-black mb-6 flex items-center gap-3">
-              {editId ? <Edit className="text-indigo-600" /> : <Plus className="text-indigo-600" />}
-              {editId ? "Edit Note" : "Quick Add"}
-            </h2>
+      {/* Charts – Placed right after stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-4">
+        <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
+          <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-indigo-600" /> System Growth
+          </h3>
+          <div className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <Tooltip />
+                <Area type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={4} fill="url(#colorCount)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
 
-            <form onSubmit={handleAddNote} className="space-y-4">
-              <textarea
-                className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px]"
-                placeholder="Note content..."
-                value={newNote.content}
-                onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
-              />
+        <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
+          <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-slate-900" /> Entity Distribution
+          </h3>
+          <div className="h-[350px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
+                <Tooltip cursor={{ fill: '#f8fafc' }} />
+                <ReBar dataKey="count" fill="#1e293b" radius={[10, 10, 0, 0]} barSize={50} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <select
-                  className="p-3 rounded-xl border font-bold text-sm bg-slate-50"
-                  value={newNote.category}
-                  onChange={(e) => setNewNote({ ...newNote, category: e.target.value })}
-                >
-                  <option value="general">General</option>
-                  <option value="reminder">Reminder</option>
-                  <option value="urgent">Urgent</option>
-                </select>
+      {/* Add Note Modal Popup */}
+      {showAddModal && (
+        <>
+          {/* Overlay */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 transition-opacity duration-300"
+            onClick={resetForm}
+          />
 
-                <input
-                  type="date"
-                  className="p-3 rounded-xl border font-bold text-sm"
-                  value={newNote.targetDate}
-                  onChange={(e) => setNewNote({ ...newNote, targetDate: e.target.value })}
-                />
-              </div>
-
-              <select
-                className="w-full p-3 rounded-xl border font-bold text-sm bg-slate-50"
-                value={newNote.linkedEntityId}
-                onChange={(e) => setNewNote({ ...newNote, linkedEntityId: e.target.value })}
-              >
-                <option value="">Link to entity (Optional)</option>
-                <optgroup label="Staff">
-                  {employees.map(e => (
-                    <option key={e._id} value={e._id}>{e.fullName}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Workers">
-                  {workers.map(w => (
-                    <option key={w._id} value={w._id}>{w.name}</option>
-                  ))}
-                </optgroup>
-              </select>
-
-              <input type="file" onChange={handleFileChange} className="w-full text-xs text-slate-500" />
-
-              <div className="flex gap-3">
+          {/* Modal Content */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <Card className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+              <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                <h2 className="text-xl font-black flex items-center gap-3">
+                  {editId ? <Edit className="text-indigo-600" /> : <Plus className="text-indigo-600" />}
+                  {editId ? "Edit Note" : "Add New Note"}
+                </h2>
                 <Button
-                  type="submit"
-                  className="flex-1 bg-slate-900 hover:bg-black text-white py-4 rounded-xl font-bold"
+                  variant="ghost"
+                  size="icon"
+                  onClick={resetForm}
+                  className="text-slate-500 hover:text-slate-900"
                 >
-                  {editId ? 'Update' : 'Save'}
+                  <X size={24} />
                 </Button>
-
-                {editId && (
-                  <Button
-                    variant="outline"
-                    onClick={resetForm}
-                    className="py-4 rounded-xl font-bold"
-                  >
-                    Cancel
-                  </Button>
-                )}
               </div>
-            </form>
-          </Card>
 
-          {/* Reminders */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h2 className="text-xl font-black flex items-center gap-3">
-                <Bell size={24} className="text-red-600" /> Reminders
-              </h2>
-              <button
-                onClick={() => setShowArchived(!showArchived)}
-                className="text-xs font-black px-4 py-2 rounded-xl border bg-white"
-              >
-                {showArchived ? 'Active' : 'Archive'}
-              </button>
-            </div>
+              <CardContent className="p-8">
+                <form onSubmit={handleAddNote} className="space-y-6">
+                  <textarea
+                    className="w-full p-4 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none min-h-[140px]"
+                    placeholder="Note content..."
+                    value={newNote.content}
+                    onChange={(e) => setNewNote({ ...newNote, content: e.target.value })}
+                  />
 
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
-              {(showArchived ? archivedReminders : activeReminders).map(rem => {
-                const days = getDaysRemaining(rem.targetDate);
-                const bs = convertADtoBS(rem.targetDate);
-                const adDate = rem.targetDate ? new Date(rem.targetDate) : null;
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <select
+                      className="p-3 rounded-xl border font-bold text-sm bg-slate-50"
+                      value={newNote.category}
+                      onChange={(e) => setNewNote({ ...newNote, category: e.target.value })}
+                    >
+                      <option value="general">General</option>
+                      <option value="reminder">Reminder</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
 
-                return (
-                  <div
-                    key={rem._id}
-                    className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-red-600 flex gap-5"
+                    <input
+                      type="date"
+                      className="p-3 rounded-xl border font-bold text-sm"
+                      value={newNote.targetDate}
+                      onChange={(e) => setNewNote({ ...newNote, targetDate: e.target.value })}
+                    />
+                  </div>
+
+                  <select
+                    className="w-full p-3 rounded-xl border font-bold text-sm bg-slate-50"
+                    value={newNote.linkedEntityId}
+                    onChange={(e) => setNewNote({ ...newNote, linkedEntityId: e.target.value })}
                   >
-                    <div className="flex flex-col items-center justify-center w-16 h-16 bg-red-50 rounded-2xl shrink-0 border border-red-100">
-                      <span className="text-xs font-black text-red-600">
-                        {isBS ? bs.month : adDate?.toLocaleString('en-US', { month: 'short' })}
-                      </span>
-                      <span className="text-2xl font-black text-red-700">
-                        {isBS ? bs.day : adDate?.getDate()}
-                      </span>
-                    </div>
+                    <option value="">Link to entity (Optional)</option>
+                    <optgroup label="Staff">
+                      {employees.map(e => (
+                        <option key={e._id} value={e._id}>{e.fullName}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Workers">
+                      {workers.map(w => (
+                        <option key={w._id} value={w._id}>{w.name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
 
-                    <div className="flex-1">
-                      <p className="text-md font-bold text-slate-900">{rem.content}</p>
+                  <input type="file" onChange={handleFileChange} className="w-full text-xs text-slate-500" />
 
-                      <div className="mt-4 flex items-center gap-4">
-                        <Badge
-                          className={`text-xs font-black ${days <= 1 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700'}`}
+                  <div className="flex gap-4 pt-4">
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-slate-900 hover:bg-black text-white py-4 rounded-xl font-bold"
+                    >
+                      {editId ? 'Update Note' : 'Save Note'}
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      onClick={resetForm}
+                      className="flex-1 py-4 rounded-xl font-bold"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
+
+      {/* Main Content - Reminders & Logs */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+        {/* Left - Reminders */}
+        <div className="lg:col-span-5 space-y-8">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-xl font-black flex items-center gap-3">
+              <Bell size={24} className="text-red-600" /> Reminders
+            </h2>
+            <button
+              onClick={() => setShowArchived(!showArchived)}
+              className="text-xs font-black px-4 py-2 rounded-xl border bg-white"
+            >
+              {showArchived ? 'Active' : 'Archive'}
+            </button>
+          </div>
+
+          <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+            {(showArchived ? archivedReminders : activeReminders).map(rem => {
+              const days = getDaysRemaining(rem.targetDate);
+              const bs = convertADtoBS(rem.targetDate);
+              const adDate = rem.targetDate ? new Date(rem.targetDate) : null;
+
+              return (
+                <div
+                  key={rem._id}
+                  className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-red-600 flex gap-5"
+                >
+                  <div className="flex flex-col items-center justify-center w-16 h-16 bg-red-50 rounded-2xl shrink-0 border border-red-100">
+                    <span className="text-xs font-black text-red-600">
+                      {isBS ? bs.month : adDate?.toLocaleString('en-US', { month: 'short' })}
+                    </span>
+                    <span className="text-2xl font-black text-red-700">
+                      {isBS ? bs.day : adDate?.getDate()}
+                    </span>
+                  </div>
+
+                  <div className="flex-1">
+                    <p className="text-md font-bold text-slate-900">{rem.content}</p>
+
+                    <div className="mt-4 flex items-center gap-4">
+                      <Badge
+                        className={`text-xs font-black ${days <= 1 ? 'bg-red-600 text-white' : 'bg-red-100 text-red-700'}`}
+                      >
+                        {days === 0 ? 'TODAY' : days < 0 ? 'OVERDUE' : `${days} DAYS LEFT`}
+                      </Badge>
+
+                      <div className="ml-auto flex gap-2">
+                        <button
+                          onClick={() => handleEdit(rem)}
+                          className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
                         >
-                          {days === 0 ? 'TODAY' : days < 0 ? 'OVERDUE' : `${days} DAYS LEFT`}
-                        </Badge>
+                          <Edit size={16} />
+                        </button>
 
-                        <div className="ml-auto flex gap-2">
-                          <button
-                            onClick={() => handleEdit(rem)}
-                            className="p-2 text-slate-400 hover:text-indigo-600 transition-colors"
-                          >
-                            <Edit size={16} />
-                          </button>
+                        <button
+                          onClick={() => handleDelete(rem._id)}
+                          className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
 
-                          <button
-                            onClick={() => handleDelete(rem._id)}
-                            className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-
-                          <button
-                            onClick={() => markDone(rem._id)}
-                            className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
-                          >
-                            <CheckCircle size={16} />
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => markDone(rem._id)}
+                          className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                        >
+                          <CheckCircle size={16} />
+                        </button>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -583,49 +662,6 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
             })}
           </div>
         </div>
-      </div>
-
-      {/* Charts Section – Restored from original */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 pt-10 border-t border-slate-200">
-        <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
-          <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-indigo-600" /> System Growth
-          </h3>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
-                <Tooltip />
-                <Area type="monotone" dataKey="count" stroke="#4f46e5" strokeWidth={4} fill="url(#colorCount)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card className="p-8 rounded-3xl border-none shadow-md bg-white">
-          <h3 className="font-black text-slate-900 mb-8 uppercase text-sm tracking-widest flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-slate-900" /> Entity Distribution
-          </h3>
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fontWeight: 'bold', fill: '#64748b' }} />
-                <Tooltip cursor={{ fill: '#f8fafc' }} />
-                <ReBar dataKey="count" fill="#1e293b" radius={[10, 10, 0, 0]} barSize={50} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
       </div>
 
       <style jsx global>{`

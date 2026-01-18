@@ -152,6 +152,7 @@ exports.getSubAgentWorkers = async (req, res) => {
   try {
     const { companyId, userId, role } = req.user;
 
+    // 1. Verify the SubAgent exists and belongs to the user/company
     let filter = { _id: req.params.id, companyId };
     if (role !== 'admin' && role !== 'super_admin') {
       filter.createdBy = userId;
@@ -166,8 +167,11 @@ exports.getSubAgentWorkers = async (req, res) => {
       });
     }
 
-    const workers = await Worker.find({ subAgentId: req.params.id })
-      .sort({ createdAt: -1 });
+    // 2. Fetch ONLY workers linked to this specific Sub-Agent ID
+    const workers = await Worker.find({
+      subAgentId: req.params.id, // Direct link
+      companyId: companyId       // Safety check for multi-tenancy
+    }).sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({
       success: true,
