@@ -6,6 +6,7 @@ const WorkerSchema = new mongoose.Schema({
   passportNumber: { type: String, required: true, unique: true },
   contact: { type: String, required: true },
   address: { type: String, required: true },
+  email: { type: String },
   country: { type: String, default: 'Nepal' },
 
   // Relational IDs
