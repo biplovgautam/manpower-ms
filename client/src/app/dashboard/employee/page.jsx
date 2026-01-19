@@ -16,7 +16,7 @@ export default function EmployeePage() {
     useEffect(() => {
         // 1. Get auth data from localStorage
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('role'); 
+        const role = localStorage.getItem('role');
         const fullName = localStorage.getItem('fullName');
 
         // 2. DEBUGGER: Check console if navigation fails
@@ -44,48 +44,45 @@ export default function EmployeePage() {
      */
     // In EmployeePage.tsx - handleNavigation
     const handleNavigation = (path) => {
+        if (!path) return;
+
         console.log("[NAVIGATION REQUEST]", { requestedPath: path });
 
-        if (!path) {
-            console.warn("Navigation called without path");
-            return;
-        }
+        // Use let instead of const
+        let targetPath = '/dashboard/employee'; // default fallback
 
-        // Handle direct paths or queries
-        if (path.startsWith('/') || path.includes('?')) {
-            console.log("→ Direct navigation to:", path);
-            router.push(path);
-            return;
-        }
-
-        const routes = {
-            'employer': '/dashboard/employee/employer',
-            'job-demand': '/dashboard/employee/job-demand',
-            'worker': '/dashboard/employee/worker',
-            'subagent': '/dashboard/employee/subagent',
-            'sub-agent': '/dashboard/employee/subagent',
-            // add more if needed
-        };
-
-        // Mapping logic
+        // Option 1: Simple if-else chain (your current style)
         if (path.includes('employer')) {
             targetPath = '/dashboard/employee/employer';
         } else if (path.includes('job-demand')) {
             targetPath = '/dashboard/employee/job-demand';
-        } else if (path.includes('worker')) { 
-            // This captures 'workers' from your Analytics card
+        } else if (path.includes('worker')) {
             targetPath = '/dashboard/employee/worker';
         } else if (path.includes('subagent') || path.includes('sub-agent')) {
             targetPath = '/dashboard/employee/subagent';
         } else if (path === 'reports' || path === 'dashboard') {
             targetPath = '/dashboard/employee';
         }
-        const targetPath = routes[path] || '/dashboard/employee';
-        console.log("→ Mapped to:", targetPath);
+
+        // Option 2: You can also combine with object mapping (cleaner)
+        const routes = {
+            'employer': '/dashboard/employee/employer',
+            'job-demand': '/dashboard/employee/job-demand',
+            'worker': '/dashboard/employee/worker',
+            'subagent': '/dashboard/employee/subagent',
+            'sub-agent': '/dashboard/employee/subagent',
+            'reports': '/dashboard/employee',
+            'dashboard': '/dashboard/employee',
+        };
+
+        // This line is now safe - we're not reassigning, just choosing
+        targetPath = routes[path] || targetPath; // keep the if-else result if no map match
+
+        console.log("→ Navigating to:", targetPath);
 
         router.push(targetPath);
     };
-    
+
     const handleLogout = () => {
         localStorage.clear();
         Cookies.remove('token', { path: '/' });
