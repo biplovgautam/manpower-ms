@@ -33,8 +33,22 @@ exports.getAllWorkers = async (req, res) => {
 exports.getWorkerById = async (req, res) => {
   try {
     const { companyId, userId, role } = req.user;
-    let filter = { _id: req.params.id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+    const { id } = req.params;
+
+    // 1. Validate if ID is a valid MongoDB ObjectId to prevent crash
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: 'Invalid Worker ID format'
+      });
+    }
+
+    let filter = { _id: id, companyId };
+
+    // Authorization check
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
 
     const worker = await Worker.findOne(filter)
       .populate('employerId', 'name employerName companyName')
@@ -43,10 +57,21 @@ exports.getWorkerById = async (req, res) => {
       .populate('createdBy', 'fullName')
       .lean();
 
-    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
+    if (!worker) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: 'Worker not found or you do not have permission'
+      });
+    }
+
     res.status(StatusCodes.OK).json({ success: true, data: worker });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    // CRITICAL: Check your terminal for this log!
+    console.error("GET_WORKER_BY_ID_ERROR:", error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: error.message
+    });
   }
 };
 
@@ -99,47 +124,60 @@ exports.updateWorker = async (req, res) => {
 exports.updateWorkerStage = async (req, res) => {
   try {
     const { id, stageId } = req.params;
-    const { status, notes } = req.body;
-    const { companyId, userId, role } = req.user;
+    const { status } = req.body;
+    const { companyId } = req.user;
 
-    let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+    const worker = await Worker.findOne({ _id: id, companyId });
+    if (!worker) return res.status(404).json({ success: false, message: 'Worker not found' });
 
-    const worker = await Worker.findOne(filter);
-    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
+    // 1. Find or Create the Stage
+    let stage = worker.stageTimeline.find(s =>
+      (s._id && s._id.toString() === stageId) || s.stage === stageId
+    );
 
-    const stageIndex = worker.stageTimeline.findIndex(s => s._id.toString() === stageId);
-    if (stageIndex === -1) return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Stage not found' });
+    if (!stage) {
+      worker.stageTimeline.push({ stage: stageId, status: status || 'pending', date: new Date() });
+      stage = worker.stageTimeline[worker.stageTimeline.length - 1];
+    } else {
+      stage.status = status;
+      stage.date = new Date();
+    }
 
-    worker.stageTimeline[stageIndex].status = status;
-    worker.stageTimeline[stageIndex].notes = notes || "";
-    worker.stageTimeline[stageIndex].date = new Date();
-
-    // Auto-Status Logic
+    // 2. HYPER-REALISTIC LOGIC ENGINE
     const timeline = worker.stageTimeline;
+    const completedStages = timeline.filter(s => s.status === 'completed');
     const anyRejected = timeline.some(s => s.status === 'rejected');
-    const allCompleted = timeline.every(s => s.status === 'completed');
-    const docCollectionDone = timeline.find(s => s.stage === 'document-collection')?.status === 'completed';
+
+    // Specific Stage Check for "Processing"
+    const hasStartedDocs = timeline.some(s =>
+      (s.stage === 'document-collection' || s.stage === 'document-verification') &&
+      s.status === 'completed'
+    );
 
     if (anyRejected) {
       worker.status = 'rejected';
-    } else if (allCompleted) {
+    } else if (completedStages.length >= 11) {
       worker.status = 'deployed';
-    } else if (docCollectionDone) {
+    } else if (hasStartedDocs) {
       worker.status = 'processing';
     } else {
       worker.status = 'pending';
     }
 
-    const lastCompleted = [...timeline].reverse().find(s => s.status === 'completed');
-    if (lastCompleted) worker.currentStage = lastCompleted.stage;
+    // Update the label for the dashboard
+    const lastDone = [...timeline].reverse().find(s => s.status === 'completed');
+    if (lastDone) worker.currentStage = lastDone.stage;
 
     await worker.save();
-    const populated = await Worker.findById(worker._id).populate('employerId jobDemandId subAgentId');
 
-    res.status(StatusCodes.OK).json({ success: true, data: populated });
+    // Return fully populated worker to sync frontend
+    const updatedWorker = await Worker.findById(id)
+      .populate('employerId jobDemandId subAgentId')
+      .lean();
+
+    res.status(StatusCodes.OK).json({ success: true, data: updatedWorker });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
