@@ -1,11 +1,10 @@
-// src/app/dashboard/employee/worker/page.jsx
 "use client";
 
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { AddWorkerPage } from '../../../../components/Employee/AddWorkerPage';
-import { WorkerDetailsPage } from '../../../../components/Employee/WorkerDetailPage'; // ← Correct component name
+import { WorkerDetailsPage } from '../../../../components/Employee/WorkerDetailPage';
 import { WorkerManagementPage } from '../../../../components/Employee/WorkerManagementPage';
 
 function WorkersContent() {
@@ -29,7 +28,6 @@ function WorkersContent() {
   const fetchAllData = async (token) => {
     try {
       const headers = { Authorization: `Bearer ${token}` };
-
       const [workerRes, empRes, demandRes, agentRes] = await Promise.all([
         fetch('http://localhost:5000/api/workers', { headers }),
         fetch('http://localhost:5000/api/employers?view=all', { headers }),
@@ -49,6 +47,13 @@ function WorkersContent() {
     } catch (err) {
       console.error("Failed to fetch data:", err);
     }
+  };
+
+  const handleNavigate = (newView, data = null) => {
+    // If data is an object, we extract the ID for details, 
+    // but keep the object for 'edit' mode.
+    setSelectedWorker(data);
+    setView(newView);
   };
 
   const handleSave = async (payload) => {
@@ -87,34 +92,6 @@ function WorkersContent() {
       }
     } catch (err) {
       console.error("Save failed:", err);
-      alert("Error while saving worker");
-    }
-  };
-
-  const handleNavigate = (newView, data = null) => {
-    setSelectedWorker(data);
-    setView(newView);
-  };
-
-  const handleUpdateWorkerStage = async (workerId, stageId, newStatus) => {
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`http://localhost:5000/api/workers/${workerId}/stage`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ stageId, status: newStatus }),
-      });
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Update failed');
-
-      await fetchAllData(token); // refresh list
-    } catch (err) {
-      console.error("Stage update failed:", err);
-      throw err; // let the child component handle revert
     }
   };
 
@@ -124,7 +101,7 @@ function WorkersContent() {
         <WorkerManagementPage
           workers={workers}
           onNavigate={handleNavigate}
-          onSelectWorker={(w) => handleNavigate('details', w)}
+          onSelectWorker={(w) => handleNavigate('details', w._id)}
         />
       )}
 
@@ -141,9 +118,8 @@ function WorkersContent() {
 
       {view === 'details' && selectedWorker && (
         <WorkerDetailsPage
-          worker={selectedWorker}
+          workerId={typeof selectedWorker === 'object' ? selectedWorker._id : selectedWorker}
           onNavigate={handleNavigate}
-          onUpdateWorkerStage={handleUpdateWorkerStage}
         />
       )}
     </DashboardLayout>
