@@ -6,6 +6,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Eye,
+  FileText,
   Fingerprint,
   Loader2,
   Mail,
@@ -20,6 +22,9 @@ import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 
+/**
+ * UTILS & CONSTANTS
+ */
 const getFlagEmoji = (countryName) => {
   if (!countryName || countryName === "Not Assigned") return "🌍";
   const countryMap = {
@@ -38,6 +43,9 @@ const SCHEMA_STAGES = [
   'pre-departure-orientation', 'deployed'
 ];
 
+/**
+ * MAIN COMPONENT
+ */
 export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate }) {
   const [worker, setWorker] = useState(initialWorker || null);
   const [loading, setLoading] = useState(true);
@@ -103,14 +111,14 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
     <div className="min-h-screen bg-[#F8FAFC] pb-20">
       <div className="container mx-auto py-10 max-w-7xl space-y-8 px-4 animate-in fade-in duration-700">
 
-        {/* TOP NAVIGATION & PRIMARY INFO */}
+        {/* TOP NAVIGATION BAR */}
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
           <div className="flex items-center gap-5">
             <Button
               variant="outline"
               size="icon"
               onClick={() => onNavigate('list')}
-              className="h-12 w-12 rounded-2xl bg-white shadow-sm border-slate-200 hover:bg-white hover:text-indigo-600 transition-all"
+              className="h-12 w-12 rounded-2xl bg-white shadow-sm border-slate-200 hover:text-indigo-600 transition-all"
             >
               <ArrowLeft className="h-5 w-5 text-slate-600" />
             </Button>
@@ -126,7 +134,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
           </div>
 
           <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-            <div className="px-6 py-2 border-r border-slate-100">
+            <div className="px-6 py-2 border-r border-slate-100 text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Target Country</p>
               <div className="flex items-center gap-2">
                 <span className="text-xl">{getFlagEmoji(displayCountry)}</span>
@@ -134,7 +142,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               </div>
             </div>
             <div className="px-6">
-              <Button onClick={() => onNavigate('edit', worker)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-8 h-12 shadow-lg shadow-indigo-200/50 transition-all">
+              <Button onClick={() => onNavigate('edit', worker)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl px-8 h-12 shadow-lg shadow-indigo-200/50">
                 Update Details
               </Button>
             </div>
@@ -143,8 +151,9 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
 
         <div className="grid lg:grid-cols-3 gap-8">
 
-          {/* LEFT: PERSONAL INFO */}
+          {/* LEFT COLUMN: IDENTITY & EMPLOYER */}
           <div className="space-y-6">
+            {/* PERSONAL INFO CARD */}
             <Card className="border-none shadow-sm rounded-[2rem] bg-white overflow-hidden ring-1 ring-slate-200">
               <CardHeader className="border-b border-slate-50 pb-4 bg-slate-50/30">
                 <CardTitle className="text-sm font-black flex items-center gap-2 text-indigo-600 uppercase tracking-tight">
@@ -160,39 +169,32 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               </CardContent>
             </Card>
 
-            {/* --- FIX: UPDATED EMPLOYER CARD --- */}
+            {/* EMPLOYER INFO CARD */}
             <Card className="border-none shadow-xl rounded-[2rem] bg-[#0F172A] text-white overflow-hidden">
               <CardContent className="pt-8 pb-8 px-8">
                 <div className="flex justify-between items-start mb-8">
                   <div>
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">Employer</p>
-                    <h3 className="text-2xl font-black text-white leading-none">
-                      {worker.employerId?.employerName || 'Branded Company'}
-                    </h3>
+                    <h3 className="text-2xl font-black text-white leading-none">{worker.employerId?.employerName || 'Pending'}</h3>
                   </div>
                   <div className="p-3 bg-white/10 rounded-2xl">
                     <Briefcase className="text-indigo-400 h-6 w-6" />
                   </div>
                 </div>
-
                 <div className="space-y-5">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Role</span>
+                    <span className="text-slate-400 font-bold uppercase text-[10px]">Role</span>
                     <span className="font-bold text-indigo-200 bg-indigo-500/20 px-4 py-1.5 rounded-xl text-xs">
-                      {worker.jobDemandId?.jobTitle || 'Korean music tutor'}
+                      {worker.jobDemandId?.jobTitle || 'General Worker'}
                     </span>
                   </div>
-
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Overall Progress</span>
+                      <span className="text-slate-400 font-bold uppercase text-[10px]">Progress</span>
                       <span className="font-black text-white text-sm">{progress}%</span>
                     </div>
-                    <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className="bg-indigo-500 h-full transition-all duration-1000 shadow-[0_0_15px_rgba(99,102,241,0.5)]"
-                        style={{ width: `${progress}%` }}
-                      />
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div className="bg-indigo-500 h-full transition-all duration-1000" style={{ width: `${progress}%` }} />
                     </div>
                   </div>
                 </div>
@@ -200,27 +202,30 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
             </Card>
           </div>
 
-          {/* RIGHT: PIPELINE */}
-          <Card className="lg:col-span-2 border-none shadow-sm rounded-[2rem] bg-white ring-1 ring-slate-200 overflow-hidden">
-            <CardHeader className="px-8 py-6 border-b border-slate-100 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-3">
-                <Clock className="text-indigo-500" /> Operational Pipeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader className="bg-slate-50/80">
-                  <TableRow className="border-none">
-                    <TableHead className="pl-8 text-[10px] uppercase font-black text-slate-500">Step</TableHead>
-                    <TableHead className="text-[10px] uppercase font-black text-slate-500">Current Status</TableHead>
-                    <TableHead className="text-right pr-8 text-[10px] uppercase font-black text-slate-500">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {localTimeline.map((item, idx) => {
-                    const isCascadingDisabled = firstRejectedIndex !== -1 && idx > firstRejectedIndex;
+          {/* RIGHT COLUMN: WORKFLOW & DOCUMENTS */}
+          <div className="lg:col-span-2 space-y-8">
 
-                    return (
+            {/* PIPELINE TABLE */}
+            <Card className="border-none shadow-sm rounded-[2rem] bg-white ring-1 ring-slate-200 overflow-hidden">
+              <CardHeader className="px-8 py-6 border-b border-slate-100 flex flex-row items-center justify-between">
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-3">
+                  <Clock className="text-indigo-500" /> Operational Pipeline
+                </CardTitle>
+                <Badge variant="outline" className="rounded-full px-4 border-slate-200 text-slate-500 font-bold">
+                  Step Phase
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader className="bg-slate-50/80">
+                    <TableRow className="border-none">
+                      <TableHead className="pl-8 text-[10px] uppercase font-black text-slate-500">Step</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black text-slate-500">Status</TableHead>
+                      <TableHead className="text-right pr-8 text-[10px] uppercase font-black text-slate-500">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {localTimeline.map((item, idx) => (
                       <TableRow key={item._id} className="hover:bg-slate-50 transition-colors border-slate-100">
                         <TableCell className="pl-8 py-4">
                           <div className="flex items-center gap-4">
@@ -230,19 +235,18 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                         </TableCell>
                         <TableCell>
                           <Badge className={`text-[10px] font-black px-2.5 py-1 rounded-md uppercase border-none ${item.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                              item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
-                                item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
+                            item.status === 'in-progress' ? 'bg-amber-100 text-amber-800' :
+                              item.status === 'rejected' ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-600'
                             }`}>
                             {item.status}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right pr-8">
                           <select
-                            disabled={isUpdating || isCascadingDisabled}
+                            disabled={isUpdating || (firstRejectedIndex !== -1 && idx > firstRejectedIndex)}
                             value={item.status}
                             onChange={(e) => handleStatusChange(item._id || item.stage, e.target.value)}
-                            className={`h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 outline-none transition-all
-                              ${(isUpdating || isCascadingDisabled) ? 'opacity-50 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:border-indigo-400 focus:ring-2 focus:ring-indigo-100'}`}
+                            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer"
                           >
                             <option value="pending">Pending</option>
                             <option value="in-progress">In Progress</option>
@@ -251,18 +255,94 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                           </select>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* DOCUMENT REPOSITORY TABLE */}
+            <Card className="border-none shadow-sm rounded-[2rem] bg-white ring-1 ring-slate-200 overflow-hidden">
+              <CardHeader className="px-8 py-5 border-b border-slate-100 flex flex-row items-center justify-between bg-white">
+                <CardTitle className="text-[12px] font-black text-slate-500 flex items-center gap-3 uppercase tracking-[0.1em]">
+                  <ShieldCheck className="h-4 w-4 text-slate-400" /> Document Repository
+                </CardTitle>
+                <Badge className="bg-slate-100 text-slate-600 border-none font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-wider">
+                  {worker.documents?.length || 0} Attachments
+                </Badge>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-white">
+                      <TableRow className="hover:bg-transparent border-slate-100">
+                        <TableHead className="pl-8 text-[10px] uppercase font-bold text-slate-400 py-4">Category</TableHead>
+                        <TableHead className="text-[10px] uppercase font-bold text-slate-400 py-4">Label / File Name</TableHead>
+                        <TableHead className="text-right pr-8 text-[10px] uppercase font-bold text-slate-400 py-4">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {worker.documents && worker.documents.length > 0 ? (
+                        worker.documents.map((doc, index) => {
+                          const isPdf = doc.type?.toLowerCase().includes('pdf') || doc.url?.endsWith('.pdf');
+                          return (
+                            <TableRow key={index} className="group hover:bg-slate-50/50 transition-colors border-slate-100">
+                              <TableCell className="pl-8 py-5">
+                                <Badge variant="outline" className="rounded-full px-4 py-1 border-slate-200 text-slate-500 font-bold text-[10px] uppercase tracking-wider bg-white shadow-sm">
+                                  {isPdf ? 'Document' : 'Passport'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="py-5">
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-black text-slate-900 leading-none mb-1.5">
+                                    {doc.name || 'Passport Front'}
+                                  </span>
+                                  <span className="text-[11px] font-medium text-slate-400 truncate max-w-[250px]">
+                                    {doc.url?.split('/').pop() || `file-${index + 1234567}.png`}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right pr-8 py-5">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => window.open(doc.url, '_blank')}
+                                    className="h-9 px-5 rounded-xl border-indigo-100 text-indigo-600 font-black text-[11px] uppercase tracking-widest hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2 group/btn"
+                                  >
+                                    View
+                                    <Eye className="h-3.5 w-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={3} className="py-20 text-center">
+                            <div className="flex flex-col items-center">
+                              <FileText className="h-10 w-10 text-slate-200 mb-2" />
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">No Documents Available</p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+/**
+ * HELPER COMPONENTS
+ */
 function InfoRow({ icon, label, value, isCopyable }) {
   return (
     <div className="flex items-center justify-between group">
@@ -270,7 +350,7 @@ function InfoRow({ icon, label, value, isCopyable }) {
         <div className="text-slate-400 group-hover:text-indigo-500 transition-colors">{icon}</div>
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{label}</span>
       </div>
-      <span className={`text-sm font-bold text-slate-800 ${isCopyable ? 'bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-indigo-700' : ''}`}>
+      <span className={`text-sm font-bold text-slate-800 ${isCopyable ? 'bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-indigo-700 cursor-pointer hover:bg-indigo-100' : ''}`}>
         {value}
       </span>
     </div>
