@@ -50,8 +50,6 @@ function WorkersContent() {
   };
 
   const handleNavigate = (newView, data = null) => {
-    // If data is an object, we extract the ID for details, 
-    // but keep the object for 'edit' mode.
     setSelectedWorker(data);
     setView(newView);
   };
@@ -61,15 +59,32 @@ function WorkersContent() {
     const data = new FormData();
     const { documents, ...rest } = payload;
 
+    // 1. Append basic text fields
     Object.keys(rest).forEach((key) => {
-      if (rest[key]) data.append(key, rest[key]);
+      if (rest[key] !== null && rest[key] !== undefined) {
+        data.append(key, rest[key]);
+      }
     });
 
-    if (documents?.length > 0) {
-      documents.forEach((doc) => {
-        if (doc.file) data.append('files', doc.file);
-      });
-    }
+    // 2. Separate Existing vs New Documents
+    // This is the fix for Deletion: Only documents currently in the 'documents' state are sent back.
+    const existingToKeep = documents.filter(doc => doc.isExisting);
+    const newUploads = documents.filter(doc => !doc.isExisting);
+
+    // Send the "Keep" list to the backend as a string
+    data.append('existingDocuments', JSON.stringify(existingToKeep));
+
+    // 3. Append New Files with their Meta (Label and Category)
+    newUploads.forEach((doc, index) => {
+      if (doc.file) {
+        data.append('files', doc.file);
+        // We send metadata tied to the index so the backend knows which label belongs to which file
+        data.append(`docMeta_${index}`, JSON.stringify({
+          name: doc.name,
+          category: doc.category
+        }));
+      }
+    });
 
     try {
       const isEdit = selectedWorker && view === 'edit';
@@ -79,7 +94,10 @@ function WorkersContent() {
 
       const res = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`
+          // Note: Do NOT set Content-Type header manually when using FormData
+        },
         body: data,
       });
 
@@ -87,11 +105,13 @@ function WorkersContent() {
       if (result.success) {
         await fetchAllData(token);
         setView('list');
+        setSelectedWorker(null);
       } else {
         alert(result.message || 'Failed to save worker');
       }
     } catch (err) {
       console.error("Save failed:", err);
+      alert("An error occurred while saving.");
     }
   };
 
@@ -101,7 +121,7 @@ function WorkersContent() {
         <WorkerManagementPage
           workers={workers}
           onNavigate={handleNavigate}
-          onSelectWorker={(w) => handleNavigate('details', w._id)}
+          onSelectWorker={(w) => handleNavigate('details', w)}
         />
       )}
 
