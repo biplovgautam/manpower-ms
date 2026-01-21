@@ -2,184 +2,252 @@
 
 import {
     ArrowLeft,
-    Briefcase,
-    Calendar,
-    CheckCircle2,
-    Circle,
-    Clock,
+    Building2,
+    Calendar, CheckCircle2, Circle, Clock,
     ExternalLink,
-    Mail,
-    MapPin,
+    FileText,
+    Mail, MapPin,
+    Navigation,
     Phone,
-    User,
+    PlaneTakeoff,
+    ShieldCheck,
     UserCheck
 } from 'lucide-react';
-
+import React from 'react';
 import { Badge } from '../ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
-} from '../ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+
+const formatAuditDate = (dateString) => {
+    if (!dateString) return { date: "—", time: "" };
+    const date = new Date(dateString);
+    return {
+        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        time: date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    };
+};
 
 export function WorkerDetailsPage({ worker, onBack }) {
     if (!worker) return null;
 
-    const docs = Array.isArray(worker.documents) ? worker.documents : [];
-    const timeline = Array.isArray(worker.stageTimeline) ? worker.stageTimeline : [];
-    const approvedDocs = docs.filter(d => d.status?.toLowerCase() === 'approved').length;
+    const workerName = worker.name || "Unknown Worker";
+    const employerName = worker.employerId?.employerName || worker.employerId?.companyName || worker.employerId?.name || "Direct Selection";
+    const subAgentName = worker.subAgentId?.name || "Self-Sourced";
+    const jobTitle = worker.jobDemandId?.jobTitle || "General Role";
 
-    const formatDate = (dateString) => {
-        if (!dateString) return "Not Set";
-        return new Date(dateString).toLocaleDateString('en-US', {
-            month: 'long', day: 'numeric', year: 'numeric'
-        });
-    };
+    const totalStages = 11;
+    const destination = worker.employerId?.country || "Processing...";
+    const origin = worker.country || "Nepal";
+    const docs = worker.documents || [];
+    const timeline = worker.stageTimeline || [];
+    const completedStages = timeline.filter(t => t.status === 'completed').length;
+    const progressPercentage = Math.round((completedStages / totalStages) * 100);
 
     return (
-        <div className="min-h-screen bg-[#F1F5F9] p-6 lg:p-10 space-y-6 text-slate-700 font-sans animate-in fade-in duration-500">
+        <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-8 space-y-6 text-slate-900 font-sans">
 
-            {/* --- HEADER --- */}
-            <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex items-center gap-6">
-                    <button onClick={onBack} className="p-3 hover:bg-slate-100 rounded-xl transition-all active:scale-95 border border-slate-100">
-                        <ArrowLeft size={24} className="text-slate-600" />
+            {/* TOP BAR */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                <div className="flex items-center gap-5">
+                    <button onClick={onBack} className="p-3 hover:bg-slate-100 rounded-2xl transition-all border border-slate-100 group">
+                        <ArrowLeft size={20} className="text-slate-500 group-hover:text-slate-900" />
                     </button>
                     <div>
-                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">{worker.name}</h1>
-                        <p className="text-lg text-slate-500 font-medium capitalize">
-                            {worker.country} • Passport: <span className="text-slate-900 font-bold">{worker.passportNumber}</span>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{workerName}</h1>
+                            <Badge className={`${worker.status === 'active' || worker.status === 'deployed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                worker.status === 'rejected' ? 'bg-red-50 text-red-600 border-red-100' :
+                                    'bg-indigo-50 text-indigo-600 border-indigo-100'
+                                } px-3 py-1 rounded-lg text-[10px] font-black uppercase border`}>
+                                {worker.status}
+                            </Badge>
+                        </div>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">
+                            Passport: {worker.passportNumber} | ID: {worker._id?.toString().slice(-6)}
                         </p>
                     </div>
                 </div>
-                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-none px-6 py-2 text-sm font-black uppercase tracking-widest rounded-xl">
-                    {worker.status || 'Active'}
-                </Badge>
+
+                <div className="flex items-center gap-6">
+                    <div className="text-right hidden md:block">
+                        <p className="text-[10px] font-black text-slate-400 uppercase">File Handler</p>
+                        <p className="text-sm font-bold text-slate-700">{worker.createdBy?.fullName || 'Administrator'}</p>
+                    </div>
+                    <div className="flex items-center gap-4 bg-slate-900 text-white p-3 pr-6 rounded-2xl">
+                        <div className="h-10 w-10 rounded-full border-2 border-emerald-500/30 border-t-emerald-400 flex items-center justify-center text-[10px] font-black">
+                            {progressPercentage}%
+                        </div>
+                        <div>
+                            <p className="text-[9px] font-black opacity-50 uppercase leading-none">Process Progress</p>
+                            <p className="text-xs font-bold text-emerald-400 capitalize">{worker.currentStage?.replace(/-/g, ' ') || 'Initiating'}</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-12 gap-6">
 
-                {/* --- LEFT SIDE: THE PEOPLE (Worker & Agent) --- */}
-                <div className="col-span-12 lg:col-span-5 space-y-6">
-
-                    {/* Personal Information */}
-                    <Card className="border-none shadow-md rounded-2xl overflow-hidden">
-                        <CardHeader className="bg-slate-900 py-4 px-6">
-                            <CardTitle className="text-sm font-bold text-slate-100 uppercase tracking-[0.2em] flex items-center gap-3">
-                                <User size={18} /> Personal Information
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-6 space-y-4 bg-white">
-                            <BigInfoItem label="Email Address" value={worker.email} icon={<Mail size={18} />} />
-                            <BigInfoItem label="Phone / Contact" value={worker.contact} icon={<Phone size={18} />} />
-                            <BigInfoItem label="Current Address" value={worker.address} icon={<MapPin size={18} />} />
-                            <BigInfoItem label="Date of Birth" value={formatDate(worker.dob)} icon={<Calendar size={18} />} />
+                {/* LEFT COLUMN: LOGISTICS & TIMELINE */}
+                <div className="col-span-12 lg:col-span-4 space-y-6">
+                    <Card className="border-none shadow-xl rounded-[2rem] bg-indigo-700 text-white overflow-hidden relative">
+                        <div className="absolute top-0 right-0 p-8 opacity-10">
+                            <PlaneTakeoff size={80} />
+                        </div>
+                        <CardContent className="p-8 relative z-10">
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-8">Transit Route</p>
+                            <div className="flex items-center justify-between">
+                                <div className="text-center">
+                                    <p className="text-2xl font-black">{origin}</p>
+                                    <p className="text-[9px] uppercase opacity-50 font-bold mt-1">Origin</p>
+                                </div>
+                                <div className="flex-grow flex flex-col items-center px-4">
+                                    <div className="w-full border-t-2 border-dashed border-white/30 relative">
+                                        <Navigation size={14} className="absolute -top-[7px] left-1/2 -translate-x-1/2 rotate-90 text-emerald-300" />
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-2xl font-black text-emerald-300">{destination}</p>
+                                    <p className="text-[9px] uppercase opacity-50 font-bold mt-1">Destination</p>
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
 
-                    {/* SUB AGENT CARD - Highlighted for visibility */}
-                    <Card className="border-2 border-indigo-100 shadow-md rounded-2xl overflow-hidden bg-indigo-50/30">
-                        <CardHeader className="bg-indigo-600 py-4 px-6">
-                            <CardTitle className="text-sm font-bold text-white uppercase tracking-[0.2em] flex items-center gap-3">
-                                <UserCheck size={18} /> Sub-Agent Details
+                    <Card className="border-none shadow-sm rounded-[2rem] bg-white">
+                        <CardHeader className="p-6 border-b border-slate-50">
+                            <CardTitle className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                <Clock size={16} /> Deployment Timeline (11 Stages)
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="p-6 bg-white">
-                            <div className="flex items-center gap-4">
-                                <div className="h-14 w-14 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold text-xl">
-                                    {(worker.subAgentId?.name || "D")[0]}
-                                </div>
-                                <div>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Assigned Sub-Agent</p>
-                                    <p className="text-xl font-extrabold text-indigo-700">
-                                        {worker.subAgentId?.name || "Direct / No Agent"}
-                                    </p>
-                                    <p className="text-sm text-slate-500 font-medium">Internal Partner</p>
-                                </div>
+                        <CardContent className="p-6">
+                            <div className="space-y-0 relative">
+                                {timeline.map((s, i) => {
+                                    const { date, time } = formatAuditDate(s.date);
+                                    const isDone = s.status === 'completed';
+                                    const isCurrent = worker.currentStage === s.stage;
+
+                                    return (
+                                        <div key={i} className="flex gap-4">
+                                            <div className="w-20 pt-1 text-right shrink-0">
+                                                <p className={`text-[10px] font-black ${isDone ? 'text-slate-900' : 'text-slate-300'}`}>{date}</p>
+                                                <p className="text-[9px] text-slate-400 font-bold">{time}</p>
+                                            </div>
+                                            <div className="flex flex-col items-center">
+                                                <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center transition-all ${isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' :
+                                                    isCurrent ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg scale-110 z-10' :
+                                                        'bg-white border-slate-200 text-slate-200'
+                                                    }`}>
+                                                    {isDone ? <CheckCircle2 size={12} strokeWidth={3} /> : <Circle size={4} fill="currentColor" />}
+                                                </div>
+                                                {i !== timeline.length - 1 && (
+                                                    <div className={`w-[2px] h-10 ${isDone ? 'bg-emerald-100' : 'bg-slate-50'}`} />
+                                                )}
+                                            </div>
+                                            <div className="pb-6">
+                                                <p className={`text-[11px] font-black uppercase tracking-wider ${isCurrent ? 'text-indigo-600' : 'text-slate-700'}`}>
+                                                    {s.stage.replace(/-/g, ' ')}
+                                                </p>
+                                                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase border ${isDone ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                                                    }`}>
+                                                    {s.status}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* --- RIGHT SIDE: THE JOB & PROGRESS --- */}
-                <div className="col-span-12 lg:col-span-7 space-y-6">
+                {/* RIGHT COLUMN: ADMIN DATA & DOCUMENTS */}
+                <div className="col-span-12 lg:col-span-8 space-y-6">
 
-                    {/* Job Details */}
-                    <Card className="border-none shadow-md rounded-2xl overflow-hidden">
-                        <CardHeader className="bg-white border-b border-slate-100 py-4 px-6">
-                            <CardTitle className="text-sm font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-                                <Briefcase size={18} /> Employment Status
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-8 bg-white grid grid-cols-2 gap-8">
-                            <BigInfoItem label="Employer" value={worker.employerId?.name || worker.employerId?.employerName} valueClass="text-blue-600 font-black text-lg" />
-                            <BigInfoItem label="Trade / Job" value={worker.jobDemandId?.title || worker.jobDemandId?.jobTitle} valueClass="text-lg font-bold" />
-                            <BigInfoItem label="Current Stage" value={worker.currentStage?.replace(/-/g, ' ')} valueClass="capitalize text-indigo-600 font-bold text-lg" />
-                            <BigInfoItem label="Approved Docs" value={`${approvedDocs} / ${docs.length}`} valueClass="text-emerald-600 font-bold text-lg" />
-                        </CardContent>
-                    </Card>
-
-                    {/* Timeline & Documents - Side by Side to reduce scroll */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="border-none shadow-md rounded-2xl overflow-hidden h-[350px] flex flex-col">
-                            <CardHeader className="py-4 px-6 border-b border-slate-50 bg-white">
-                                <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">Processing History</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 overflow-y-auto flex-grow bg-white">
-                                {timeline.map((s, i) => (
-                                    <TimelineItem key={i} title={s.stage?.replace(/-/g, ' ')} status={s.status} isLast={i === timeline.length - 1} isCurrent={worker.currentStage === s.stage} />
-                                ))}
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-none shadow-md rounded-2xl overflow-hidden h-[350px] flex flex-col">
-                            <CardHeader className="py-4 px-6 border-b border-slate-50 bg-white">
-                                <CardTitle className="text-xs font-bold text-slate-400 uppercase tracking-widest">Internal Notes</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 flex-grow bg-slate-50/30 overflow-y-auto italic text-slate-600 text-base leading-relaxed">
-                                {worker.notes || "No case notes recorded for this worker."}
-                            </CardContent>
-                        </Card>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5">
+                            <div className="h-14 w-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                                <Building2 size={28} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Employer & Job</p>
+                                <p className="text-lg font-black text-slate-900 leading-tight">{employerName}</p>
+                                <p className="text-xs font-bold text-blue-500">{jobTitle}</p>
+                            </div>
+                        </div>
+                        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-5">
+                            <div className="h-14 w-14 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center">
+                                <UserCheck size={28} />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Assigned Sub-Agent</p>
+                                <p className="text-lg font-black text-slate-900 leading-tight">{subAgentName}</p>
+                                <p className="text-xs font-bold text-purple-500">Business Partner</p>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Compact Document Table */}
-                    <Card className="border-none shadow-md rounded-2xl overflow-hidden">
-                        <div className="max-h-[300px] overflow-y-auto bg-white">
-                            <Table>
-                                <TableHeader className="bg-slate-900 sticky top-0 z-10">
-                                    <TableRow>
-                                        <TableHead className="text-white font-bold text-xs uppercase px-6 h-12">Document</TableHead>
-                                        <TableHead className="text-white font-bold text-xs uppercase h-12 text-center">Status</TableHead>
-                                        <TableHead className="text-white font-bold text-xs uppercase h-12 text-right px-6">View</TableHead>
+                    {/* COMPLIANCE SECTION */}
+                    <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+                        <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50">
+                            <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
+                                <ShieldCheck size={18} className="text-slate-400" /> Document Repository
+                            </h3>
+                            <Badge className="bg-slate-200 text-slate-700 border-none text-[10px] font-black">{docs.length} ATTACHMENTS</Badge>
+                        </div>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-slate-50/30">
+                                    <TableHead className="text-[10px] font-black uppercase px-8 h-12">Category</TableHead>
+                                    <TableHead className="text-[10px] font-black uppercase h-12">File Name</TableHead>
+                                    <TableHead className="text-[10px] font-black uppercase h-12 text-right px-8">Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {docs.length > 0 ? docs.map((doc, i) => (
+                                    <TableRow key={i} className="hover:bg-slate-50 transition-colors">
+                                        <TableCell className="px-8 py-5">
+                                            <p className="text-sm font-black text-slate-800 leading-none">
+                                                {doc.category || 'Other'}
+                                            </p>
+                                        </TableCell>
+                                        <TableCell>
+                                            <p className="text-[10px] text-slate-400 font-bold truncate max-w-[250px]">
+                                                {doc.name || doc.fileName || "unnamed_file"}
+                                            </p>
+                                        </TableCell>
+                                        <TableCell className="text-right px-8">
+                                            {doc.path && (
+                                                <a
+                                                    href={`http://localhost:5000/${doc.path}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-2 text-[10px] font-black text-indigo-600 hover:text-white hover:bg-indigo-600 px-4 py-2 rounded-xl border border-indigo-100 transition-all"
+                                                >
+                                                    VIEW <ExternalLink size={12} />
+                                                </a>
+                                            )}
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {docs.map((doc, i) => (
-                                        <TableRow key={i} className="hover:bg-slate-50 border-slate-50">
-                                            <TableCell className="px-6 py-4">
-                                                <p className="text-base font-bold text-slate-800 leading-none">{doc.category}</p>
-                                                <p className="text-xs text-slate-400 mt-1 uppercase font-medium">{doc.name}</p>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge className={`px-3 py-1 text-[10px] font-bold uppercase ${doc.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                    {doc.status}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right px-6">
-                                                {doc.path && (
-                                                    <a href={`http://localhost:5000/${doc.path}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center h-10 w-10 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition-all">
-                                                        <ExternalLink size={18} />
-                                                    </a>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center py-10 text-slate-400 text-xs font-bold uppercase italic">
+                                            No compliance documents uploaded yet
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </Card>
+
+                    <Card className="border-none shadow-sm rounded-3xl bg-white p-8">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8 border-b border-slate-50 pb-4 flex items-center gap-2">
+                            <FileText size={16} /> Bio-Data & Contact Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <ContactItem icon={<Mail />} label="Email Address" value={worker.email} />
+                            <ContactItem icon={<Phone />} label="Contact Number" value={worker.contact} />
+                            <ContactItem icon={<MapPin />} label="Permanent Address" value={worker.address} />
+                            <ContactItem icon={<Calendar />} label="Date of Birth" value={worker.dob ? new Date(worker.dob).toDateString() : null} />
                         </div>
                     </Card>
                 </div>
@@ -188,34 +256,15 @@ export function WorkerDetailsPage({ worker, onBack }) {
     );
 }
 
-{/* --- REFINED LARGE COMPONENTS --- */ }
-
-function BigInfoItem({ label, value, icon, valueClass = "text-slate-900 font-bold" }) {
+function ContactItem({ icon, label, value }) {
     return (
         <div className="flex items-start gap-4">
-            {icon && <div className="mt-1 text-slate-300">{icon}</div>}
-            <div className="space-y-0.5">
-                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.1em]">{label}</p>
-                <p className={`text-base tracking-tight ${valueClass}`}>{value || "—"}</p>
+            <div className="p-3 bg-slate-50 text-slate-400 rounded-2xl">
+                {React.cloneElement(icon, { size: 18 })}
             </div>
-        </div>
-    );
-}
-
-function TimelineItem({ title, status, isLast, isCurrent }) {
-    const isDone = status === 'completed';
-    return (
-        <div className="flex gap-4">
-            <div className="flex flex-col items-center">
-                <div className={`h-6 w-6 rounded-full border-2 flex items-center justify-center 
-                    ${isDone ? 'bg-emerald-500 border-emerald-500 text-white shadow-md' : isCurrent ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-white border-slate-200'}`}>
-                    {isDone ? <CheckCircle2 size={12} strokeWidth={3} /> : isCurrent ? <Clock size={12} strokeWidth={3} /> : <Circle size={8} className="text-slate-200" />}
-                </div>
-                {!isLast && <div className="w-[2px] h-8 bg-slate-100" />}
-            </div>
-            <div className="pb-6">
-                <p className={`text-sm font-extrabold uppercase tracking-wide ${isCurrent ? 'text-indigo-600' : 'text-slate-800'}`}>{title}</p>
-                <p className="text-xs font-bold text-slate-400 capitalize">{status.replace(/-/g, ' ')}</p>
+            <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-tight mb-1">{label}</p>
+                <p className="text-sm font-bold text-slate-800">{value || "—"}</p>
             </div>
         </div>
     );

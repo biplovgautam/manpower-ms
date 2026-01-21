@@ -60,9 +60,23 @@ const WorkerSchema = new mongoose.Schema({
   // UPDATED: Added category, fileName, and fileSize to support the new upload UI
   documents: [
     {
-      category: String, // e.g., 'passport', 'medical-certificate'
-      name: String,     // Custom name given by user
-      fileName: String, // Actual file name from disk
+      category: {
+        type: String,
+        required: true,
+        enum: [
+          "Passport",
+          "Birth Certificate",
+          "Citizenship Certificate",
+          "Medical Certificate",
+          "Police Clearance",
+          "Educational Certificate",
+          "Passport Photos",
+          "Other"
+        ],
+        default: 'Other'
+      },
+      name: String,
+      fileName: String,
       fileSize: String,
       path: String,
       status: { type: String, default: 'pending' },

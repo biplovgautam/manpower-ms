@@ -14,7 +14,7 @@ exports.getAllWorkers = async (req, res) => {
     if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
     const workers = await Worker.find(filter)
-      .populate('employerId', 'name employerName companyName')
+      .populate('employerId', 'name employerName companyName country')
       .populate('subAgentId', 'name')
       .populate('jobDemandId', 'jobTitle salary')
       .populate('createdBy', 'fullName')
@@ -35,54 +35,41 @@ exports.getWorkerById = async (req, res) => {
     const { companyId, userId, role } = req.user;
     const { id } = req.params;
 
-    // 1. Validate if ID is a valid MongoDB ObjectId to prevent crash
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        success: false,
-        message: 'Invalid Worker ID format'
-      });
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Invalid Worker ID format' });
     }
 
     let filter = { _id: id, companyId };
-
-    // Authorization check
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
+    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
 
     const worker = await Worker.findOne(filter)
-      .populate('employerId', 'name employerName companyName')
+      .populate('employerId', 'name employerName companyName country')
       .populate('subAgentId', 'name')
       .populate('jobDemandId', 'jobTitle salary description')
       .populate('createdBy', 'fullName')
       .lean();
 
     if (!worker) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        message: 'Worker not found or you do not have permission'
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Worker not found' });
     }
 
     res.status(StatusCodes.OK).json({ success: true, data: worker });
   } catch (error) {
-    // CRITICAL: Check your terminal for this log!
-    console.error("GET_WORKER_BY_ID_ERROR:", error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: error.message
-    });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Update Worker Info (Matches router.put)
+ * @desc    Update Worker Info & Handle Categorized Uploads
  */
 exports.updateWorker = async (req, res) => {
   try {
     const { id } = req.params;
     const { companyId, userId, role } = req.user;
-    const updateData = { ...req.body };
+
+    // Extract update fields, excluding documents to handle them separately
+    const { category, ...otherUpdates } = req.body;
+    let updateData = { ...otherUpdates };
 
     let filter = { _id: id, companyId };
     if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
@@ -92,21 +79,28 @@ exports.updateWorker = async (req, res) => {
 
     if (req.body.dob) updateData.dob = new Date(req.body.dob);
 
-    // Handle File Uploads
+    // Handle File Uploads with Category
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file) => ({
+        category: req.body.category || 'Other', // Captured from frontend FormData
         name: file.originalname,
+        fileName: file.filename,
+        fileSize: (file.size / 1024).toFixed(2) + ' KB',
         path: file.path,
+        status: 'pending',
         uploadedAt: new Date()
       }));
+
+      // Use $push to add to the array without overwriting existing docs
       updateData.$push = { documents: { $each: newDocs } };
     }
 
     const updatedWorker = await Worker.findByIdAndUpdate(id, updateData, { new: true, runValidators: true })
-      .populate('employerId', 'name employerName companyName')
+      .populate('employerId', 'name employerName companyName country')
+      .populate('subAgentId', 'name')
       .populate('jobDemandId', 'jobTitle');
 
-    // Sync Job Demand References
+    // Sync Job Demand References if job changed
     if (updateData.jobDemandId && updateData.jobDemandId.toString() !== oldWorker.jobDemandId?.toString()) {
       if (oldWorker.jobDemandId) await JobDemand.findByIdAndUpdate(oldWorker.jobDemandId, { $pull: { workers: id } });
       await JobDemand.findByIdAndUpdate(updateData.jobDemandId, { $addToSet: { workers: id } });
@@ -119,7 +113,7 @@ exports.updateWorker = async (req, res) => {
 };
 
 /**
- * @desc    Update Stage & Auto-calculate Worker Status
+ * @desc    Update Stage & Auto-calculate Status (11-Stage Engine)
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
@@ -130,7 +124,7 @@ exports.updateWorkerStage = async (req, res) => {
     const worker = await Worker.findOne({ _id: id, companyId });
     if (!worker) return res.status(404).json({ success: false, message: 'Worker not found' });
 
-    // 1. Find or Create the Stage
+    // Find stage by ID or by name
     let stage = worker.stageTimeline.find(s =>
       (s._id && s._id.toString() === stageId) || s.stage === stageId
     );
@@ -142,7 +136,7 @@ exports.updateWorkerStage = async (req, res) => {
       stage.date = new Date();
     }
 
-    // 2. STATUS ENGINE
+    // Status Engine Logic
     const timeline = worker.stageTimeline;
     const completedCount = timeline.filter(s => s.status === 'completed').length;
     const anyRejected = timeline.some(s => s.status === 'rejected');
@@ -151,23 +145,23 @@ exports.updateWorkerStage = async (req, res) => {
     if (anyRejected) {
       worker.status = 'rejected';
     } else if (completedCount >= 11) {
-      // Requirements: Active status when fully deployed
-      worker.status = 'active';
+      worker.status = 'deployed'; // Matches your frontend/admin POV
     } else if (anyInProgress) {
       worker.status = 'processing';
     } else {
       worker.status = 'pending';
     }
 
-    // Set current label
+    // Set currentStage label to the last completed stage
     const lastDone = [...timeline].reverse().find(s => s.status === 'completed');
     if (lastDone) worker.currentStage = lastDone.stage;
 
     await worker.save();
 
     const updatedWorker = await Worker.findById(id)
-      .populate('employerId', 'name employerName companyName country') // Ensure country is populated
-      .populate('jobDemandId subAgentId')
+      .populate('employerId', 'name employerName companyName country')
+      .populate('subAgentId', 'name')
+      .populate('jobDemandId', 'jobTitle')
       .lean();
 
     res.status(StatusCodes.OK).json({ success: true, data: updatedWorker });
@@ -197,7 +191,8 @@ exports.addWorker = async (req, res) => {
       createdBy: req.user.userId,
       companyId: req.user.companyId,
       stageTimeline: initialStages,
-      status: 'pending'
+      status: 'pending',
+      currentStage: 'document-collection'
     });
 
     await newWorker.save();
