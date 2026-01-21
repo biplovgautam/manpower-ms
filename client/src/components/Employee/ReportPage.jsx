@@ -22,12 +22,10 @@ import 'chartjs-adapter-date-fns';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, BarController, LineController, Title, Tooltip, Legend, Filler);
 
-// Added onNavigate to props
-export function ReportsPage({ data, summary, onNavigate }) {
+export function ReportsPage({ data, summary, onNavigate = () => {} }) {
   const [filter, setFilter] = useState('month');
   const isMock = !data;
 
-  // Mock data generator for fallback
   const reportData = useMemo(() => {
     if (data) return data;
     const today = new Date();
@@ -91,25 +89,25 @@ export function ReportsPage({ data, summary, onNavigate }) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {isMock && (
-        <div className="bg-amber-50 border-l-4 border-amber-400 p-4 flex items-center gap-3">
+        <div className="bg-amber-50 border-l-4 border-amber-400 p-4 flex items-center gap-3 rounded-r-lg">
           <span className="text-amber-600"><Info size={20} /></span>
           <p className="text-amber-700 text-sm font-medium">Showing Demo Data. Connect API for live stats.</p>
         </div>
       )}
 
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
+        <h1 className="text-2xl font-bold flex items-center gap-2 text-slate-800">
           <TrendingUp className="text-indigo-600" /> Agency Analytics
         </h1>
-        <div className="flex bg-gray-100 p-1 rounded-lg">
+        <div className="flex bg-gray-100 p-1 rounded-xl">
           {['day', 'week', 'month'].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${
-                filter === f ? 'bg-white shadow text-indigo-600' : 'text-gray-500'
+              className={`px-4 py-1.5 rounded-lg text-xs font-black uppercase transition-all ${
+                filter === f ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {f}
@@ -119,31 +117,46 @@ export function ReportsPage({ data, summary, onNavigate }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Updated: This card now navigates to workers */}
+        {/* Updated to lowercase 'worker' to match Sidebar logic */}
         <StatCard 
           title="Total Workers" 
           value={stats.totalWorkers} 
           icon={<Users />} 
           color="text-emerald-600" 
           bg="bg-emerald-50" 
-          onClick={() => onNavigate('workers')} 
+          onClick={() => onNavigate('worker')} 
         />
-        <StatCard title="Active Demands" value={stats.totalJobDemands} icon={<Briefcase />} color="text-indigo-600" bg="bg-indigo-50" />
+        
+        {/* Updated to 'job-demand' to match Sidebar logic */}
+        <StatCard 
+          title="Active Demands" 
+          value={stats.totalJobDemands} 
+          icon={<Briefcase />} 
+          color="text-indigo-600" 
+          bg="bg-indigo-50" 
+          onClick={() => onNavigate('job-demand')} 
+        />
+
         <StatCard title="Avg Workers/Day" value={stats.avgWorkers} icon={<TrendingUp />} color="text-green-600" bg="bg-green-50" />
         <StatCard title="Avg Demands/Day" value={stats.avgDemands} icon={<Calendar />} color="text-purple-600" bg="bg-purple-50" />
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Performance Trends</CardTitle></CardHeader>
-        <CardContent className="h-[350px]">
+      <Card className="border-none shadow-sm rounded-3xl overflow-hidden ring-1 ring-slate-100">
+        <CardHeader className="border-b border-slate-50">
+          <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500">Performance Trends</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[400px] pt-6">
           <Chart 
             type="bar" 
             data={chartData} 
             options={{ 
               responsive: true, 
               maintainAspectRatio: false, 
+              plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, font: { weight: 'bold' } } }
+              },
               scales: { 
-                y: { beginAtZero: true }, 
+                y: { beginAtZero: true, grid: { display: false } }, 
                 y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } } 
               } 
             }} 
@@ -154,23 +167,27 @@ export function ReportsPage({ data, summary, onNavigate }) {
   );
 }
 
-// Updated StatCard with click handler and hover styles
 function StatCard({ title, value, icon, color, bg, onClick }) {
+  const handleClick = (e) => {
+    console.log(`StatCard "${title}" clicked`);
+    if (onClick) onClick(e);
+  };
+
   return (
     <Card 
-      onClick={onClick}
-      className={`border-none shadow-sm transition-all duration-200 ${bg} ${
+      onClick={handleClick}
+      className={`border-none shadow-sm transition-all duration-300 rounded-3xl ${bg} ${
         onClick 
-          ? 'cursor-pointer hover:shadow-md hover:scale-[1.02] active:scale-95 ring-1 ring-transparent hover:ring-emerald-200' 
-          : ''
+          ? 'cursor-pointer hover:shadow-md hover:scale-[1.03] active:scale-95 ring-1 ring-transparent hover:ring-indigo-200' 
+          : 'ring-1 ring-slate-100/50'
       }`}
     >
-      <CardContent className="p-5 flex justify-between items-center">
+      <CardContent className="p-6 flex justify-between items-center pointer-events-none">
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase">{title}</p>
-          <p className={`text-2xl font-bold ${color}`}>{value}</p>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{title}</p>
+          <p className={`text-3xl font-black ${color} tracking-tight`}>{value}</p>
         </div>
-        <div className={color}>{icon}</div>
+        <div className={`p-3 rounded-2xl bg-white/50 ${color} shadow-sm`}>{icon}</div>
       </CardContent>
     </Card>
   );
