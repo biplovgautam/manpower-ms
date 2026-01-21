@@ -3,10 +3,14 @@
 import {
     ArrowLeft,
     Building2,
-    Calendar, CheckCircle2, Circle, Clock,
+    Calendar,
+    CheckCircle2,
+    Circle,
+    Clock,
     ExternalLink,
     FileText,
-    Mail, MapPin,
+    Mail,
+    MapPin,
     Navigation,
     Phone,
     PlaneTakeoff,
@@ -186,7 +190,7 @@ export function WorkerDetailsPage({ worker, onBack }) {
                         </div>
                     </div>
 
-                    {/* COMPLIANCE SECTION */}
+                    {/* COMPLIANCE SECTION - FIXED DOCUMENT DISPLAY */}
                     <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
                         <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-slate-50">
                             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center gap-3">
@@ -198,7 +202,7 @@ export function WorkerDetailsPage({ worker, onBack }) {
                             <TableHeader>
                                 <TableRow className="bg-slate-50/30">
                                     <TableHead className="text-[10px] font-black uppercase px-8 h-12">Category</TableHead>
-                                    <TableHead className="text-[10px] font-black uppercase h-12">File Name</TableHead>
+                                    <TableHead className="text-[10px] font-black uppercase h-12">Label / File Name</TableHead>
                                     <TableHead className="text-[10px] font-black uppercase h-12 text-right px-8">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -206,14 +210,21 @@ export function WorkerDetailsPage({ worker, onBack }) {
                                 {docs.length > 0 ? docs.map((doc, i) => (
                                     <TableRow key={i} className="hover:bg-slate-50 transition-colors">
                                         <TableCell className="px-8 py-5">
-                                            <p className="text-sm font-black text-slate-800 leading-none">
+                                            <Badge variant="outline" className="text-[10px] font-black uppercase bg-white border-slate-200 text-slate-600">
                                                 {doc.category || 'Other'}
-                                            </p>
+                                            </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            <p className="text-[10px] text-slate-400 font-bold truncate max-w-[250px]">
-                                                {doc.name || doc.fileName || "unnamed_file"}
-                                            </p>
+                                            <div>
+                                                {/* Displays the Custom Label entered by the employee */}
+                                                <p className="text-sm font-black text-slate-800 leading-none mb-1">
+                                                    {doc.name || "Untitled Document"}
+                                                </p>
+                                                {/* Displays the actual physical filename as secondary info */}
+                                                <p className="text-[10px] text-slate-400 font-bold truncate max-w-[200px]">
+                                                    {doc.fileName || "file_source_hidden"}
+                                                </p>
+                                            </div>
                                         </TableCell>
                                         <TableCell className="text-right px-8">
                                             {doc.path && (
