@@ -1,9 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/Card";
-import { Input, Textarea } from "../../components/ui/Input";
-import { Select } from "../../components/ui/Select";
-import { Button } from "../../components/ui/Button";
-import { ArrowLeft, Upload, X, CheckCircle2, ShieldCheck, Info, FileText } from "lucide-react";
+"use client";
+
+import {
+  ArrowLeft,
+  CheckCircle2,
+  FileText,
+  Info,
+  ShieldCheck,
+  Upload,
+  X
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Button } from "../ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
+import { Input, Textarea } from "../ui/Input";
+import { Select } from "../ui/Select";
 
 export function AddWorkerPage({
   initialData = null,
@@ -33,7 +43,7 @@ export function AddWorkerPage({
   const [documents, setDocuments] = useState([]);
   const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
 
-  // 1. EXACT MATCH WITH BACKEND ENUM
+  // Document categories matching your backend expectations
   const documentCategories = [
     { value: "Passport", label: "Passport" },
     { value: "Birth Certificate", label: "Birth Certificate" },
@@ -55,7 +65,6 @@ export function AddWorkerPage({
     "Passport Size Photos (2 copies)"
   ];
 
-  // Populate data when in edit mode
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -73,11 +82,10 @@ export function AddWorkerPage({
         notes: initialData.notes || "",
       });
 
-      // Load existing documents from backend
       if (initialData.documents) {
         setDocuments(initialData.documents.map(doc => ({
           ...doc,
-          isExisting: true // Flag to distinguish from new uploads
+          isExisting: true
         })));
       }
     }
@@ -93,11 +101,10 @@ export function AddWorkerPage({
     return String(jdEmpId) === String(formData.employerId);
   });
 
-  // 2. UPDATED DOCUMENT HANDLER TO CAPTURE METADATA
   const handleAddDocument = () => {
     if (currentDoc.file && currentDoc.name) {
       const newDoc = {
-        file: currentDoc.file, // The actual File object for upload
+        file: currentDoc.file,
         category: currentDoc.category,
         name: currentDoc.name,
         fileName: currentDoc.file.name,
@@ -106,8 +113,9 @@ export function AddWorkerPage({
       };
 
       setDocuments([...documents, newDoc]);
+      // Reset only the file-specific parts of currentDoc state
       setCurrentDoc({ file: null, category: "Passport", name: "" });
-      
+
       const fileInput = document.getElementById('worker-file-input');
       if (fileInput) fileInput.value = '';
     }
@@ -117,8 +125,15 @@ export function AddWorkerPage({
     setDocuments(documents.filter((_, idx) => idx !== index));
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // documents here contains only the ones not removed via handleRemoveDocument
+    onSave({ ...formData, documents });
+  };
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10 px-4">
+      {/* HEADER */}
       <div className="flex items-center gap-4">
         <button type="button" onClick={onNavigate} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft size={22} className="text-gray-600" />
@@ -128,13 +143,13 @@ export function AddWorkerPage({
             {isEditMode ? "Edit Worker Profile" : "Register New Worker"}
           </h1>
           <p className="text-gray-500 text-sm">
-            {isEditMode ? `Updating information for ${formData.name}` : "Follow the checklist to ensure all legal documents are collected."}
+            {isEditMode ? `Updating information for ${formData.name}` : "Ensure all legal documents are collected and labeled correctly."}
           </p>
         </div>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); onSave({ ...formData, documents }); }} className="space-y-6">
-        
+      <form onSubmit={handleSubmit} className="space-y-6">
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* PERSONAL INFO */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
@@ -159,33 +174,33 @@ export function AddWorkerPage({
               <CardTitle className="text-md font-bold">Deployment Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <Select 
-                label="Employer" 
-                value={formData.employerId} 
-                onChange={(e) => { handleChange("employerId", e.target.value); handleChange("jobDemandId", ""); }} 
-                options={employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))} 
-                required 
+              <Select
+                label="Employer"
+                value={formData.employerId}
+                onChange={(e) => { handleChange("employerId", e.target.value); handleChange("jobDemandId", ""); }}
+                options={employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))}
+                required
               />
-              <Select 
-                label="Job Demand" 
-                value={formData.jobDemandId} 
-                disabled={!formData.employerId} 
-                onChange={(e) => handleChange("jobDemandId", e.target.value)} 
-                options={filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || jd.title }))} 
-                required 
+              <Select
+                label="Job Demand"
+                value={formData.jobDemandId}
+                disabled={!formData.employerId}
+                onChange={(e) => handleChange("jobDemandId", e.target.value)}
+                options={filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || jd.title }))}
+                required
               />
-              <Select 
-                label="Sub-Agent" 
-                value={formData.subAgentId} 
-                onChange={(e) => handleChange("subAgentId", e.target.value)} 
-                options={subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))} 
+              <Select
+                label="Sub-Agent"
+                value={formData.subAgentId}
+                onChange={(e) => handleChange("subAgentId", e.target.value)}
+                options={subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))}
               />
-              <Select 
-                label="Registration Status" 
-                value={formData.status} 
-                onChange={(e) => handleChange("status", e.target.value)} 
-                options={[{ value: "pending", label: "Pending" }, { value: "processing", label: "Processing" }, { value: "active", label: "Active" }]} 
-                required 
+              <Select
+                label="Registration Status"
+                value={formData.status}
+                onChange={(e) => handleChange("status", e.target.value)}
+                options={[{ value: "pending", label: "Pending" }, { value: "processing", label: "Processing" }, { value: "active", label: "Active" }]}
+                required
               />
             </CardContent>
           </Card>
@@ -193,86 +208,84 @@ export function AddWorkerPage({
 
         {/* DOCUMENTS SECTION */}
         <Card className="border-none shadow-sm ring-1 ring-gray-200 overflow-hidden">
-          <CardHeader className="bg-blue-600 text-white">
+          <CardHeader className="bg-slate-900 text-white">
             <div className="flex items-center gap-2">
-              <ShieldCheck size={20} />
+              <ShieldCheck size={20} className="text-emerald-400" />
               <CardTitle className="text-lg text-white">Documents Management</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid grid-cols-1 lg:grid-cols-12">
+              {/* Checklist */}
               <div className="lg:col-span-4 bg-slate-50 p-6 border-r border-gray-100">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-                  <Info size={16} className="text-blue-600" /> Required Checklist
+                  <Info size={16} className="text-indigo-600" /> Required Checklist
                 </h3>
                 <ul className="space-y-3">
                   {requiredChecklist.map((item, index) => (
                     <li key={index} className="flex items-start gap-3 text-sm text-slate-600 font-medium leading-tight">
-                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-400 shrink-0" />
+                      <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
                       {item}
                     </li>
                   ))}
                 </ul>
               </div>
 
+              {/* Document Upload Area */}
               <div className="lg:col-span-8 p-6 space-y-6 bg-white">
-                <div className="p-5 bg-blue-50/30 border-2 border-dashed border-blue-100 rounded-xl space-y-4">
+                <div className="p-5 bg-indigo-50/30 border-2 border-dashed border-indigo-100 rounded-xl space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select 
-                        label="Document Category" 
-                        options={documentCategories} 
-                        value={currentDoc.category} 
-                        onChange={(e) => setCurrentDoc({...currentDoc, category: e.target.value})} 
+                    <Select
+                      label="Document Category"
+                      options={documentCategories}
+                      value={currentDoc.category}
+                      onChange={(e) => setCurrentDoc({ ...currentDoc, category: e.target.value })}
                     />
-                    <Input 
-                        label="Document Label" 
-                        placeholder="e.g. Front Page, Main Copy" 
-                        value={currentDoc.name} 
-                        onChange={(e) => setCurrentDoc({...currentDoc, name: e.target.value})} 
+                    <Input
+                      label="Document Label (e.g., Front Page)"
+                      placeholder="Enter custom label"
+                      value={currentDoc.name}
+                      onChange={(e) => setCurrentDoc({ ...currentDoc, name: e.target.value })}
                     />
                   </div>
-                  <input 
-                    id="worker-file-input" 
-                    type="file" 
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" 
-                    onChange={(e) => setCurrentDoc({...currentDoc, file: e.target.files[0]})} 
+                  <input
+                    id="worker-file-input"
+                    type="file"
+                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                    onChange={(e) => setCurrentDoc({ ...currentDoc, file: e.target.files[0] })}
                   />
-                  <button 
-                    type="button" 
-                    disabled={!currentDoc.file || !currentDoc.name} 
+                  <button
+                    type="button"
+                    disabled={!currentDoc.file || !currentDoc.name}
                     onClick={handleAddDocument}
-                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-md
-                      ${(!currentDoc.file || !currentDoc.name) ? "bg-gray-100 text-gray-400" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+                    className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm
+                                            ${(!currentDoc.file || !currentDoc.name) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
                   >
-                    <Upload size={18} /> Attach to Profile
+                    <Upload size={18} /> Attach Document
                   </button>
                 </div>
 
-                {/* 3. UPDATED DOCUMENT LIST WITH METADATA DISPLAY */}
+                {/* List of Attached Files */}
                 <div className="space-y-3">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Attached Files</h4>
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Currently Attached</h4>
                   {documents.length === 0 && (
-                      <p className="text-center py-6 text-gray-400 text-sm italic border rounded-lg">No documents attached yet.</p>
+                    <p className="text-center py-6 text-gray-400 text-sm italic border rounded-lg">No documents attached.</p>
                   )}
                   {documents.map((doc, i) => (
-                    <div key={i} className={`flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 ${doc.isExisting ? 'border-l-blue-500' : 'border-l-green-500'}`}>
+                    <div key={i} className={`flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 ${doc.isExisting ? 'border-l-blue-500' : 'border-l-emerald-500'}`}>
                       <div className="flex items-center gap-3">
-                        {doc.isExisting ? (
-                            <FileText size={18} className="text-blue-500" />
-                        ) : (
-                            <CheckCircle2 size={18} className="text-green-500" />
-                        )}
+                        {doc.isExisting ? <FileText size={18} className="text-blue-500" /> : <CheckCircle2 size={18} className="text-emerald-500" />}
                         <div>
                           <p className="text-sm font-bold text-gray-800">{doc.name}</p>
                           <p className="text-[10px] text-gray-500 uppercase font-medium">
-                            {doc.category} • {doc.fileName || doc.file?.name} • {doc.fileSize} 
+                            {doc.category} • {doc.fileName || doc.file?.name} • {doc.fileSize}
                             {doc.isExisting && " • STORED"}
                           </p>
                         </div>
                       </div>
-                      <button 
-                        type="button" 
-                        onClick={() => handleRemoveDocument(i)} 
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDocument(i)}
                         className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
                       >
                         <X size={18} />
@@ -283,13 +296,13 @@ export function AddWorkerPage({
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t">
-              <Textarea label="Additional Background Notes" placeholder="Mention any special remarks..." value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} />
+              <Textarea label="Additional Background Notes" placeholder="Mention any special remarks or document issues..." value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} />
             </div>
           </CardContent>
         </Card>
 
         <div className="flex gap-4">
-          <Button type="submit" className="flex-[2] bg-blue-600 text-white hover:bg-blue-700 h-14 text-lg font-bold rounded-xl shadow-lg transition-all">
+          <Button type="submit" className="flex-[2] bg-indigo-600 text-white hover:bg-indigo-700 h-14 text-lg font-bold rounded-xl shadow-lg transition-all">
             {isEditMode ? "Update Worker Profile" : "Register Worker"}
           </Button>
           <Button type="button" variant="outline" onClick={onNavigate} className="flex-1 h-14 font-bold rounded-xl">Cancel</Button>
