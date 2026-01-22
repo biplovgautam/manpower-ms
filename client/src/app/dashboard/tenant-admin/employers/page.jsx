@@ -40,6 +40,7 @@ export default function AdminEmployersPage() {
                         'Content-Type': 'application/json'
                     }
                 });
+                
 
                 const result = await response.json();
 

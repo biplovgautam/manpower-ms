@@ -2,10 +2,20 @@
 "use client";
 import React from 'react';
 
-// Card Container
-export function Card({ children, className = '' }) {
+/**
+ * Card Container
+ * Updated to accept and spread all native HTML props (like onClick)
+ */
+export function Card({ children, className = '', onClick, ...props }) {
   return (
-    <div className={`bg-white rounded-xl shadow-lg border border-gray-100 ${className}`}>
+    <div 
+      onClick={onClick}
+      // If onClick exists, we add 'role="button"' for screen readers
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      className={`bg-white rounded-xl shadow-lg border border-gray-100 ${className}`}
+      {...props}
+    >
       {children}
     </div>
   );

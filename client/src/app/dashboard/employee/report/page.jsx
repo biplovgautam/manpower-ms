@@ -11,20 +11,33 @@ export default function ReportsDashboard() {
     const [loading, setLoading] = useState(true);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
 
-    // Centralized logout helper
     const handleLogout = () => {
         localStorage.clear();
         router.push('/login');
     };
 
+    // FIXED NAVIGATION HANDLER
+    const handleNavigate = (destination) => {
+        console.log("Parent received navigation request for:", destination);
+        
+        switch (destination) {
+            // Must match the string exactly as sent from ReportsPage
+            case 'worker': 
+                router.push('/dashboard/employee/worker');
+                break;
+            case 'job-demand': 
+                router.push('/dashboard/employee/job-demand');
+                break;
+            default:
+                console.warn(`No route defined for key: ${destination}`);
+        }
+    };
+
     useEffect(() => {
         const token = localStorage.getItem('token');
-        // FIX: Changed 'userRole' to 'role' to match your Login logic
         const role = localStorage.getItem('role');
 
-        // Robust Auth Guard
         if (!token || role?.toLowerCase() !== 'employee') {
-            console.warn("Unauthorized access to Reports. Redirecting...");
             handleLogout();
             return;
         }
@@ -43,20 +56,17 @@ export default function ReportsDashboard() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            // Handle session expiration
             if (res.status === 401) {
                 handleLogout();
                 return;
             }
 
             const result = await res.json();
-
-            // If backend has data, use it. Otherwise, stay null to trigger Mock Data.
             if (result.success && result.data && result.data.length > 0) {
                 setRealData(result.data);
             }
         } catch (err) {
-            console.error("Backend report fetch failed, using mock data instead.");
+            console.error("Backend fetch failed.");
         } finally {
             setLoading(false);
         }
@@ -76,10 +86,10 @@ export default function ReportsDashboard() {
                         <p className="text-gray-500 font-medium">Gathering analytics...</p>
                     </div>
                 ) : (
-                    /* If realData is null, ReportsPage will use its internal mock data.
-                       Passing 'undefined' allows the component's default props to kick in.
-                    */
-                    <ReportsPage data={realData || undefined} />
+                    <ReportsPage 
+                        data={realData || undefined} 
+                        onNavigate={handleNavigate}
+                    />
                 )}
             </div>
         </DashboardLayout>
