@@ -244,6 +244,7 @@ function JobDemandsContent() {
             </div>
         </DashboardLayout>
     );
+    
 }
 
 export default function JobDemandsPage() {
