@@ -42,6 +42,15 @@ const UserSchema = new mongoose.Schema({
         ref: 'Company',
         required: function () { return this.role !== 'super_admin'; },
     },
+    // Add these fields to your existing UserSchema
+    isBlocked: { type: Boolean, default: false },
+    notificationSettings: {
+        enabled: { type: Boolean, default: true }, // Global toggle
+        newJob: { type: Boolean, default: true },
+        newEmployer: { type: Boolean, default: true },
+        newWorker: { type: Boolean, default: true },
+        newSubAgent: { type: Boolean, default: true }
+    },
     passwordResetToken: String,
     passwordResetExpires: Date,
     otpReference: String,
