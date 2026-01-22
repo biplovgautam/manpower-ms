@@ -17,22 +17,23 @@ export function Sidebar({ onLogout }) {
     });
 
     useEffect(() => {
-        // Retrieve the full user object saved during login
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             try {
                 const parsed = JSON.parse(storedUser);
                 setSidebarData({
-                    // Use the names exactly as they come from your backend login response
                     name: parsed.companyName || 'ManpowerMS',
                     logo: parsed.companyLogo || null,
                     role: parsed.role || 'user'
                 });
             } catch (err) {
-                console.error("Error parsing user data from localStorage", err);
+                console.error("Error parsing user data", err);
             }
         }
     }, []);
+
+    // SHARED PATH: This must match your folder structure app/dashboard/settings/page.jsx
+    const SETTINGS_PATH = '/dashboard/settings';
 
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -41,7 +42,7 @@ export function Sidebar({ onLogout }) {
         { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
-        { path: '/settings', label: 'Settings', icon: Settings },
+        { path: SETTINGS_PATH, label: 'Settings', icon: Settings },
     ];
 
     const employeeLinks = [
@@ -51,7 +52,7 @@ export function Sidebar({ onLogout }) {
         { path: '/dashboard/employee/worker', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/employee/subagent', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/employee/report', label: 'Report', icon: FileText },
-        { path: '/settings', label: 'Settings', icon: Settings },
+        { path: SETTINGS_PATH, label: 'Settings', icon: Settings },
     ];
 
     // Determine which links to show based on role
@@ -88,31 +89,31 @@ export function Sidebar({ onLogout }) {
                         </p>
                     </div>
                 </div>
-
-                <div className="mt-4 flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">System Status</span>
-                    <div className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                        <span className="text-[10px] font-bold text-green-600 uppercase">Online</span>
-                    </div>
-                </div>
             </div>
 
             {/* NAVIGATION */}
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 {links.map((link) => {
                     const Icon = link.icon;
-                    const isActive = link.exact ? pathname === link.path : pathname.startsWith(link.path);
+
+                    // Logic: Dashboard items require exact match, others match on prefix
+                    const isActive = link.exact
+                        ? pathname === link.path
+                        : pathname.startsWith(link.path);
+
                     return (
                         <Link
                             key={link.path}
                             href={link.path}
                             className={`group flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
-                                : 'text-gray-500 hover:bg-gray-50'
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-100'
+                                    : 'text-gray-500 hover:bg-gray-50'
                                 }`}
                         >
-                            <Icon size={19} className={isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'} />
+                            <Icon
+                                size={19}
+                                className={isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}
+                            />
                             <span className="flex-1">{link.label}</span>
                         </Link>
                     );
