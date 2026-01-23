@@ -32,13 +32,14 @@ export function Sidebar({ onLogout }) {
         }
     }, []);
 
-    // SHARED PATH: This must match your folder structure app/dashboard/settings/page.jsx
     const SETTINGS_PATH = '/dashboard/settings';
 
+    // UPDATED: Added Job Demand to adminLinks for backend oversight
     const adminLinks = [
         { path: '/dashboard/tenant-admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
         { path: '/dashboard/tenant-admin/employees', label: 'Employees', icon: Users },
         { path: '/dashboard/tenant-admin/employers', label: 'Employers', icon: Building2 },
+        { path: '/dashboard/tenant-admin/job-demand', label: 'Job Demands', icon: Briefcase }, // Added for Admin
         { path: '/dashboard/tenant-admin/workers', label: 'Workers', icon: UserCircle },
         { path: '/dashboard/tenant-admin/sub-agents', label: 'Sub Agents', icon: UserCheck },
         { path: '/dashboard/tenant-admin/reports', label: 'Reports', icon: FileText },
@@ -55,7 +56,6 @@ export function Sidebar({ onLogout }) {
         { path: SETTINGS_PATH, label: 'Settings', icon: Settings },
     ];
 
-    // Determine which links to show based on role
     const links = (sidebarData.role === 'admin' || sidebarData.role === 'super_admin')
         ? adminLinks
         : employeeLinks;
@@ -66,7 +66,7 @@ export function Sidebar({ onLogout }) {
             {/* BRANDING SECTION */}
             <div className="p-6 border-b border-gray-200 bg-white">
                 <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 bg-white flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 bg-white flex items-center justify-center text-white font-bold text-xl uppercase">
                         {sidebarData.logo ? (
                             <img
                                 src={sidebarData.logo}
@@ -74,7 +74,7 @@ export function Sidebar({ onLogout }) {
                                 className="w-full h-full object-contain"
                             />
                         ) : (
-                            <div className="w-full h-full bg-blue-600 flex items-center justify-center text-white font-bold text-xl uppercase">
+                            <div className="w-full h-full bg-blue-600 flex items-center justify-center">
                                 {sidebarData.name.charAt(0)}
                             </div>
                         )}
@@ -95,8 +95,6 @@ export function Sidebar({ onLogout }) {
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                 {links.map((link) => {
                     const Icon = link.icon;
-
-                    // Logic: Dashboard items require exact match, others match on prefix
                     const isActive = link.exact
                         ? pathname === link.path
                         : pathname.startsWith(link.path);
@@ -132,4 +130,4 @@ export function Sidebar({ onLogout }) {
             </div>
         </div>
     );
-}  
+}
