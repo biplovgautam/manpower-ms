@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const {
     register, login, registerEmployee,
     getAllEmployees, getSingleEmployeeDetails,
-    forgotPassword, resetPassword, resendOTP
+    forgotPassword, resetPassword, resendOTP, getMe
 } = require('../controllers/auth');
 const { protect, authorizeRoles } = require('../middleware/auth');
 
@@ -59,6 +59,7 @@ router.post('/login', loginLimiter, login);
 router.post('/forgot-password', forgotLimiter, forgotPassword);
 router.post('/resend-otp', forgotLimiter, resendOTP);
 router.post('/reset-password', resetPassword);
+router.get('/me', protect, getMe);
 
 // Employee Management
 router.post('/add-employee', protect, authorizeRoles('admin', 'super_admin'), registerEmployee);

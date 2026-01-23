@@ -199,8 +199,14 @@ const login = async (req, res) => {
             return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'Invalid credentials.' });
         }
 
-        const company = await Company.findById(user.companyId);
+        // --- REQUIREMENT 5: CHECK BLOCKED STATUS ---
+        if (user.isBlocked) {
+            return res.status(StatusCodes.FORBIDDEN).json({
+                msg: 'This account has been blocked by Admin. Access denied.'
+            });
+        }
 
+        const company = await Company.findById(user.companyId);
         res.status(StatusCodes.OK).json({
             success: true,
             user: {
@@ -208,8 +214,7 @@ const login = async (req, res) => {
                 fullName: user.fullName,
                 role: user.role,
                 companyId: user.companyId,
-                companyName: company?.name || 'ManpowerMS',
-                companyLogo: company?.logo || null
+                notificationSettings: user.notificationSettings // Send settings to frontend
             },
             token: user.createJWT()
         });
@@ -282,7 +287,23 @@ const resetPassword = async (req, res) => {
 
     res.status(200).json({ success: true, msg: 'Password updated.' });
 };
+const getMe = async (req, res) => {
+    try {
+        // req.user is provided by your 'protect' middleware
+        const user = await User.findById(req.user._id).select('-password');
 
+        if (!user) {
+            // This triggers your "User not found" console error
+            return res.status(404).json({ success: false, msg: 'User not found' });
+        }
+
+        res.status(200).json({ success: true, user });
+    } catch (error) {
+        res.status(500).json({ success: false, msg: error.message });
+    }
+};
+
+// Update your module.exports at the bottom of controllers/auth.js
 module.exports = {
     register,
     login,
@@ -291,5 +312,6 @@ module.exports = {
     getSingleEmployeeDetails,
     forgotPassword,
     resendOTP,
-    resetPassword
+    resetPassword,
+    getMe // <--- Add this
 };

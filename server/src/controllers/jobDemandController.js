@@ -56,9 +56,7 @@ exports.createJobDemand = async (req, res) => {
     const { employerName, ...otherData } = req.body;
     const employer = await Employer.findOne({ employerName, companyId: req.user.companyId });
 
-    if (!employer) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Employer not found" });
-    }
+    if (!employer) return res.status(404).json({ error: "Employer not found" });
 
     const jobDemand = await JobDemand.create({
       ...otherData,
@@ -67,9 +65,22 @@ exports.createJobDemand = async (req, res) => {
       companyId: req.user.companyId
     });
 
+    // --- REQUIREMENT 6: NOTIFY ADMIN & EMPLOYEES ---
+    const notifyUsers = await User.find({
+      companyId: req.user.companyId,
+      isBlocked: false,
+      "notificationSettings.newJob": true,
+      "notificationSettings.enabled": true
+    });
+
+    notifyUsers.forEach(user => {
+      console.log(`[Notification Sent] To: ${user.fullName} | New Job Created: ${otherData.jobTitle}`);
+      // Call your sendEmail or sendSMS functions here
+    });
+
     res.status(StatusCodes.CREATED).json({ success: true, data: jobDemand });
   } catch (error) {
-    res.status(StatusCodes.BAD_REQUEST).json({ success: false, error: error.message });
+    res.status(400).json({ error: error.message });
   }
 };
 

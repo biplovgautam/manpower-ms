@@ -57,13 +57,26 @@ exports.getSubAgents = async (req, res) => {
  */
 exports.createSubAgent = async (req, res) => {
   try {
+    const { name } = req.body;
     const agentData = {
       ...req.body,
       companyId: req.user.companyId,
-      createdBy: req.user.userId // Now correctly allowed by the Schema
+      createdBy: req.user.userId
     };
 
     const agent = await SubAgent.create(agentData);
+
+    // --- REQUIREMENT 6: NOTIFICATIONS ---
+    const notifyUsers = await User.find({
+      companyId: req.user.companyId,
+      isBlocked: false,
+      "notificationSettings.newSubAgent": true,
+      "notificationSettings.enabled": true
+    });
+
+    notifyUsers.forEach(user => {
+      console.log(`[Notif] To: ${user.fullName} | New Sub-Agent Added: ${name}`);
+    });
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -76,7 +89,6 @@ exports.createSubAgent = async (req, res) => {
     });
   }
 };
-
 /**
  * @desc    Update sub-agent (Ownership Protected)
  */

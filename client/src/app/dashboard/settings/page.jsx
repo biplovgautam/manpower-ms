@@ -2,102 +2,111 @@
 
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { DashboardLayout } from '../../../components/DashboardLayout';
-import { SettingsPage } from './SettingsPage';
+import { SettingsPage } from '../../../components/SettingsPage';
 
 function SettingsContent() {
     const router = useRouter();
-
     const [isLoading, setIsLoading] = useState(true);
     const [settingsData, setSettingsData] = useState({
         user: null,
         billing: null,
         employees: []
     });
-    const [userData, setUserData] = useState({ fullName: '', role: '' });
 
-    const API_BASE = 'http://localhost:5000/api/settings';
-
-    const fetchAllSettings = useCallback(async (token) => {
-        try {
-            const config = { headers: { 'Authorization': `Bearer ${token}` } };
-
-            // Parallel fetch for optimal speed
-            const [userRes, billingRes, empRes] = await Promise.all([
-                fetch('http://localhost:5000/api/auth/me', config).then(r => r.json()),
-                fetch(`${API_BASE}/billing`, config).then(r => r.json()).catch(() => null),
-                fetch(`${API_BASE}/blocked-members`, config).then(r => r.json()).catch(() => ({ data: [] }))
-            ]);
-
-            setSettingsData({
-                user: userRes.user,
-                billing: billingRes,
-                employees: empRes.data || []
-            });
-        } catch (error) {
-            console.error("Settings load error:", error);
-        }
-    }, []);
-
-    const handleLogout = () => {
-        localStorage.clear();
-        router.push('/login');
-    };
-
-    useEffect(() => {
+    const fetchAllData = useCallback(async () => {
         const token = localStorage.getItem('token');
-        const role = localStorage.getItem('role');
+        if (!token) return router.push('/login');
 
-        if (!token) {
-            router.push('/login');
-            return;
-        }
-
-        setUserData({
-            fullName: localStorage.getItem('fullName') || 'User',
-            role: role
-        });
-
-        const init = async () => {
-            setIsLoading(true);
-            await fetchAllSettings(token);
-            setIsLoading(false);
+        const config = {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
         };
 
-        init();
-    }, [router, fetchAllSettings]);
+        try {
+            // 1. Get the freshest user profile from the server
+            const response = await fetch('http://localhost:5000/api/auth/me', config);
+            const userRes = await response.json();
+
+            // Handle the specific "User not found" or "Unauthorized" case
+            if (!response.ok) {
+                if (response.status === 404 || response.status === 401) {
+                    throw new Error("SESSION_EXPIRED");
+                }
+                throw new Error(userRes.msg || "Failed to fetch user");
+            }
+
+            const currentUser = userRes.user;
+
+            // 2. Identify role dynamically
+            const userRole = (currentUser?.role || "").toLowerCase();
+            const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+
+            let billingData = null;
+            let employeeData = [];
+
+            // 3. Fetch Admin-only data if authorized
+            if (isAdmin) {
+                const [bRes, eRes] = await Promise.allSettled([
+                    fetch('http://localhost:5000/api/settings/billing', config).then(r => r.json()),
+                    fetch('http://localhost:5000/api/settings/blocked-members', config).then(r => r.json())
+                ]);
+
+                billingData = bRes.status === 'fulfilled' ? bRes.value : null;
+                employeeData = eRes.status === 'fulfilled' ? (eRes.value.data || []) : [];
+            }
+
+            setSettingsData({
+                user: currentUser,
+                billing: billingData,
+                employees: employeeData
+            });
+        } catch (error) {
+            console.error("Data Sync Error:", error);
+
+            if (error.message === "SESSION_EXPIRED") {
+                toast.error("Session invalid. Please login again.");
+                localStorage.clear();
+                router.push('/login');
+            } else {
+                toast.error("Failed to synchronize settings with server");
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    }, [router]);
+
+    useEffect(() => {
+        fetchAllData();
+    }, [fetchAllData]);
 
     return (
         <DashboardLayout
-            role={userData.role?.toLowerCase()}
-            userName={userData.fullName}
+            role={settingsData.user?.role?.toLowerCase()}
+            userName={settingsData.user?.fullName}
             currentPath="/dashboard/settings"
-            onLogout={handleLogout}
+            onLogout={() => { localStorage.clear(); router.push('/login'); }}
         >
-            <div className="container mx-auto p-4">
+            <div className="p-4 md:p-8">
                 {isLoading ? (
-                    <div className="flex flex-col justify-center items-center h-64 gap-4">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-                        <p className="text-gray-500 text-sm">Loading security settings...</p>
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                        <span className="loading loading-spinner loading-lg text-blue-600"></span>
+                        <p className="text-gray-400 animate-pulse">Verifying account access...</p>
                     </div>
                 ) : (
-                    <SettingsPage
-                        data={settingsData}
-                        refreshData={() => fetchAllSettings(localStorage.getItem('token'))}
-                    />
+                    <SettingsPage data={settingsData} refreshData={fetchAllData} />
                 )}
             </div>
         </DashboardLayout>
     );
 }
 
-export default function SettingsMainPage() {
+export default function Page() {
     return (
-        <Suspense fallback={
-            <div className="h-screen flex items-center justify-center">
-                <div className="animate-pulse text-primary font-medium">Loading Settings...</div>
-            </div>
-        }>
+        <Suspense fallback={<div>Loading...</div>}>
             <SettingsContent />
         </Suspense>
     );

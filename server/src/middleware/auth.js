@@ -1,6 +1,7 @@
+// middleware/authMiddleware.js
 const jwt = require('jsonwebtoken');
 const { StatusCodes } = require('http-status-codes');
-const User = require('../models/User'); // Import User model to check status
+const User = require('../models/User');
 
 const protect = async (req, res, next) => {
     const authHeader = req.headers.authorization;
@@ -14,18 +15,24 @@ const protect = async (req, res, next) => {
     try {
         const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-        // --- NEW: Check if user is blocked ---
-        const user = await User.findById(payload.userId).select('isBlocked');
-        if (!user || user.isBlocked) {
+        // --- REQUIREMENT 5: LIVE BLOCK CHECK ---
+        // We select companyId as well to ensure data isolation throughout the app
+        const user = await User.findById(payload.userId).select('isBlocked companyId role');
+
+        if (!user) {
+            return res.status(StatusCodes.UNAUTHORIZED).json({ msg: 'User no longer exists.' });
+        }
+
+        if (user.isBlocked) {
             return res.status(StatusCodes.FORBIDDEN).json({
-                msg: 'Your account has been restricted. Please contact the administrator.'
+                msg: 'Your account has been restricted. Access denied.'
             });
         }
 
         req.user = {
-            userId: payload.userId,
-            role: payload.role,
-            companyId: payload.companyId
+            _id: user._id, // Change 'userId' to '_id'
+            role: user.role,
+            companyId: user.companyId
         };
 
         next();

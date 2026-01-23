@@ -7,7 +7,7 @@ const { StatusCodes } = require('http-status-codes');
 exports.getEmployers = async (req, res) => {
     try {
         const { companyId, userId, role } = req.user;
-        const { view } = req.query; 
+        const { view } = req.query;
 
         let filter = { companyId };
 
@@ -20,7 +20,7 @@ exports.getEmployers = async (req, res) => {
             .populate('createdBy', 'fullName')
             .populate('totalJobDemands') // <--- This fixes the 0 Demands
             .populate('totalHires')      // <--- This fixes the 0 Hires
-            .sort({ employerName: 1 }); 
+            .sort({ employerName: 1 });
 
         return res.status(StatusCodes.OK).json({
             success: true,
@@ -58,10 +58,10 @@ exports.getEmployerDetails = async (req, res) => {
 
         return res.status(StatusCodes.OK).json({
             success: true,
-            data: { 
+            data: {
                 ...employer.toObject(), // Use toObject to include virtuals
-                demands, 
-                workers 
+                demands,
+                workers
             },
         });
     } catch (error) {
@@ -82,6 +82,19 @@ exports.createEmployer = async (req, res) => {
             notes,
             createdBy: req.user.userId,
             companyId: req.user.companyId
+        });
+
+        // --- REQUIREMENT 6: NOTIFICATIONS ---
+        const notifyUsers = await User.find({
+            companyId: req.user.companyId,
+            isBlocked: false,
+            "notificationSettings.newEmployer": true,
+            "notificationSettings.enabled": true
+        });
+
+        notifyUsers.forEach(user => {
+            console.log(`[Notif] To: ${user.fullName} | New Employer: ${employerName} (${country})`);
+            // Call sendEmail or sendSMS utility here if needed
         });
 
         res.status(StatusCodes.CREATED).json({

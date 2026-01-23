@@ -1,6 +1,7 @@
+// routes/settingsRoutes.js
 const express = require('express');
 const router = express.Router();
-const { protect, authorizeRoles } = require('../middleware/auth');
+const { protect, authorizeRoles } = require('../middleware/auth'); // Verify path is correct
 const {
     togglePassportPrivacy,
     changeEmail,
@@ -10,11 +11,13 @@ const {
     updateNotificationSettings
 } = require('../controllers/settingsController');
 
-// --- SHARED SETTINGS (Admin & Employee) ---
+// --- SHARED SETTINGS (Available to Admin & Employee) ---
+// Note: Employees use these to manage their own profile/notifications
 router.patch('/change-email', protect, changeEmail);
 router.patch('/notifications', protect, updateNotificationSettings);
 
 // --- ADMIN ONLY SETTINGS ---
+// Everything below this line requires 'admin' or 'super_admin' roles
 router.use(protect, authorizeRoles('admin', 'super_admin'));
 
 router.patch('/toggle-passport-privacy', togglePassportPrivacy);
