@@ -8,7 +8,6 @@ const { StatusCodes } = require('http-status-codes');
 
 /**
  * HELPER: Mask Passport Number
- * Shows first 3 characters and replaces rest with 'x'
  */
 const maskPassport = (passport) => {
   if (!passport) return "";
@@ -16,19 +15,16 @@ const maskPassport = (passport) => {
 };
 
 /**
- * @desc Get all Workers (With Privacy Logic)
+ * @desc Get all Workers (Company-wide View with Privacy)
  */
 exports.getAllWorkers = async (req, res) => {
   try {
-    const { companyId, userId, role } = req.user;
+    const { companyId, role } = req.user;
+
+    // Updated: Everyone in the company sees the list
     let filter = { companyId };
 
-    // Data Isolation: Employees only see what they created
-    if (role !== 'admin' && role !== 'super_admin') {
-      filter.createdBy = userId;
-    }
-
-    // Check Company Privacy Settings
+    // Check Company Privacy Settings for Passport Masking
     const company = await Company.findById(companyId).select('settings');
     const isPrivacyEnabled = company?.settings?.isPassportPrivate && role === 'employee';
 
@@ -40,7 +36,6 @@ exports.getAllWorkers = async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Apply Masking if privacy is ON and user is an employee
     const processedWorkers = workers.map(worker => ({
       ...worker,
       passportNumber: isPrivacyEnabled ? maskPassport(worker.passportNumber) : worker.passportNumber
@@ -57,24 +52,19 @@ exports.getAllWorkers = async (req, res) => {
 };
 
 /**
- * @desc Get Worker by ID (With Privacy Logic)
+ * @desc Get Worker by ID (Company-wide View)
  */
 exports.getWorkerById = async (req, res) => {
   try {
-    const { companyId, userId, role } = req.user;
+    const { companyId, role } = req.user;
     const { id } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Invalid Worker ID' });
     }
 
-    const company = await Company.findById(companyId).select('settings');
-    const isPrivacyEnabled = company?.settings?.isPassportPrivate && role === 'employee';
-
-    let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
-
-    const worker = await Worker.findOne(filter)
+    // Updated: Any employee can view details in their company
+    const worker = await Worker.findOne({ _id: id, companyId })
       .populate('employerId', 'name employerName companyName country')
       .populate('subAgentId', 'name')
       .populate('jobDemandId', 'jobTitle salary description')
@@ -83,8 +73,9 @@ exports.getWorkerById = async (req, res) => {
 
     if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
-    // Apply masking for single view
-    if (isPrivacyEnabled) {
+    // Privacy Masking Logic
+    const company = await Company.findById(companyId).select('settings');
+    if (company?.settings?.isPassportPrivate && role === 'employee') {
       worker.passportNumber = maskPassport(worker.passportNumber);
     }
 
@@ -95,17 +86,27 @@ exports.getWorkerById = async (req, res) => {
 };
 
 /**
- * @desc Add Worker (With Admin & Employee Notifications)
+ * @desc Add Worker (With Duplicate Protection)
  */
 exports.addWorker = async (req, res) => {
   try {
     const { passportNumber, jobDemandId, name } = req.body;
-    const { companyId, userId } = req.user;
+    const { companyId } = req.user;
+    const userId = req.user._id || req.user.userId || req.user.id;
 
+    // 1. Check for duplicate passport in the same company
     const existingWorker = await Worker.findOne({ passportNumber, companyId });
     if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
 
-    // Document handling logic
+    // 2. Prevent Double Creation (3-second window for same passport)
+    const recentCreation = await Worker.findOne({
+      passportNumber,
+      companyId,
+      createdAt: { $gte: new Date(Date.now() - 3000) }
+    });
+    if (recentCreation) return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Processing request..." });
+
+    // 3. Document handling logic
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
       initialDocs = req.files.map((file, index) => {
@@ -141,26 +142,25 @@ exports.addWorker = async (req, res) => {
 
     await newWorker.save();
 
-    // Update Job Demand
+    // 4. Link to Job Demand
     if (jobDemandId) {
       await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
     }
 
-    // --- REQUIREMENT 6: NOTIFICATIONS ---
-    // Find users who have "newWorker" notifications toggled ON
-    const notifyList = await User.find({
-      companyId,
-      "notificationSettings.newWorker": true,
-      isBlocked: false
-    }).select('email contactNumber fullName notificationSettings');
+    // 5. Notifications (Non-blocking)
+    try {
+      const notifyList = await User.find({
+        companyId,
+        "notificationSettings.newWorker": true,
+        isBlocked: false
+      });
 
-    // Logic: If notificationSettings.enabled is off globally, this loop skips or you handle it here
-    notifyList.forEach(user => {
-      if (user.notificationSettings.enabled) {
-        console.log(`[Notification] To: ${user.fullName} | Msg: New worker ${name} added.`);
-        // Here you would call your sendEmail() or sendNepaliSMS() functions
-      }
-    });
+      notifyList.forEach(user => {
+        if (user.notificationSettings.enabled) {
+          console.log(`[Notification] To: ${user.fullName} | New worker: ${name}`);
+        }
+      });
+    } catch (err) { console.error("Notif failed", err.message); }
 
     res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
   } catch (error) {
@@ -169,23 +169,27 @@ exports.addWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Worker
+ * @desc Update Worker (Creator or Admin Only)
  */
 exports.updateWorker = async (req, res) => {
   try {
     const { id } = req.params;
-    const { companyId, userId, role } = req.user;
+    const { companyId, role } = req.user;
+    const userId = req.user._id || req.user.userId || req.user.id;
 
+    // Permission Filter: Only Creator or Admin can Update
     let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
 
     const oldWorker = await Worker.findOne(filter);
-    if (!oldWorker) return res.status(404).json({ msg: 'Worker not found' });
+    if (!oldWorker) return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Unauthorized or not found' });
 
     const { existingDocuments, ...otherUpdates } = req.body;
     let updateData = { ...otherUpdates };
 
-    // Document Syncing Logic
+    // Document Syncing
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : [];
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file, index) => {
@@ -212,7 +216,7 @@ exports.updateWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Stage
+ * @desc Update Stage (Anyone in Company can update workflow)
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
@@ -228,7 +232,6 @@ exports.updateWorkerStage = async (req, res) => {
       stage.date = new Date();
     }
 
-    // Auto-calculate worker status
     const completed = worker.stageTimeline.filter(s => s.status === 'completed').length;
     if (completed >= 11) worker.status = 'deployed';
     else if (completed > 0) worker.status = 'processing';
@@ -241,16 +244,21 @@ exports.updateWorkerStage = async (req, res) => {
 };
 
 /**
- * @desc Delete Worker
+ * @desc Delete Worker (Creator or Admin Only)
  */
 exports.deleteWorker = async (req, res) => {
   try {
-    const { companyId, userId, role } = req.user;
+    const { companyId, role } = req.user;
+    const userId = req.user._id || req.user.userId || req.user.id;
+
+    // Permission Filter
     let filter = { _id: req.params.id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') filter.createdBy = userId;
+    if (role !== 'admin' && role !== 'super_admin') {
+      filter.createdBy = userId;
+    }
 
     const worker = await Worker.findOneAndDelete(filter);
-    if (!worker) return res.status(404).json({ msg: 'Worker not found' });
+    if (!worker) return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Unauthorized or not found' });
 
     if (worker.jobDemandId) {
       await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
