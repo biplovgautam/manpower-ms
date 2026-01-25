@@ -1,6 +1,8 @@
 const SubAgent = require('../models/SubAgent');
 const Worker = require('../models/Worker');
-const User = require('../models/User'); // Ensure User is imported for notifications
+const User = require('../models/User');
+// Import your centralized helper
+const { createNotification } = require('./notificationController');
 const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
 
@@ -11,7 +13,6 @@ exports.getSubAgents = async (req, res) => {
   try {
     const { companyId } = req.user;
 
-    // View logic: Everyone in the same company sees the full list
     const matchStage = {
       companyId: new mongoose.Types.ObjectId(companyId)
     };
@@ -55,9 +56,9 @@ exports.createSubAgent = async (req, res) => {
   try {
     const { name } = req.body;
     const { companyId } = req.user;
-    const userId = req.user._id || req.user.userId || req.user.id;
+    const userId = req.user._id || req.user.userId;
 
-    // 1. Prevent Double Creation (5-second window)
+    // 1. Prevent Double Creation
     const recentAgent = await SubAgent.findOne({
       name,
       companyId,
@@ -75,49 +76,35 @@ exports.createSubAgent = async (req, res) => {
     const agent = await SubAgent.create({
       ...req.body,
       companyId: companyId,
-      createdBy: userId // Fixed fallback logic
+      createdBy: userId
     });
 
-    // 3. Notifications (Try/Catch to prevent crash if User model fails)
-    try {
-      const notifyUsers = await User.find({
-        companyId: companyId,
-        isBlocked: false,
-        "notificationSettings.newSubAgent": true,
-        "notificationSettings.enabled": true
-      });
-
-      notifyUsers.forEach(user => {
-        console.log(`[Notif] To: ${user.fullName} | New Sub-Agent: ${name}`);
-      });
-    } catch (err) {
-      console.error("Notification Error:", err.message);
-    }
-
-    res.status(StatusCodes.CREATED).json({
-      success: true,
-      data: agent
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'agent',
+      content: `added a new sub-agent: ${name}`
     });
+
+    res.status(StatusCodes.CREATED).json({ success: true, data: agent });
   } catch (error) {
-    res.status(StatusCodes.BAD_REQUEST).json({
-      success: false,
-      message: error.message
-    });
+    res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Update sub-agent (Owner or Admin Only)
+ * @desc    Update sub-agent
  */
 exports.updateSubAgent = async (req, res) => {
   try {
     const { companyId, role } = req.user;
-    const userId = req.user._id || req.user.userId || req.user.id;
+    const userId = req.user._id || req.user.userId;
 
     let filter = { _id: req.params.id, companyId };
 
-    // Permission: Only Creator or Admin can Update
-    if (role !== 'admin' && role !== 'super_admin') {
+    // Role check: Only admin or the creator can edit
+    if (role !== 'admin' && role !== 'tenant_admin' && role !== 'super_admin') {
       filter.createdBy = userId;
     }
 
@@ -129,63 +116,72 @@ exports.updateSubAgent = async (req, res) => {
     if (!agent) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        message: "Unauthorized: You can only edit sub-agents you created."
+        message: "Unauthorized or Agent not found."
       });
     }
 
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'agent',
+      content: `updated sub-agent details: ${agent.name}`
+    });
+
     res.status(StatusCodes.OK).json({ success: true, data: agent });
   } catch (error) {
-    res.status(StatusCodes.BAD_REQUEST).json({
-      success: false,
-      message: error.message
-    });
+    res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Delete sub-agent (Owner or Admin Only)
+ * @desc    Delete sub-agent
  */
 exports.deleteSubAgent = async (req, res) => {
   try {
     const { companyId, role } = req.user;
-    const userId = req.user._id || req.user.userId || req.user.id;
+    const userId = req.user._id || req.user.userId;
 
     let filter = { _id: req.params.id, companyId };
 
-    // Permission: Only Creator or Admin can Delete
-    if (role !== 'admin' && role !== 'super_admin') {
+    if (role !== 'admin' && role !== 'tenant_admin' && role !== 'super_admin') {
       filter.createdBy = userId;
     }
 
-    const agent = await SubAgent.findOneAndDelete(filter);
+    // Find first to get the name before deletion
+    const agentToDelete = await SubAgent.findOne(filter);
 
-    if (!agent) {
+    if (!agentToDelete) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        message: "Unauthorized: You can only delete sub-agents you created."
+        message: "Unauthorized or Agent not found."
       });
     }
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      message: "Agent removed successfully"
+    const agentName = agentToDelete.name;
+    await agentToDelete.deleteOne();
+
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'agent',
+      content: `removed sub-agent: ${agentName}`
     });
+
+    res.status(StatusCodes.OK).json({ success: true, message: "Agent removed successfully" });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: error.message
-    });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
 /**
- * @desc    Get workers for a specific agent (Viewable by whole company)
+ * @desc    Get workers for a specific agent
  */
 exports.getSubAgentWorkers = async (req, res) => {
   try {
     const { companyId } = req.user;
 
-    // View Permission: Anyone in the company can see which workers are linked to this agent
     const agent = await SubAgent.findOne({ _id: req.params.id, companyId });
 
     if (!agent) {
@@ -200,14 +196,8 @@ exports.getSubAgentWorkers = async (req, res) => {
       companyId: companyId
     }).sort({ createdAt: -1 });
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      data: workers
-    });
+    res.status(StatusCodes.OK).json({ success: true, data: workers });
   } catch (error) {
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: error.message
-    });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
