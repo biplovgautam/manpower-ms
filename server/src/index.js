@@ -37,6 +37,7 @@ app.use('/api/sub-agents', subAgentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes); // ✅ ADDED
+app.use('/api/notification', settingsRoutes); // ✅ ADDED
 
 // Health Check
 app.get('/', (req, res) => {
