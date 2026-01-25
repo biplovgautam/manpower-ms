@@ -3,6 +3,8 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const SubAgent = require('../models/SubAgent');
 const JobDemand = require('../models/JobDemand');
+// Import your helper
+const { createNotification } = require('./notificationController');
 const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
 
@@ -15,16 +17,13 @@ const maskPassport = (passport) => {
 };
 
 /**
- * @desc Get all Workers (Company-wide View with Privacy)
+ * @desc Get all Workers
  */
 exports.getAllWorkers = async (req, res) => {
   try {
     const { companyId, role } = req.user;
-
-    // Updated: Everyone in the company sees the list
     let filter = { companyId };
 
-    // Check Company Privacy Settings for Passport Masking
     const company = await Company.findById(companyId).select('settings');
     const isPrivacyEnabled = company?.settings?.isPassportPrivate && role === 'employee';
 
@@ -52,7 +51,7 @@ exports.getAllWorkers = async (req, res) => {
 };
 
 /**
- * @desc Get Worker by ID (Company-wide View)
+ * @desc Get Worker by ID
  */
 exports.getWorkerById = async (req, res) => {
   try {
@@ -63,7 +62,6 @@ exports.getWorkerById = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).json({ msg: 'Invalid Worker ID' });
     }
 
-    // Updated: Any employee can view details in their company
     const worker = await Worker.findOne({ _id: id, companyId })
       .populate('employerId', 'name employerName companyName country')
       .populate('subAgentId', 'name')
@@ -73,7 +71,6 @@ exports.getWorkerById = async (req, res) => {
 
     if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
-    // Privacy Masking Logic
     const company = await Company.findById(companyId).select('settings');
     if (company?.settings?.isPassportPrivate && role === 'employee') {
       worker.passportNumber = maskPassport(worker.passportNumber);
@@ -86,7 +83,7 @@ exports.getWorkerById = async (req, res) => {
 };
 
 /**
- * @desc Add Worker (With Duplicate Protection)
+ * @desc Add Worker + Notification
  */
 exports.addWorker = async (req, res) => {
   try {
@@ -94,11 +91,9 @@ exports.addWorker = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    // 1. Check for duplicate passport in the same company
     const existingWorker = await Worker.findOne({ passportNumber, companyId });
     if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
 
-    // 2. Prevent Double Creation (3-second window for same passport)
     const recentCreation = await Worker.findOne({
       passportNumber,
       companyId,
@@ -106,7 +101,6 @@ exports.addWorker = async (req, res) => {
     });
     if (recentCreation) return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Processing request..." });
 
-    // 3. Document handling logic
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
       initialDocs = req.files.map((file, index) => {
@@ -142,25 +136,17 @@ exports.addWorker = async (req, res) => {
 
     await newWorker.save();
 
-    // 4. Link to Job Demand
     if (jobDemandId) {
       await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
     }
 
-    // 5. Notifications (Non-blocking)
-    try {
-      const notifyList = await User.find({
-        companyId,
-        "notificationSettings.newWorker": true,
-        isBlocked: false
-      });
-
-      notifyList.forEach(user => {
-        if (user.notificationSettings.enabled) {
-          console.log(`[Notification] To: ${user.fullName} | New worker: ${name}`);
-        }
-      });
-    } catch (err) { console.error("Notif failed", err.message); }
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'worker',
+      content: `registered a new worker: ${name} (${passportNumber})`
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
   } catch (error) {
@@ -169,7 +155,7 @@ exports.addWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Worker (Creator or Admin Only)
+ * @desc Update Worker + Notification
  */
 exports.updateWorker = async (req, res) => {
   try {
@@ -177,7 +163,6 @@ exports.updateWorker = async (req, res) => {
     const { companyId, role } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    // Permission Filter: Only Creator or Admin can Update
     let filter = { _id: id, companyId };
     if (role !== 'admin' && role !== 'super_admin') {
       filter.createdBy = userId;
@@ -189,7 +174,6 @@ exports.updateWorker = async (req, res) => {
     const { existingDocuments, ...otherUpdates } = req.body;
     let updateData = { ...otherUpdates };
 
-    // Document Syncing
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : [];
     if (req.files && req.files.length > 0) {
       const newDocs = req.files.map((file, index) => {
@@ -206,8 +190,15 @@ exports.updateWorker = async (req, res) => {
     }
     updateData.documents = updatedDocsList;
 
-    const updatedWorker = await Worker.findByIdAndUpdate(id, { $set: updateData }, { new: true })
-      .populate('employerId jobDemandId subAgentId');
+    const updatedWorker = await Worker.findByIdAndUpdate(id, { $set: updateData }, { new: true });
+
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'worker',
+      content: `updated personal details for worker: ${updatedWorker.name}`
+    });
 
     res.status(200).json({ success: true, data: updatedWorker });
   } catch (error) {
@@ -216,14 +207,16 @@ exports.updateWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Stage (Anyone in Company can update workflow)
+ * @desc Update Stage + Notification
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
     const { id, stageId } = req.params;
     const { status } = req.body;
+    const userId = req.user._id || req.user.userId || req.user.id;
+    const companyId = req.user.companyId;
 
-    const worker = await Worker.findOne({ _id: id, companyId: req.user.companyId });
+    const worker = await Worker.findOne({ _id: id, companyId });
     if (!worker) return res.status(404).json({ msg: 'Worker not found' });
 
     let stage = worker.stageTimeline.find(s => s.stage === stageId || (s._id && s._id.toString() === stageId));
@@ -237,6 +230,15 @@ exports.updateWorkerStage = async (req, res) => {
     else if (completed > 0) worker.status = 'processing';
 
     await worker.save();
+
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'worker',
+      content: `updated ${worker.name}'s stage [${stageId}] to ${status}`
+    });
+
     res.status(200).json({ success: true, data: worker });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -244,25 +246,37 @@ exports.updateWorkerStage = async (req, res) => {
 };
 
 /**
- * @desc Delete Worker (Creator or Admin Only)
+ * @desc Delete Worker + Notification
  */
 exports.deleteWorker = async (req, res) => {
   try {
     const { companyId, role } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
 
-    // Permission Filter
     let filter = { _id: req.params.id, companyId };
     if (role !== 'admin' && role !== 'super_admin') {
       filter.createdBy = userId;
     }
 
-    const worker = await Worker.findOneAndDelete(filter);
+    const worker = await Worker.findOne(filter);
     if (!worker) return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Unauthorized or not found' });
+
+    const workerName = worker.name;
+    const passport = worker.passportNumber;
 
     if (worker.jobDemandId) {
       await JobDemand.findByIdAndUpdate(worker.jobDemandId, { $pull: { workers: worker._id } });
     }
+
+    await Worker.deleteOne({ _id: worker._id });
+
+    // --- TRIGGER NOTIFICATION ---
+    await createNotification({
+      companyId,
+      createdBy: userId,
+      category: 'worker',
+      content: `deleted worker: ${workerName} (${passport})`
+    });
 
     res.status(200).json({ success: true, msg: 'Worker deleted' });
   } catch (error) {
