@@ -7,7 +7,12 @@ const { StatusCodes } = require('http-status-codes');
 
 exports.getPerformanceStats = async (req, res) => {
     try {
-        const { companyId, userId, role } = req.user;
+        const { companyId, role } = req.user;
+        // Robust userId fallback
+        const userId = req.user._id || req.user.userId || req.user.id;
+
+        const { view } = req.query; // Optional: ?view=personal
+
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -16,38 +21,43 @@ exports.getPerformanceStats = async (req, res) => {
             companyId: new mongoose.Types.ObjectId(companyId)
         };
 
-        if (role !== 'admin') {
+        /**
+         * LOGIC CHANGE: 
+         * By default, show company-wide stats. 
+         * If the user explicitly asks for 'personal' and isn't an admin, filter by createdBy.
+         */
+        if (view === 'personal' && role !== 'admin' && role !== 'super_admin') {
             aggFilter.createdBy = new mongoose.Types.ObjectId(userId);
         }
 
         const [workerTrend, demandTrend, counts, statusData] = await Promise.all([
-            // Workers Added Trend
+            // Workers Added Trend (Last 30 Days)
             Worker.aggregate([
                 { $match: { ...aggFilter, createdAt: { $gte: thirtyDaysAgo } } },
                 { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
                 { $sort: { _id: 1 } }
             ]),
-            // Job Demands Trend
+            // Job Demands Trend (Last 30 Days)
             JobDemand.aggregate([
                 { $match: { ...aggFilter, createdAt: { $gte: thirtyDaysAgo } } },
                 { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
                 { $sort: { _id: 1 } }
             ]),
-            // Totals
+            // Totals for Summary Cards
             Promise.all([
                 Worker.countDocuments(aggFilter),
-                Employer.countDocuments({ ...aggFilter, status: 'active' }),
+                Employer.countDocuments(aggFilter), // Removed status check to match Dashboard logic
                 JobDemand.countDocuments(aggFilter),
-                SubAgent.countDocuments({ ...aggFilter, status: 'active' })
+                SubAgent.countDocuments(aggFilter)
             ]),
-            // Status Distribution
+            // Worker Status Distribution (Pie Chart data)
             Worker.aggregate([
                 { $match: aggFilter },
                 { $group: { _id: "$status", count: { $sum: 1 } } }
             ])
         ]);
 
-        // Merge Trends into single array
+        // Merge Trends into single array for Area/Line Charts
         const allDates = [...new Set([...workerTrend.map(x => x._id), ...demandTrend.map(x => x._id)])].sort();
         const formattedChartData = allDates.map(date => ({
             date,
@@ -55,6 +65,7 @@ exports.getPerformanceStats = async (req, res) => {
             jobDemandsCreated: demandTrend.find(d => d._id === date)?.count || 0
         }));
 
+        // Convert aggregation array to easy-to-use object
         const statusMap = statusData.reduce((acc, curr) => {
             acc[curr._id] = curr.count;
             return acc;
@@ -70,11 +81,18 @@ exports.getPerformanceStats = async (req, res) => {
                 deployed: statusMap['deployed'] || 0,
                 processing: statusMap['processing'] || 0,
                 pending: statusMap['pending'] || 0,
+                // Additional status often used in recruitment
+                interview: statusMap['interview'] || 0,
+                medical: statusMap['medical-examination'] || 0
             },
-            data: formattedChartData // Matches frontend 'data' prop
+            data: formattedChartData,
+            viewType: view === 'personal' ? 'Personal Stats' : 'Company Stats'
         });
     } catch (error) {
         console.error("REPORT_ERROR:", error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            error: error.message
+        });
     }
 };

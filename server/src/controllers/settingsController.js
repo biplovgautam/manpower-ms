@@ -2,30 +2,27 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const { StatusCodes } = require('http-status-codes');
 
-// controllers/settingsController.js
+// 1. Toggle Passport Privacy
 const togglePassportPrivacy = async (req, res) => {
     try {
         const company = await Company.findById(req.user.companyId);
         if (!company) return res.status(404).json({ msg: "Company not found" });
 
-        // Ensure settings object exists in DB
-        if (!company.settings) {
-            company.settings = { isPassportPrivate: false };
-        }
+        const newVal = !company.settings?.isPassportPrivate;
 
-        // 1. Flip the value
-        company.settings.isPassportPrivate = !company.settings.isPassportPrivate;
+        // Use findOneAndUpdate to bypass general validation
+        await Company.findOneAndUpdate(
+            { _id: req.user.companyId },
+            { $set: { "settings.isPassportPrivate": newVal } },
+            { new: true, runValidators: false }
+        );
 
-        // 2. Save to Database
-        await company.save();
-
-        // 3. CRITICAL: Return the EXACT key the frontend expects
-        res.status(200).json({
+        res.status(StatusCodes.OK).json({
             success: true,
-            isPassportPrivate: company.settings.isPassportPrivate
+            isPassportPrivate: newVal
         });
     } catch (err) {
-        res.status(500).json({ msg: "Server error" });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Server error" });
     }
 };
 
@@ -37,15 +34,17 @@ const changeEmail = async (req, res) => {
     const emailExists = await User.findOne({ email: newEmail.toLowerCase().trim() });
     if (emailExists) return res.status(StatusCodes.BAD_REQUEST).json({ msg: "Email already in use" });
 
-    // Use req.user._id or req.user.userId based on your auth middleware
-    const user = await User.findById(req.user._id || req.user.userId);
-    user.email = newEmail.toLowerCase().trim();
-    await user.save();
+    // Bypass address/contact validation using findByIdAndUpdate
+    const user = await User.findByIdAndUpdate(
+        req.user._id || req.user.userId,
+        { $set: { email: newEmail.toLowerCase().trim() } },
+        { new: true, runValidators: false }
+    );
 
     res.status(StatusCodes.OK).json({ success: true, msg: "Email updated successfully" });
 };
 
-// 3. Billing Info (Calculates status dynamically)
+// 3. Billing Info
 const getBillingInfo = async (req, res) => {
     const company = await Company.findById(req.user.companyId).select('billing');
     if (!company) return res.status(StatusCodes.NOT_FOUND).json({ msg: "Billing info not found" });
@@ -69,21 +68,23 @@ const toggleBlockEmployee = async (req, res) => {
         return res.status(StatusCodes.BAD_REQUEST).json({ msg: "You cannot restrict yourself" });
     }
 
-    const user = await User.findOne({ _id: employeeId, companyId: req.user.companyId });
-    if (!user) return res.status(StatusCodes.NOT_FOUND).json({ msg: "User not found" });
+    const targetUser = await User.findById(employeeId);
+    if (!targetUser) return res.status(StatusCodes.NOT_FOUND).json({ msg: "User not found" });
 
-    user.isBlocked = !user.isBlocked;
-    await user.save();
+    const updatedUser = await User.findByIdAndUpdate(
+        employeeId,
+        { $set: { isBlocked: !targetUser.isBlocked } },
+        { new: true, runValidators: false }
+    );
 
     res.status(StatusCodes.OK).json({
         success: true,
-        msg: user.isBlocked ? `Access restricted for ${user.fullName}` : `Access restored for ${user.fullName}`,
-        isBlocked: user.isBlocked
+        msg: updatedUser.isBlocked ? `Access restricted` : `Access restored`,
+        isBlocked: updatedUser.isBlocked
     });
 };
 
-// 5. Get ALL Employees (Fixes the "Invisible List")
-// Logic: To manage access, you need to see both blocked AND active employees
+// 5. Get ALL Employees
 const getBlockedEmployees = async (req, res) => {
     try {
         const employees = await User.find({
@@ -91,30 +92,32 @@ const getBlockedEmployees = async (req, res) => {
             role: 'employee'
         }).select('fullName email isBlocked createdAt').sort({ createdAt: -1 });
 
-        // Wrapping in { data: employees } matches your frontend's 'eData.data'
         res.status(StatusCodes.OK).json({ success: true, data: employees });
     } catch (err) {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Failed to fetch members" });
     }
 };
 
-// 6. Update Notifications (Fixes the "Bounce Back" issue)
+// 6. Update Notifications (MASTER SWITCH FIX)
 const updateNotificationSettings = async (req, res) => {
-    const { settings } = req.body;
-    const user = await User.findById(req.user._id || req.user.userId);
+    try {
+        const { settings } = req.body;
+        const userId = req.user._id || req.user.userId;
 
-    if (settings && typeof settings === 'object') {
-        // Overwrite the notificationSettings object
-        user.notificationSettings = {
-            ...user.notificationSettings,
-            ...settings
-        };
-        user.markModified('notificationSettings');
+        // Use findByIdAndUpdate + $set to avoid triggering Address/Contact validation
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $set: { notificationSettings: settings } },
+            { new: true, runValidators: false }
+        );
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            data: updatedUser.notificationSettings
+        });
+    } catch (error) {
+        res.status(StatusCodes.BAD_REQUEST).json({ success: false, msg: error.message });
     }
-
-    await user.save();
-    // Returning the new settings ensures the frontend doesn't "revert" to old values
-    res.status(StatusCodes.OK).json({ success: true, data: user.notificationSettings });
 };
 
 module.exports = {
