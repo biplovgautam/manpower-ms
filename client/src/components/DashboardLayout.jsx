@@ -1,40 +1,46 @@
+"use client";
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
 export function DashboardLayout({
     children,
+    user,
+    notifications = [],
     role,
-    userName,
     currentPath,
     onNavigate,
     onLogout
 }) {
     return (
-        <div className="flex h-screen bg-gray-50">
-            {/* Sidebar - Persistent on the left */}
+        <div className="flex h-screen bg-gray-50 overflow-hidden">
+            {/* Sidebar with navigation logic */}
             <Sidebar
+                key={`sidebar-${currentPath}`}
                 role={role}
                 currentPath={currentPath}
                 onNavigate={onNavigate}
                 onLogout={onLogout}
             />
 
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {/* Targeting the search elements specifically:
-                  1. [&_input]:hidden hides the text field
-                  2. [&_svg.text-gray-400]:hidden (or similar) targets common icon patterns
-                  3. [&_.search-container]:hidden targets common class names
+            <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+                {/* Header now receives the onNavigate prop. 
+                   This allows the 'VIEW FULL LOGS' button inside 
+                   the Header dropdown to work.
                 */}
-                <div className="[&_input]:hidden [&_svg]:first-of-type:hidden [&_.search-icon]:hidden">
-                    <Header userName={userName} userRole={role} />
-                </div>
+                <Header
+                    key={`header-${currentPath}`}
+                    user={user}
+                    notifications={notifications}
+                    showSearch={false}
+                    onNavigate={onNavigate}
+                />
 
-                {/* Main Content Area */}
-                <main className="flex-1 overflow-y-auto p-8 bg-slate-50">
-                    {children}
+                <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+                    <div className="max-w-7xl mx-auto">
+                        {children}
+                    </div>
                 </main>
             </div>
         </div>
     );
 }
- 

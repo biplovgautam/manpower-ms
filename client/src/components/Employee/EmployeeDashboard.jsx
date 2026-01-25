@@ -103,7 +103,7 @@ const StatCard = memo(function StatCard({ title, value, icon, gradient, path, on
     return (
         <div
             onClick={() => isClickable && onNavigate(path)}
-            className={`relative z-50 overflow-hidden rounded-xl shadow-lg transition-all duration-300 bg-white border border-slate-100 
+            className={`relative overflow-hidden rounded-xl shadow-lg transition-all duration-300 bg-white border border-slate-100 
         ${isClickable ? "cursor-pointer hover:shadow-2xl hover:-translate-y-1 active:scale-[0.98] group" : "cursor-default"}`}
         >
             <div className={`h-1.5 w-full bg-gradient-to-r ${gradient}`} />
@@ -112,13 +112,13 @@ const StatCard = memo(function StatCard({ title, value, icon, gradient, path, on
                 <div className="absolute inset-0 bg-gradient-to-t from-black/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             )}
 
-            <div className="p-6 flex items-center justify-between">
+            <div className="p-5 sm:p-6 flex items-center justify-between">
                 <div>
-                    <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">{title}</p>
-                    <p className="text-3xl font-black text-slate-900 mt-2 tracking-tight">{value ?? "—"}</p>
+                    <p className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">{title}</p>
+                    <p className="text-2xl sm:text-3xl font-black text-slate-900 mt-1.5 tracking-tight">{value ?? "—"}</p>
                 </div>
 
-                <div className={`p-4 rounded-2xl bg-slate-100 text-slate-700 transition-all duration-300 ${isClickable ? "group-hover:scale-110" : ""}`}>
+                <div className={`p-3 sm:p-4 rounded-2xl bg-slate-100 text-slate-700 transition-all duration-300 ${isClickable ? "group-hover:scale-110" : ""}`}>
                     {icon}
                 </div>
             </div>
@@ -170,12 +170,12 @@ const ReminderItem = memo(function ReminderItem({
     }, []);
 
     return (
-        <div className={`bg-white p-6 rounded-2xl shadow-sm border-l-8 flex gap-5 hover:shadow-md transition-all group ${border} ${bg}`}>
-            <div className="flex flex-col items-center justify-center w-16 h-16 bg-white rounded-2xl shrink-0 border shadow-sm">
+        <div className={`bg-white p-5 sm:p-6 rounded-2xl shadow-sm border-l-8 flex gap-4 sm:gap-5 hover:shadow-md transition-all group ${border} ${bg}`}>
+            <div className="flex flex-col items-center justify-center w-14 sm:w-16 h-14 sm:h-16 bg-white rounded-2xl shrink-0 border shadow-sm">
                 <span className="text-xs font-black text-slate-600 uppercase mb-1">
                     {isBS ? dateDisplay(rem.targetDate).month : new Date(rem.targetDate).toLocaleString("en-US", { month: "short" })}
                 </span>
-                <span className="text-2xl font-black text-slate-800">
+                <span className="text-xl sm:text-2xl font-black text-slate-800">
                     {isBS ? dateDisplay(rem.targetDate).day : new Date(rem.targetDate).getDate()}
                 </span>
             </div>
@@ -183,7 +183,7 @@ const ReminderItem = memo(function ReminderItem({
             <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                     <Bell size={20} className={`shrink-0 ${isOver ? "animate-pulse-fast text-red-600" : isToday ? "animate-pulse text-red-500" : isSoon ? "animate-pulse-slow text-orange-600" : ""}`} />
-                    <p className="text-md font-bold text-slate-900 leading-snug flex-1">{rem.content}</p>
+                    <p className="text-base font-bold text-slate-900 leading-snug flex-1">{rem.content}</p>
                 </div>
 
                 {linkedLabel && (
@@ -302,7 +302,7 @@ function useDashboard() {
 
         setUrgentCount(urgent);
 
-        if (urgent > 0 && localStorage.getItem("token")) {
+        if (urgent > 0) {
             const msg = urgent === 1 ? "1 urgent reminder!" : `${urgent} urgent reminders!`;
             toast(
                 <div className="flex items-center gap-3 w-full">
@@ -323,9 +323,7 @@ function useDashboard() {
             toast.dismiss(URGENT_TOAST_ID);
         }
 
-        return () => {
-            toast.dismiss(URGENT_TOAST_ID);
-        };
+        return () => toast.dismiss(URGENT_TOAST_ID);
     }, [notes, loading, daysLeft]);
 
     const sortedReminders = useMemo(() => {
@@ -559,7 +557,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
 
     if (loading) {
         return (
-            <div className="h-screen flex items-center justify-center bg-[#F9FAFB]">
+            <div className="flex items-center justify-center min-h-[70vh]">
                 <RefreshCw className="animate-spin text-indigo-600" size={48} />
             </div>
         );
@@ -578,7 +576,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
             <Toaster position="top-center" />
 
             <div className="min-h-screen bg-[#F9FAFB] p-4 sm:p-6 lg:p-8 xl:p-10 space-y-8 lg:space-y-10 text-slate-800">
-                {/* Header */}
+                {/* HEADER + ADD NOTE / ADD REMINDER BUTTONS */}
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div className="flex items-center gap-5">
                         <div className="bg-slate-900 p-4 rounded-2xl text-white shadow-xl">
@@ -625,7 +623,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                     </div>
                 </div>
 
-                {/* Stats Cards */}
+                {/* Stat Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6">
                     {statCards.map((stat) => (
                         <StatCard
@@ -636,9 +634,9 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                     ))}
                 </div>
 
-                {/* Main Content */}
+                {/* Main two-column content */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-                    {/* Left Column - Reminders + Form */}
+                    {/* Left column - Reminders + Form */}
                     <div className="lg:col-span-5 space-y-6 lg:space-y-8">
                         {form && (
                             <Card className="p-6 sm:p-7 lg:p-8 rounded-2xl shadow-md border border-slate-200/70 bg-white">
@@ -758,12 +756,9 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                             </Card>
                         )}
 
-                        {/* Reminders Section - NO OVERLAP LAYOUT */}
                         {/* Reminders Section */}
                         <div className="space-y-6">
-                            {/* Header - fully responsive, no overlap */}
                             <div className="flex flex-col gap-4">
-                                {/* Title + bell */}
                                 <div className="flex items-center gap-3">
                                     <div className="relative">
                                         <Bell size={24} className="text-rose-600" />
@@ -778,15 +773,13 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                                     </h2>
                                 </div>
 
-                                {/* Controls row - toggle + filter */}
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6 sm:justify-between">
-                                    {/* Active / Archived toggle */}
                                     <div className="flex bg-slate-100 p-1 rounded-xl text-sm font-medium border border-slate-200 w-fit">
                                         <button
                                             onClick={() => setShowArchived(false)}
                                             className={`px-5 py-2 rounded-lg transition-all font-medium ${!showArchived
-                                                    ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
-                                                    : "text-slate-600 hover:bg-slate-50"
+                                                ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
+                                                : "text-slate-600 hover:bg-slate-50"
                                                 }`}
                                         >
                                             Active
@@ -794,15 +787,14 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                                         <button
                                             onClick={() => setShowArchived(true)}
                                             className={`px-5 py-2 rounded-lg transition-all font-medium ${showArchived
-                                                    ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
-                                                    : "text-slate-600 hover:bg-slate-50"
+                                                ? "bg-white shadow-sm text-indigo-700 font-semibold border border-indigo-200"
+                                                : "text-slate-600 hover:bg-slate-50"
                                                 }`}
                                         >
                                             Archived
                                         </button>
                                     </div>
 
-                                    {/* Filter dropdown */}
                                     <select
                                         className="p-2.5 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm w-full sm:w-auto min-w-[140px]"
                                         value={reminderFilter}
@@ -815,7 +807,6 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                                 </div>
                             </div>
 
-                            {/* List */}
                             <div className="space-y-4 max-h-[520px] overflow-y-auto pr-2 custom-scrollbar">
                                 {sortedReminders.length === 0 ? (
                                     <p className="text-center text-slate-400 py-12">
@@ -847,7 +838,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                         </div>
                     </div>
 
-                    {/* Right Column - Operational Logs */}
+                    {/* Right column - Operational Logs */}
                     <div className="lg:col-span-7 space-y-6">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between px-2">
                             <h2 className="text-xl font-black flex items-center gap-3 whitespace-nowrap">
@@ -954,7 +945,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                 </div>
 
                 {/* Command Center */}
-                <div className="pt-12 border-t border-slate-200">
+                <div className="pt-10 border-t border-slate-200">
                     <div className="mb-6 px-2">
                         <h2 className="text-2xl font-black text-slate-900">Command Center</h2>
                         <p className="text-sm font-bold text-slate-500 uppercase tracking-widest">Quick Actions</p>
