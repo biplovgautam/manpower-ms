@@ -1,215 +1,284 @@
 "use client";
-import Link from 'next/link'; // Import Link for navigation
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import Link from 'next/link';
 import {
-    ArcElement,
-    BarElement,
-    CategoryScale,
-    Chart as ChartJS,
-    Filler,
-    Legend,
-    LinearScale,
-    LineElement,
-    PointElement,
-    Title,
-    Tooltip,
+    ArcElement, BarElement, CategoryScale, Chart as ChartJS,
+    Filler, Legend, LinearScale, LineElement, PointElement,
+    Title, Tooltip,
 } from 'chart.js';
-import {
-    Activity,
-    Award,
-    BarChart3,
-    Building2,
-    Download,
-    Globe,
-    PieChart,
-    Users
+import { 
+    Users, Building2, Activity, 
+    ArrowUpRight, ArrowDownRight, Briefcase
 } from 'lucide-react';
-import { Bar, Doughnut } from 'react-chartjs-2';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import { Bar, Line } from 'react-chartjs-2';
+import { Card } from '../ui/Card';
 
-// Register ChartJS modules
 ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-    Filler,
-    ArcElement
+    CategoryScale, LinearScale, BarElement, PointElement,
+    LineElement, Title, Tooltip, Legend, Filler, ArcElement
 );
 
-export default function AdminReportsView({ data }) {
-    const summary = data?.summary || {};
-    const chartData = data?.chartData || [];
+export default function AdminReportsView({ initialData }) {
+    const [timeframe, setTimeframe] = useState('Month');
+    const [reportData, setReportData] = useState(initialData);
+    const [loading, setLoading] = useState(!initialData);
 
-    // Safely calculate demand value
-    const demandCount = summary.totalDemands ?? summary.totalJobDemands ?? summary.totalJobDemand ?? 0;
-    
-    // Safely calculate success rate
+    useEffect(() => {
+        if (initialData) {
+            setReportData(initialData);
+            setLoading(false);
+        }
+    }, [initialData]);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (timeframe === 'Month' && initialData && !reportData?.isUpdate) {
+                return;
+            }
+
+            setLoading(true);
+            try {
+                const token = localStorage.getItem('token'); 
+                const response = await axios.get(`http://localhost:5000/api/reports/performance-stats?view=${timeframe.toLowerCase()}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                
+                if (response.data.success) {
+                    setReportData({ ...response.data, isUpdate: true });
+                }
+            } catch (error) {
+                console.error("Failed to fetch reports:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchStats();
+    }, [timeframe]);
+
+    const summary = reportData?.summary || {};
+    const chartData = reportData?.chartData || [];
+    const topEmployers = reportData?.topEmployers || [];
+
     const successRate = summary.totalWorkers > 0 
         ? Math.round(((summary.deployed || 0) / summary.totalWorkers) * 100) 
         : 0;
 
+    if (loading && !reportData) {
+        return (
+            <div className="flex items-center justify-center min-h-[60vh]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+                    <div className="animate-pulse text-slate-400 font-bold uppercase tracking-widest text-[10px]">
+                        Updating Analytics...
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="p-8 space-y-8 bg-[#fbfcfd] min-h-screen">
-            {/* 1. Executive Header */}
-            <div className="flex justify-between items-center border-b border-slate-200 pb-6">
+        <div className="p-6 lg:p-10 bg-[#f9fafb] min-h-screen font-sans text-slate-700">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-6">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-900 tracking-tighter">AGENCY COMMAND CENTER</h1>
-                    <p className="text-sm text-slate-500 font-bold uppercase tracking-widest flex items-center gap-2">
-                        <Globe size={14} className="text-indigo-500" /> Operational Overview • Real-time Data
+                    <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Manpower Analytics</h1>
+                    <p className="text-xs text-slate-400 font-medium mt-1">
+                        Monitoring {reportData?.viewType || 'Agency Records'}
                     </p>
                 </div>
-                <button className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-xs font-black hover:scale-105 transition-all shadow-xl shadow-indigo-100">
-                    <Download size={14} /> EXPORT FULL AUDIT
-                </button>
-            </div>
 
-            {/* 2. Four Pillars KPI Strip - Reordered to put Agents first */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                
-                <StatCard 
-                    label="Workers" 
-                    value={summary.totalWorkers || 0} 
-                    sub="Total Workers Registered" 
-                    icon={<Users className="text-blue-600" />} 
-                    href="/dashboard/tenant-admin/workers" // Update with your actual route
-                />
-                <StatCard 
-                    label="Demand" 
-                    value={demandCount} 
-                    sub="Open Job Vacancies" 
-                    icon={<Building2 className="text-purple-600" />} 
-                    href="/dashboard/tenant-admin/job-demand" // Update with your actual route
-                />
-                <StatCard 
-                    label="Agents" 
-                    value={summary.activeSubAgents || 0} 
-                    sub="Active Supply Network" 
-                    icon={<Award className="text-amber-600" />} 
-                    href="/dashboard/tenant-admin/sub-agents" // Update with your actual route
-                />
-                <StatCard 
-                    label="Velocity" 
-                    value={`${successRate}%`} 
-                    sub="Deployment Success Rate" 
-                    icon={<Activity className="text-emerald-600" />} 
-                    // No link for Velocity as it's a metric, not a list
-                />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* 3. Market Balance Chart */}
-                <Card className="lg:col-span-2 border-none shadow-xl shadow-slate-200/40 bg-white">
-                    <CardHeader className="border-b border-slate-50">
-                        <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <BarChart3 size={18} className="text-indigo-500" /> Supply vs Demand Trend
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 h-[350px]">
-                        {chartData.length > 0 ? (
-                            <Bar
-                                data={{
-                                    labels: chartData.map(d => d.date || ''),
-                                    datasets: [
-                                        { 
-                                            label: 'Worker Intake', 
-                                            data: chartData.map(d => d.workers || 0), 
-                                            backgroundColor: '#4f46e5', 
-                                            borderRadius: 5 
-                                        },
-                                        { 
-                                            label: 'Employer Demand', 
-                                            data: chartData.map(d => d.demands || 0), 
-                                            backgroundColor: '#e2e8f0', 
-                                            borderRadius: 5 
-                                        }
-                                    ]
-                                }}
-                                options={{ 
-                                    maintainAspectRatio: false, 
-                                    scales: { 
-                                        x: { grid: { display: false } }, 
-                                        y: { beginAtZero: true } 
-                                    } 
-                                }}
-                            />
-                        ) : (
-                            <div className="h-full flex items-center justify-center text-slate-300 italic text-sm">
-                                No trend data available.
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-
-                {/* 4. Pipeline Status */}
-                <Card className="border-none shadow-xl shadow-slate-200/40 bg-white">
-                    <CardHeader className="border-b border-slate-50">
-                        <CardTitle className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                            <PieChart size={18} className="text-rose-500" /> Pipeline Status
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                        <div className="h-[240px]">
-                            <Doughnut
-                                data={{
-                                    labels: ['Deployed', 'Processing', 'Pending'],
-                                    datasets: [{
-                                        data: [summary.deployed || 0, summary.processing || 0, summary.pending || 0],
-                                        backgroundColor: ['#10b981', '#3b82f6', '#f59e0b'],
-                                        borderWidth: 0,
-                                        hoverOffset: 10
-                                    }]
-                                }}
-                                options={{ 
-                                    maintainAspectRatio: false, 
-                                    plugins: { legend: { position: 'bottom' } }, 
-                                    cutout: '70%' 
-                                }}
-                            />
-                        </div>
-                        <div className="mt-6 space-y-3">
-                            <StatusRow label="Ready for Deployment" value={summary.deployed || 0} color="bg-emerald-500" />
-                            <StatusRow label="Active Documentation" value={summary.processing || 0} color="bg-blue-500" />
-                            <StatusRow label="Waiting/New" value={summary.pending || 0} color="bg-amber-500" />
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-    );
-}
-
-// Internal Helper Components
-function StatCard({ label, value, sub, icon, href }) {
-    const content = (
-        <Card className={`border-none shadow-sm ring-1 ring-slate-200 p-6 bg-white transition-all group ${href ? 'hover:ring-indigo-500 cursor-pointer active:scale-95' : ''}`}>
-            <div className="flex justify-between items-start mb-4">
-                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white transition-colors">
-                    {icon}
+                <div className="flex items-center bg-white border border-slate-200 p-1 rounded-xl shadow-sm">
+                    {['Day', 'Week', 'Month'].map((period) => (
+                        <button
+                            key={period}
+                            onClick={() => setTimeframe(period)}
+                            className={`px-6 py-2 text-xs font-bold rounded-lg transition-all ${
+                                timeframe === period 
+                                ? 'bg-slate-900 text-white shadow-md' 
+                                : 'text-slate-500 hover:bg-slate-50'
+                            }`}
+                        >
+                            {period}
+                        </button>
+                    ))}
                 </div>
-                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
             </div>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{value}</h2>
-            <p className="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-widest">{label}</p>
-            <p className="text-[10px] text-slate-400 mt-4 italic border-t border-slate-50 pt-2">{sub}</p>
-        </Card>
-    );
 
-    // If href is provided, wrap in Link, otherwise just return the card
-    return href ? <Link href={href}>{content}</Link> : content;
+            {/* Top KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <MiniStatCard 
+                    label="Total Workers" 
+                    value={summary.totalWorkers || 0} 
+                    trend="Live" 
+                    isUp={true} 
+                    icon={<Users size={20} className="text-emerald-500" />} 
+                    bgColor="bg-emerald-50"
+                />
+                <MiniStatCard 
+                    label="Job Openings" 
+                    value={summary.totalJobDemands || 0} 
+                    trend="Active" 
+                    isUp={true} 
+                    icon={<Building2 size={20} className="text-purple-500" />} 
+                    bgColor="bg-purple-50"
+                />
+                <MiniStatCard 
+                    label="People at Work" 
+                    value={summary.deployed || 0} 
+                    trend="Success" 
+                    isUp={true} 
+                    icon={<Briefcase size={20} className="text-orange-500" />} 
+                    bgColor="bg-orange-50"
+                />
+                <MiniStatCard 
+                    label="Success Rate" 
+                    value={`${successRate}%`} 
+                    trend="Ratio" 
+                    isUp={successRate > 50} 
+                    icon={<Activity size={20} className="text-blue-500" />} 
+                    bgColor="bg-blue-50"
+                />
+            </div>
+
+            {/* Charts Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
+                <Card className="lg:col-span-3 border-none shadow-sm rounded-2xl bg-white p-6">
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="font-bold text-slate-800 text-sm">Workers vs Jobs</h3>
+                        <div className="flex gap-4 text-[9px] font-bold uppercase text-slate-400 tracking-tighter">
+                            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-500" /> New Workers</span>
+                            <span className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-400" /> Job Demands</span>
+                        </div>
+                    </div>
+                    <div className="h-[300px]">
+                        <Bar 
+                            data={{
+                                labels: chartData.map(d => d.date),
+                                datasets: [
+                                    { label: 'Workers', data: chartData.map(d => d.workers), backgroundColor: '#3b82f6', borderRadius: 4, barThickness: 8 },
+                                    { label: 'Demands', data: chartData.map(d => d.demands), backgroundColor: '#10b981', borderRadius: 4, barThickness: 8 }
+                                ]
+                            }}
+                            options={{ 
+                                maintainAspectRatio: false, 
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    y: { beginAtZero: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+                                    x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                                }
+                            }}
+                        />
+                    </div>
+                </Card>
+
+                <Card className="lg:col-span-2 border-none shadow-sm rounded-2xl bg-white p-6">
+                    <h3 className="font-bold text-slate-800 text-sm mb-6">Success Trend</h3>
+                    <div className="h-[300px]">
+                        <Line 
+                            data={{
+                                labels: chartData.map(d => d.date),
+                                datasets: [{
+                                    label: 'Deployed',
+                                    data: chartData.map(d => d.deployed), 
+                                    borderColor: '#10b981',
+                                    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+                                    fill: true,
+                                    tension: 0.4,
+                                    pointRadius: 2
+                                }]
+                            }}
+                            options={{ 
+                                maintainAspectRatio: false, 
+                                plugins: { 
+                                    legend: { display: false },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: (context) => `Deployed: ${context.raw}`
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    y: { beginAtZero: true, display: false },
+                                    x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                                }
+                            }}
+                        />
+                    </div>
+                </Card>
+            </div>
+
+            {/* Top 5 Employers Table */}
+            <Card className="border-none shadow-sm rounded-2xl bg-white overflow-hidden">
+                <div className="p-6 border-b border-slate-50">
+                    <h3 className="font-bold text-slate-800">Top Performing Employers</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                            <tr>
+                                <th className="px-6 py-5">Employer Name</th>
+                                <th className="px-6 py-5">Location</th>
+                                <th className="px-6 py-5 text-center">Total Deployed</th>
+                                <th className="px-6 py-5">Status</th>
+                                <th className="px-6 py-5 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                            {topEmployers.length > 0 ? topEmployers.map((emp, idx) => (
+                                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                    {/* FIX: Using emp.name which now maps to employerName in backend */}
+                                    <td className="px-6 py-4 font-bold text-slate-700">{emp.name || "Unknown"}</td>
+                                    <td className="px-6 py-4 text-slate-500 text-xs">{emp.loc}</td>
+                                    <td className="px-6 py-4 font-bold text-slate-800 text-center">{emp.deployed}</td>
+                                    <td className="px-6 py-4">
+                                        <span className={`px-2 py-1 rounded-lg text-[10px] font-bold capitalize ${
+                                            emp.status?.toLowerCase() === 'active' 
+                                            ? 'text-emerald-600 bg-emerald-50' 
+                                            : 'text-slate-400 bg-slate-50'
+                                        }`}>
+                                            {emp.status}
+                                        </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <Link href={`/admin/employers/${emp._id}`}>
+                                            <button className="p-2 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors">
+                                                <ArrowUpRight size={18} />
+                                            </button>
+                                        </Link>
+                                    </td>
+                                </tr>
+                            )) : (
+                                <tr>
+                                    <td colSpan="5" className="px-6 py-10 text-center text-slate-400 text-xs italic">
+                                        No employer data found for this period.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+        </div>
+    );
 }
 
-function StatusRow({ label, value, color }) {
+function MiniStatCard({ label, value, trend, isUp, icon, bgColor }) {
     return (
-        <div className="flex justify-between items-center text-xs font-bold">
-            <div className="flex items-center gap-2 text-slate-500 uppercase tracking-tighter">
-                <div className={`w-2 h-2 rounded-full ${color}`}></div>
-                {label}
+        <Card className="border-none shadow-sm rounded-2xl bg-white p-5 transition-all hover:shadow-md group">
+            <div className={`w-11 h-11 rounded-xl ${bgColor} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+                {icon}
             </div>
-            <span className="text-slate-900">{value}</span>
-        </div>
+            <div className="flex items-end justify-between">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-800 tracking-tight">{value}</h2>
+                    <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">{label}</p>
+                </div>
+                <div className={`flex items-center gap-0.5 text-[9px] font-black px-2 py-1 rounded-full ${isUp ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'}`}>
+                    {isUp ? <ArrowUpRight size={10} /> : <ArrowDownRight size={10} />} {trend}
+                </div>
+            </div>
+        </Card>
     );
 }
