@@ -3,13 +3,12 @@ const User = require('../models/User');
 const Company = require('../models/Company');
 const SubAgent = require('../models/SubAgent');
 const JobDemand = require('../models/JobDemand');
-// Import your helper
 const { createNotification } = require('./notificationController');
 const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
 
 /**
- * HELPER: Mask Passport Number
+ * HELPER: Mask Passport Number for Privacy
  */
 const maskPassport = (passport) => {
   if (!passport) return "";
@@ -78,7 +77,7 @@ exports.getWorkerById = async (req, res) => {
 
     res.status(StatusCodes.OK).json({ success: true, data: worker });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message });
   }
 };
 
@@ -94,6 +93,7 @@ exports.addWorker = async (req, res) => {
     const existingWorker = await Worker.findOne({ passportNumber, companyId });
     if (existingWorker) return res.status(400).json({ msg: 'Passport number already exists' });
 
+    // Anti-spam debounce
     const recentCreation = await Worker.findOne({
       passportNumber,
       companyId,
@@ -140,7 +140,7 @@ exports.addWorker = async (req, res) => {
       await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
     }
 
-    // --- TRIGGER NOTIFICATION ---
+    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
@@ -164,7 +164,7 @@ exports.updateWorker = async (req, res) => {
     const userId = req.user._id || req.user.userId || req.user.id;
 
     let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') {
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'tenant_admin') {
       filter.createdBy = userId;
     }
 
@@ -192,7 +192,7 @@ exports.updateWorker = async (req, res) => {
 
     const updatedWorker = await Worker.findByIdAndUpdate(id, { $set: updateData }, { new: true });
 
-    // --- TRIGGER NOTIFICATION ---
+    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
@@ -217,7 +217,7 @@ exports.updateWorkerStage = async (req, res) => {
     const companyId = req.user.companyId;
 
     const worker = await Worker.findOne({ _id: id, companyId });
-    if (!worker) return res.status(404).json({ msg: 'Worker not found' });
+    if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
 
     let stage = worker.stageTimeline.find(s => s.stage === stageId || (s._id && s._id.toString() === stageId));
     if (stage) {
@@ -231,12 +231,12 @@ exports.updateWorkerStage = async (req, res) => {
 
     await worker.save();
 
-    // --- TRIGGER NOTIFICATION ---
+    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
       category: 'worker',
-      content: `updated ${worker.name}'s stage [${stageId}] to ${status}`
+      content: `updated ${worker.name}'s stage [${stageId.replace(/-/g, ' ')}] to ${status}`
     });
 
     res.status(200).json({ success: true, data: worker });
@@ -254,13 +254,14 @@ exports.deleteWorker = async (req, res) => {
     const userId = req.user._id || req.user.userId || req.user.id;
 
     let filter = { _id: req.params.id, companyId };
-    if (role !== 'admin' && role !== 'super_admin') {
+    if (role !== 'admin' && role !== 'super_admin' && role !== 'tenant_admin') {
       filter.createdBy = userId;
     }
 
     const worker = await Worker.findOne(filter);
     if (!worker) return res.status(StatusCodes.FORBIDDEN).json({ msg: 'Unauthorized or not found' });
 
+    // Capture details before deletion for the log
     const workerName = worker.name;
     const passport = worker.passportNumber;
 
@@ -270,7 +271,7 @@ exports.deleteWorker = async (req, res) => {
 
     await Worker.deleteOne({ _id: worker._id });
 
-    // --- TRIGGER NOTIFICATION ---
+    // --- TRIGGER NOTIFICATION (Object Syntax) ---
     await createNotification({
       companyId,
       createdBy: userId,
@@ -278,7 +279,7 @@ exports.deleteWorker = async (req, res) => {
       content: `deleted worker: ${workerName} (${passport})`
     });
 
-    res.status(200).json({ success: true, msg: 'Worker deleted' });
+    res.status(200).json({ success: true, msg: 'Worker deleted successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

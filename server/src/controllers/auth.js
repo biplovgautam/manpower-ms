@@ -264,6 +264,7 @@ const forgotPassword = async (req, res) => {
     try {
         const cleanId = normalizeIdentifier(req.body.identifier);
         const user = await User.findOne({ $or: [{ email: cleanId }, { contactNumber: cleanId }] });
+
         if (!user) return res.status(404).json({ msg: 'Account not found.' });
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -274,10 +275,36 @@ const forgotPassword = async (req, res) => {
         user.otpReference = otpRef;
         await user.save();
 
-        await sendNepaliSMS(user.contactNumber, `OTP: ${otp} (Ref: ${otpRef})`);
-        res.status(StatusCodes.OK).json({ success: true, otpReference: otpRef });
+        // 1. Send SMS (Existing)
+        if (user.contactNumber) {
+            await sendNepaliSMS(user.contactNumber, `OTP: ${otp} (Ref: ${otpRef})`);
+        }
+
+        // 2. Send Email (New)
+        if (user.email) {
+            await sendEmail({
+                to: user.email,
+                subject: 'Password Reset OTP - Manpower Support',
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; border: 1px solid #eee; padding: 20px;">
+                        <h2 style="color: #333;">Password Reset Request</h2>
+                        <p>You requested a password reset. Use the OTP below to proceed:</p>
+                        <div style="background: #f4f4f4; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px;">
+                            ${otp}
+                        </div>
+                        <p style="margin-top: 10px; color: #666;">Reference Code: <strong>${otpRef}</strong></p>
+                        <p style="color: #ff0000; font-size: 12px;">This code expires in 10 minutes.</p>
+                        <hr style="border: 0; border-top: 1px solid #eee;" />
+                        <p style="font-size: 11px; color: #999;">If you did not request this, please ignore this email.</p>
+                    </div>
+                `
+            });
+        }
+
+        res.status(200).json({ success: true, otpReference: otpRef });
     } catch (err) {
-        res.status(500).json({ msg: 'Error sending OTP' });
+        console.error(err);
+        res.status(500).json({ msg: 'Error sending verification codes.' });
     }
 };
 
@@ -295,34 +322,79 @@ const resendOTP = async (req, res) => {
         user.otpReference = otpRef;
         await user.save();
 
-        await sendNepaliSMS(user.contactNumber, `New OTP: ${otp} (Ref: ${otpRef})`);
-        res.status(200).json({ success: true, msg: 'OTP resent.' });
+        // Send SMS
+        if (user.contactNumber) {
+            await sendNepaliSMS(user.contactNumber, `New OTP: ${otp} (Ref: ${otpRef})`);
+        }
+
+        // Send Email
+        if (user.email) {
+            await sendEmail({
+                to: user.email,
+                subject: 'New Password Reset OTP',
+                html: `
+                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd;">
+                        <h3>New OTP Requested</h3>
+                        <p>Your new verification code is:</p>
+                        <h2 style="color: #2c3e50; letter-spacing: 2px;">${otp}</h2>
+                        <p>Reference: <strong>${otpRef}</strong></p>
+                        <p>This code is valid for 10 minutes.</p>
+                    </div>
+                `
+            });
+        }
+
+        res.status(200).json({ success: true, msg: 'OTP resent.', otpReference: otpRef });
     } catch (err) {
         res.status(500).json({ msg: 'Resend failed.' });
     }
 };
 
 const resetPassword = async (req, res) => {
-    const { identifier, otp, newPassword } = req.body;
-    const cleanId = normalizeIdentifier(identifier);
-    const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
+    try {
+        const { identifier, otp, newPassword } = req.body;
+        const cleanId = normalizeIdentifier(identifier);
+        const hashedOTP = crypto.createHash('sha256').update(otp).digest('hex');
 
-    const user = await User.findOne({
-        $or: [{ email: cleanId }, { contactNumber: cleanId }],
-        passwordResetToken: hashedOTP,
-        passwordResetExpires: { $gt: Date.now() }
-    });
+        const user = await User.findOne({
+            $or: [{ email: cleanId }, { contactNumber: cleanId }],
+            passwordResetToken: hashedOTP,
+            passwordResetExpires: { $gt: Date.now() }
+        });
 
-    if (!user) return res.status(400).json({ msg: 'Invalid or Expired OTP.' });
+        if (!user) return res.status(400).json({ msg: 'Invalid or Expired OTP.' });
 
-    user.password = newPassword;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    user.otpReference = undefined;
-    await user.save();
+        // Update password and clear reset fields
+        user.password = newPassword;
+        user.passwordResetToken = undefined;
+        user.passwordResetExpires = undefined;
+        user.otpReference = undefined;
+        await user.save();
 
-    res.status(200).json({ success: true, msg: 'Password updated.' });
+        // Send confirmation email
+        if (user.email) {
+            await sendEmail({
+                to: user.email,
+                subject: 'Password Changed Successfully',
+                html: `
+                    <div style="font-family: sans-serif; padding: 20px;">
+                        <h3 style="color: #27ae60;">Success!</h3>
+                        <p>Hello,</p>
+                        <p>This is a confirmation that the password for your <strong>Manpower Support</strong> account has been successfully changed.</p>
+                        <p>If you did not perform this action, please contact our support team immediately.</p>
+                    </div>
+                `
+            });
+        }
+
+        res.status(200).json({ success: true, msg: 'Password updated.' });
+    } catch (err) {
+        res.status(500).json({ msg: 'Internal server error.' });
+    }
 };
+
+
+
 const getMe = async (req, res) => {
     try {
         // req.user is provided by your 'protect' middleware

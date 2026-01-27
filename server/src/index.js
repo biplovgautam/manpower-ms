@@ -13,6 +13,7 @@ const subAgentRoutes = require('./routes/subAgentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const settingsRoutes = require('./routes/settingsRoutes'); // ✅ ADDED
+const notificationRoutes = require('./routes/notificationRoutes'); // ✅ ADDED
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,7 +38,7 @@ app.use('/api/sub-agents', subAgentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes); // ✅ ADDED
-app.use('/api/notification', settingsRoutes); // ✅ ADDED
+app.use('/api/notifications', notificationRoutes); // ✅ ADDED
 
 // Health Check
 app.get('/', (req, res) => {

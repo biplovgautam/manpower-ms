@@ -1,13 +1,12 @@
 const SubAgent = require('../models/SubAgent');
 const Worker = require('../models/Worker');
 const User = require('../models/User');
-// Import your centralized helper
 const { createNotification } = require('./notificationController');
 const mongoose = require('mongoose');
 const { StatusCodes } = require('http-status-codes');
 
 /**
- * @desc    Get all sub-agents (Company-wide view)
+ * @desc    Get all sub-agents (Company-wide view with worker counts)
  */
 exports.getSubAgents = async (req, res) => {
   try {
@@ -50,7 +49,7 @@ exports.getSubAgents = async (req, res) => {
 };
 
 /**
- * @desc    Create a new sub-agent
+ * @desc    Create a new sub-agent + Notify
  */
 exports.createSubAgent = async (req, res) => {
   try {
@@ -58,7 +57,7 @@ exports.createSubAgent = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    // 1. Prevent Double Creation
+    // 1. Prevent Double Creation (5-second window)
     const recentAgent = await SubAgent.findOne({
       name,
       companyId,
@@ -79,7 +78,7 @@ exports.createSubAgent = async (req, res) => {
       createdBy: userId
     });
 
-    // --- TRIGGER NOTIFICATION ---
+    // 3. TRIGGER NOTIFICATION (Object Syntax)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -94,7 +93,7 @@ exports.createSubAgent = async (req, res) => {
 };
 
 /**
- * @desc    Update sub-agent
+ * @desc    Update sub-agent + Notify
  */
 exports.updateSubAgent = async (req, res) => {
   try {
@@ -120,7 +119,7 @@ exports.updateSubAgent = async (req, res) => {
       });
     }
 
-    // --- TRIGGER NOTIFICATION ---
+    // TRIGGER NOTIFICATION (Object Syntax)
     await createNotification({
       companyId,
       createdBy: userId,
@@ -135,7 +134,7 @@ exports.updateSubAgent = async (req, res) => {
 };
 
 /**
- * @desc    Delete sub-agent
+ * @desc    Delete sub-agent + Notify
  */
 exports.deleteSubAgent = async (req, res) => {
   try {
@@ -161,7 +160,7 @@ exports.deleteSubAgent = async (req, res) => {
     const agentName = agentToDelete.name;
     await agentToDelete.deleteOne();
 
-    // --- TRIGGER NOTIFICATION ---
+    // TRIGGER NOTIFICATION (Object Syntax)
     await createNotification({
       companyId,
       createdBy: userId,

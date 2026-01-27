@@ -1,17 +1,17 @@
 const JobDemand = require('../models/JobDemand');
 const Employer = require('../models/Employers');
 const User = require('../models/User');
-// Import the centralized notification function
 const { createNotification } = require('./notificationController');
 const { StatusCodes } = require('http-status-codes');
 
-// @desc    Get all Job Demands (Company-wide view)
+/**
+ * @desc    Get all Job Demands (Company-wide)
+ * @route   GET /api/v1/demands
+ */
 exports.getJobDemands = async (req, res) => {
   try {
     const { companyId } = req.user;
-    const filter = { companyId };
-
-    const jobDemands = await JobDemand.find(filter)
+    const jobDemands = await JobDemand.find({ companyId })
       .populate('employerId', 'employerName')
       .populate('createdBy', 'fullName')
       .sort({ createdAt: -1 });
@@ -26,13 +26,14 @@ exports.getJobDemands = async (req, res) => {
   }
 };
 
-// @desc    Get Single Job Demand
+/**
+ * @desc    Get Single Job Demand
+ * @route   GET /api/v1/demands/:id
+ */
 exports.getJobDemandById = async (req, res) => {
   try {
     const { companyId } = req.user;
-    const filter = { _id: req.params.id, companyId };
-
-    const jobDemand = await JobDemand.findOne(filter)
+    const jobDemand = await JobDemand.findOne({ _id: req.params.id, companyId })
       .populate('employerId', 'employerName')
       .populate('createdBy', 'fullName')
       .populate({
@@ -50,29 +51,34 @@ exports.getJobDemandById = async (req, res) => {
   }
 };
 
-// @desc    Create new Job Demand
+/**
+ * @desc    Create new Job Demand + Notify
+ * @route   POST /api/v1/demands
+ */
 exports.createJobDemand = async (req, res) => {
   try {
     const { employerName, ...otherData } = req.body;
     const userId = req.user._id || req.user.userId;
     const { companyId } = req.user;
 
-    // 1. Find Employer
+    // 1. Validate Employer
     const employer = await Employer.findOne({ employerName, companyId });
-    if (!employer) return res.status(StatusCodes.NOT_FOUND).json({ error: "Employer not found" });
+    if (!employer) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "Employer not found in your company records" });
+    }
 
-    // 2. Prevent Double Creation (5-second window)
-    const recentDemand = await JobDemand.findOne({
+    // 2. Prevent Spam (5-second debounce)
+    const isDuplicate = await JobDemand.findOne({
       createdBy: userId,
       jobTitle: otherData.jobTitle,
       createdAt: { $gte: new Date(Date.now() - 5000) }
     });
 
-    if (recentDemand) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ error: "Duplicate request. Please wait." });
+    if (isDuplicate) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: "Duplicate demand detected. Please wait." });
     }
 
-    // 3. Create Demand
+    // 3. Save to DB
     const jobDemand = await JobDemand.create({
       ...otherData,
       employerId: employer._id,
@@ -80,13 +86,13 @@ exports.createJobDemand = async (req, res) => {
       companyId: companyId
     });
 
-    // 4. Trigger Notification
-    await createNotification(
+    // 4. Trigger Activity Log (Object-based syntax)
+    await createNotification({
       companyId,
-      userId,
-      'demand',
-      `created a new job demand: ${otherData.jobTitle} for ${employerName}`
-    );
+      createdBy: userId,
+      category: 'demand',
+      content: `added a new job demand: ${jobDemand.jobTitle} for ${employerName}`
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: jobDemand });
   } catch (error) {
@@ -94,7 +100,10 @@ exports.createJobDemand = async (req, res) => {
   }
 };
 
-// @desc    Update Job Demand
+/**
+ * @desc    Update Job Demand + Notify
+ * @route   PATCH /api/v1/demands/:id
+ */
 exports.updateJobDemand = async (req, res) => {
   try {
     const { id } = req.params;
@@ -102,6 +111,7 @@ exports.updateJobDemand = async (req, res) => {
     const { companyId, role } = req.user;
     const userId = req.user._id || req.user.userId;
 
+    // Security check
     let filter = { _id: id, companyId };
     if (role !== 'admin' && role !== 'tenant_admin') {
       filter.createdBy = userId;
@@ -120,17 +130,17 @@ exports.updateJobDemand = async (req, res) => {
     if (!jobDemand) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        error: "Unauthorized: Only the creator or admin can edit this."
+        error: "Permission denied or Demand does not exist."
       });
     }
 
-    // Trigger Notification
-    await createNotification(
+    // Trigger Activity Log (Object-based syntax)
+    await createNotification({
       companyId,
-      userId,
-      'demand',
-      `updated the job demand: ${jobDemand.jobTitle}`
-    );
+      createdBy: userId,
+      category: 'demand',
+      content: `updated the details for job demand: ${jobDemand.jobTitle}`
+    });
 
     res.status(StatusCodes.OK).json({ success: true, data: jobDemand });
   } catch (error) {
@@ -138,7 +148,10 @@ exports.updateJobDemand = async (req, res) => {
   }
 };
 
-// @desc    Delete Job Demand
+/**
+ * @desc    Delete Job Demand + Notify
+ * @route   DELETE /api/v1/demands/:id
+ */
 exports.deleteJobDemand = async (req, res) => {
   try {
     const { id } = req.params;
@@ -150,32 +163,37 @@ exports.deleteJobDemand = async (req, res) => {
       filter.createdBy = userId;
     }
 
-    const demandToDelete = await JobDemand.findOne(filter);
+    const demandToDelete = await JobDemand.findOne(filter).populate('employerId', 'employerName');
+
     if (!demandToDelete) {
-      return res.status(StatusCodes.FORBIDDEN).json({
+      return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
-        error: "Unauthorized or not found."
+        error: "Demand not found or unauthorized access."
       });
     }
 
-    const deletedTitle = demandToDelete.jobTitle;
+    const title = demandToDelete.jobTitle;
+    const emp = demandToDelete.employerId?.employerName || "Employer";
+
     await demandToDelete.deleteOne();
 
-    // Trigger Notification
-    await createNotification(
+    // Trigger Activity Log (Object-based syntax)
+    await createNotification({
       companyId,
-      userId,
-      'demand',
-      `deleted the job demand: ${deletedTitle}`
-    );
+      createdBy: userId,
+      category: 'demand',
+      content: `removed the job demand: ${title} (${emp})`
+    });
 
-    res.status(StatusCodes.OK).json({ success: true, message: "Removed successfully" });
+    res.status(StatusCodes.OK).json({ success: true, message: "Demand successfully deleted" });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
   }
 };
 
-// @desc    Get Employer Specific Demands
+/**
+ * @desc    Get Employer Specific Demands
+ */
 exports.getEmployerJobDemands = async (req, res) => {
   try {
     const { employerId } = req.params;

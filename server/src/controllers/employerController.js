@@ -81,12 +81,12 @@ exports.createEmployer = async (req, res) => {
         });
 
         // Trigger Notification via Controller Function
-        await createNotification(
+        await createNotification({
             companyId,
-            userId,
-            'employer',
-            `added a new employer: ${employerName} (${country})`
-        );
+            createdBy: userId, // Match the key name to your schema
+            category: 'employer',
+            content: `added a new employer: ${employerName} (${country})`
+        });
 
         res.status(StatusCodes.CREATED).json({ success: true, data: newEmployer });
     } catch (error) {
@@ -114,12 +114,12 @@ exports.updateEmployer = async (req, res) => {
         );
 
         // Trigger Notification via Controller Function
-        await createNotification(
+        await createNotification({
             companyId,
-            userId,
-            'employer',
-            `updated details for employer: ${updatedEmployer.employerName}`
-        );
+            createdBy: userId,
+            category: 'employer',
+            content: `updated details for employer: ${updatedEmployer.employerName}`
+        });
 
         res.status(StatusCodes.OK).json({ success: true, data: updatedEmployer });
     } catch (error) {
@@ -144,12 +144,12 @@ exports.deleteEmployer = async (req, res) => {
         await employer.deleteOne(); // Trigger middleware if you have any
 
         // Trigger Notification via Controller Function
-        await createNotification(
+        await createNotification({
             companyId,
-            userId,
-            'employer',
-            `removed employer: ${employerName}`
-        );
+            createdBy: userId,
+            category: 'employer',
+            content: `removed employer: ${employerName}`
+        });
 
         res.status(StatusCodes.OK).json({ success: true, message: "Employer deleted successfully" });
     } catch (error) {

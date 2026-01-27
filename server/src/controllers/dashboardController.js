@@ -1,4 +1,5 @@
 const Note = require('../models/Notes');
+const Notification = require('../models/Notification'); // Ensure this model exists
 const Employer = require('../models/Employers');
 const JobDemand = require('../models/JobDemand');
 const Worker = require('../models/Worker');
@@ -7,8 +8,7 @@ const User = require('../models/User');
 const { StatusCodes } = require('http-status-codes');
 
 /**
- * @desc    Get Dashboard stats, notes, and dropdown data
- * Logic: Stats are Company-wide, Notes are filtered by "Tag" (assignedTo)
+ * @desc    Get Dashboard stats, notes, notifications, and dropdown data
  */
 const getDashboardData = async (req, res) => {
     try {
@@ -16,10 +16,7 @@ const getDashboardData = async (req, res) => {
         const userId = req.user._id || req.user.userId || req.user.id;
         const companyFilter = { companyId };
 
-        // PERSONALIZED NOTE FILTER: 
-        // 1. You created it OR 
-        // 2. You are tagged in it OR 
-        // 3. It's a general note for the whole company (assignedTo is null)
+        // 1. PERSONALIZED NOTE FILTER (Reminders/Tasks)
         const noteFilter = {
             companyId,
             $or: [
@@ -36,6 +33,7 @@ const getDashboardData = async (req, res) => {
             agentsCount,
             employeesCount,
             notes,
+            notifications, // New: Fetching Activity Logs
             employerList,
             workerList,
             demandList,
@@ -48,15 +46,20 @@ const getDashboardData = async (req, res) => {
             SubAgent.countDocuments(companyFilter),
             User.countDocuments({ ...companyFilter, role: 'employee' }),
 
-            // Fetch personalized notes
+            // Fetch personalized Notes (Reminders)
             Note.find(noteFilter)
-                .populate('createdBy', '_id fullName role email')
+                .populate('createdBy', '_id fullName role')
                 .populate('assignedTo', '_id fullName')
-                .populate('linkedEntityId')
                 .sort({ createdAt: -1 })
-                .limit(200),
+                .limit(100),
 
-            // Dropdowns (Always company-wide so employees can select any entity)
+            // Fetch Company-wide Notifications (Activity Logs)
+            Notification.find(companyFilter)
+                .populate('createdBy', 'fullName')
+                .sort({ createdAt: -1 })
+                .limit(50),
+
+            // Dropdowns
             Employer.find(companyFilter).select('employerName country _id').sort('employerName'),
             Worker.find(companyFilter).select('name passportNumber _id').sort('name'),
             JobDemand.find(companyFilter).select('jobTitle _id').sort('jobTitle'),
@@ -67,6 +70,7 @@ const getDashboardData = async (req, res) => {
         res.status(StatusCodes.OK).json({
             success: true,
             data: {
+                user: req.user, // Useful for frontend context
                 stats: {
                     employersAdded: employersCount,
                     activeJobDemands: demandsCount,
@@ -74,7 +78,8 @@ const getDashboardData = async (req, res) => {
                     activeSubAgents: agentsCount,
                     totalEmployees: employeesCount
                 },
-                notes,
+                notes,         // Reminders/Tasks
+                notifications, // Activity Logs for Header/Logs page
                 dropdowns: {
                     employers: employerList,
                     workers: workerList,
@@ -85,7 +90,7 @@ const getDashboardData = async (req, res) => {
             }
         });
     } catch (error) {
-        console.error(error);
+        console.error("Dashboard Data Error:", error);
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
             success: false,
             msg: "Failed to fetch dashboard data"
@@ -94,7 +99,7 @@ const getDashboardData = async (req, res) => {
 };
 
 /**
- * @desc    Create a new note/reminder (with assignedTo tagging)
+ * @desc    Create a new note/reminder
  */
 const addNote = async (req, res) => {
     try {
@@ -110,8 +115,8 @@ const addNote = async (req, res) => {
             targetDate: targetDate || null,
             attachment: fileUrl,
             linkedEntityId: linkedEntityId || null,
-            assignedTo: assignedTo || null, // The "Tag" logic
-            companyId: companyId,
+            assignedTo: assignedTo || null,
+            companyId,
             createdBy: userId,
             isCompleted: false
         });
@@ -136,9 +141,8 @@ const updateNote = async (req, res) => {
         const { companyId, role } = req.user;
         const userId = req.user._id || req.user.userId || req.user.id;
 
-        // Restriction: Only Creator or Admin can modify content
         let filter = { _id: id, companyId };
-        if (role !== 'admin' && role !== 'super_admin') {
+        if (role !== 'admin' && role !== 'tenant_admin') {
             filter.createdBy = userId;
         }
 
@@ -163,7 +167,7 @@ const updateNote = async (req, res) => {
 };
 
 /**
- * @desc    Mark as done (Anyone tagged in the note OR the creator)
+ * @desc    Mark reminder as done
  */
 const markReminderAsDone = async (req, res) => {
     try {
@@ -171,7 +175,6 @@ const markReminderAsDone = async (req, res) => {
         const { companyId } = req.user;
         const userId = req.user._id || req.user.userId || req.user.id;
 
-        // Permission: User must be part of the company AND (Creator OR Tagged Person)
         const note = await Note.findOneAndUpdate(
             {
                 _id: id,
@@ -196,7 +199,7 @@ const markReminderAsDone = async (req, res) => {
 };
 
 /**
- * @desc    Delete Note (Owner or Admin Only)
+ * @desc    Delete Note
  */
 const deleteNote = async (req, res) => {
     try {
@@ -205,7 +208,7 @@ const deleteNote = async (req, res) => {
         const userId = req.user._id || req.user.userId || req.user.id;
 
         let filter = { _id: id, companyId };
-        if (role !== 'admin' && role !== 'super_admin') {
+        if (role !== 'admin' && role !== 'tenant_admin') {
             filter.createdBy = userId;
         }
 
