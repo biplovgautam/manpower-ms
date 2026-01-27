@@ -1,56 +1,62 @@
 "use client";
 import axios from 'axios';
-import { useRouter } from 'next/navigation'; // Use Next.js router
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import NotificationsPage from '../../../../components/NotificationPage';
 
 export default function AdminNotifPage() {
-    const router = useRouter(); // Initialize router
-    const [user, setUser] = useState(null);
-    const [notifications, setNotifications] = useState([]);
+    const router = useRouter();
+    const [data, setData] = useState({ user: null, notifications: [], loading: true });
 
-    // Centralized navigation handler
-    const handleNavigation = (path) => {
-        // If path is a simple slug, map it; otherwise use the path directly
-        const routes = {
-            'dashboard': '/dashboard/tenant-admin',
-            'notifications': '/dashboard/tenant-admin/notifications',
-            'worker': '/dashboard/tenant-admin/worker',
-        };
-        const target = routes[path] || `/dashboard/tenant-admin/${path}`;
-        router.push(target);
+    const fetchData = async () => {
+        try {
+            const res = await axios.get('http://localhost:5000/api/dashboard', {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setData({
+                user: res.data.data.user,
+                notifications: res.data.data.notifications || [],
+                loading: false
+            });
+        } catch (err) { toast.error("Load failed"); }
     };
 
-    useEffect(() => {
-        const fetchData = async () => {
-            const token = localStorage.getItem('token');
-            try {
-                const res = await axios.get('http://localhost:5000/api/dashboard', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                setUser(res.data.data.user);
-                setNotifications(res.data.data.notes || []);
-            } catch (err) {
-                console.error("Failed to fetch logs", err);
-            }
-        };
-        fetchData();
-    }, []);
+    const handleMarkAllAsRead = async () => {
+        const userId = String(data.user?._id || data.user?.id || "");
+        try {
+            await axios.patch('http://localhost:5000/api/notifications/read-all', { userId }, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+            });
+            setData(prev => ({
+                ...prev,
+                notifications: prev.notifications.map(n => ({
+                    ...n,
+                    isReadBy: Array.from(new Set([...(n.isReadBy || []).map(id => String(id)), userId]))
+                }))
+            }));
+            toast.success("All activity marked as read");
+        } catch (err) { toast.error("Sync error"); }
+    };
+
+    useEffect(() => { fetchData(); }, []);
+
+    if (data.loading) return null;
 
     return (
         <DashboardLayout
             role="admin"
-            user={user}
-            notifications={notifications}
-            currentPath="/dashboard/tenant-admin/notifications"
-            onNavigate={handleNavigation} // <--- MUST PASS THIS FUNCTION
-            onLogout={() => {
-                localStorage.removeItem('token');
-                router.push('/login');
-            }}
+            user={data.user}
+            notifications={data.notifications}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onNavigate={(p) => router.push(`/dashboard/tenant-admin/${p}`)}
         >
-            <NotificationsPage notifications={notifications} />
+            <NotificationsPage
+                notifications={data.notifications}
+                currentUserId={String(data.user?._id || data.user?.id)}
+                onMarkAllAsRead={handleMarkAllAsRead}
+            />
         </DashboardLayout>
     );
 }

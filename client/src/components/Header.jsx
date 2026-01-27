@@ -1,146 +1,153 @@
 "use client";
-import { Bell, CheckCheck, ExternalLink, Search } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Bell, CheckCheck, Loader2, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export function Header({
-    user,
+    user, // This now receives the full user object from the /me API call
     notifications = [],
-    showSearch = true,
-    onNavigate // This prop might be undefined in some views
+    showSearch = false,
+    onNavigate,
+    onRefreshNotifications
 }) {
     const [isNotifOpen, setIsNotifOpen] = useState(false);
-    const [localNotifications, setLocalNotifications] = useState(notifications);
+    const [isMarkingRead, setIsMarkingRead] = useState(false);
     const dropdownRef = useRef(null);
 
-    useEffect(() => {
-        setLocalNotifications(notifications);
-    }, [notifications]);
+    // 1. Robust Data Normalization
+    const userData = useMemo(() => {
+        // Since /api/auth/me returns the user object directly:
+        // We prioritize fullName, then name, then fallback to the Role as a string
+        const nameToDisplay = user?.fullName || user?.name || user?.username || (user?.role ? user.role.toUpperCase() : "User");
 
+        return {
+            id: String(user?._id || user?.id || ""),
+            fullName: nameToDisplay,
+            role: user?.role || "Member",
+            // Avatar takes the first letter of the resolved name
+            avatar: nameToDisplay.charAt(0).toUpperCase()
+        };
+    }, [user]);
+
+    // 2. Notification Filtering (Activity Log)
+    const { unreadNotifications } = useMemo(() => {
+        const list = Array.isArray(notifications) ? notifications : [];
+        const unread = list.filter(n => {
+            const readList = n.isReadBy?.map(id => String(id)) || [];
+            return !readList.includes(userData.id);
+        }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        return { unreadNotifications: unread };
+    }, [notifications, userData.id]);
+
+    // Close dropdown on outside click
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        const handleClick = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
                 setIsNotifOpen(false);
             }
         };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
     }, []);
 
-    const userData = user?.user || user;
-    const currentUserId = userData?._id || userData?.userId;
-    const userName = userData?.fullName || userData?.name || "User Account";
-
-    const rawRole = userData?.role || "Member";
-    const userRole = rawRole.toLowerCase().split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-
-    const unreadNotifications = localNotifications.filter(
-        n => !n.isReadBy?.includes(currentUserId)
-    );
-
-    const handleMarkAllRead = async (e) => {
+    const handleMarkAllReadLocal = async (e) => {
         e.preventDefault();
-        e.stopPropagation();
-
-        try {
-            const token = localStorage.getItem('token');
-            const markedLocally = localNotifications.map(n => ({
-                ...n,
-                isReadBy: [...(n.isReadBy || []), currentUserId]
-            }));
-            setLocalNotifications(markedLocally);
-
-            await fetch('http://localhost:5000/api/v1/notifications/read-all', {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            setTimeout(() => setIsNotifOpen(false), 500);
-        } catch (err) {
-            console.error("Mark read failed", err);
+        if (onRefreshNotifications && !isMarkingRead && unreadNotifications.length > 0) {
+            setIsMarkingRead(true);
+            try {
+                await onRefreshNotifications();
+                setIsNotifOpen(false);
+            } catch (error) {
+                console.error("Error marking read:", error);
+            } finally {
+                setIsMarkingRead(false);
+            }
         }
     };
 
     return (
-        <header className="bg-white border-b border-gray-200 px-8 py-4 relative z-50">
+        <header className="bg-white border-b border-slate-200 px-8 py-4 relative z-50">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4 flex-1 max-w-xl">
+                {/* Left Section: Optional Search */}
+                <div className="flex-1 max-w-xl">
                     {showSearch && (
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                             <input
                                 type="text"
                                 placeholder="Search..."
-                                className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm focus:ring-2 focus:ring-indigo-500/20 transition-all"
                             />
                         </div>
                     )}
                 </div>
 
-                <div className="flex items-center gap-4">
+                {/* Right Section: Notifications & User Profile */}
+                <div className="flex items-center gap-6">
+
+                    {/* Notification Bell */}
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsNotifOpen(!isNotifOpen)}
-                            className={`p-2 rounded-lg transition-all relative ${isNotifOpen ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-100'}`}
+                            className={`p-2.5 rounded-xl relative transition-colors ${isNotifOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'}`}
                         >
                             <Bell size={20} />
                             {unreadNotifications.length > 0 && (
-                                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                                <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
                             )}
                         </button>
 
                         {isNotifOpen && (
-                            <div className="absolute right-0 mt-3 w-80 bg-white border border-gray-200 shadow-2xl rounded-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                                    <h3 className="font-bold text-sm text-gray-800">New Updates</h3>
-                                    <button onClick={handleMarkAllRead} className="flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800">
-                                        <CheckCheck size={14} /> MARK ALL READ
-                                    </button>
+                            <div className="absolute right-0 mt-3 w-80 bg-white border border-slate-200 shadow-2xl rounded-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                                <div className="p-4 border-b flex justify-between items-center bg-slate-50/50">
+                                    <h3 className="font-bold text-sm text-slate-800">Activity Log</h3>
+                                    {unreadNotifications.length > 0 && (
+                                        <button
+                                            onClick={handleMarkAllReadLocal}
+                                            disabled={isMarkingRead}
+                                            className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase hover:text-indigo-700 disabled:opacity-50"
+                                        >
+                                            {isMarkingRead ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={14} />}
+                                            Mark all read
+                                        </button>
+                                    )}
                                 </div>
-                                <div className="max-h-[300px] overflow-y-auto">
+                                <div className="max-h-[320px] overflow-y-auto">
                                     {unreadNotifications.length > 0 ? (
                                         unreadNotifications.map((item) => (
-                                            <div key={item._id} className="p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                                                <p className="text-[12px] text-gray-700">
-                                                    <span className="font-bold text-gray-900">{item.createdBy?.fullName || 'System'}</span> {item.content}
+                                            <div key={item._id} className="p-4 border-b last:border-0 hover:bg-slate-50 transition-colors">
+                                                <p className="text-[12px] text-slate-600 leading-relaxed">
+                                                    <span className="font-bold text-slate-900">{item.createdBy?.fullName || 'System'}</span> {item.content}
                                                 </p>
-                                                <span className="text-[10px] text-gray-400 mt-1 block">
+                                                <span className="text-[10px] text-slate-400 mt-1 block">
                                                     {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="p-10 text-center text-gray-400 text-xs">No new notifications</div>
+                                        <div className="p-10 text-center text-slate-400 text-xs">No new updates</div>
                                     )}
                                 </div>
-                                <button
-                                    onClick={() => {
-                                        // --- SAFETY CHECK ADDED HERE ---
-                                        if (typeof onNavigate === 'function') {
-                                            onNavigate('notifications');
-                                        } else {
-                                            console.warn("Navigation handler missing. Redirecting via window...");
-                                            window.location.href = "/dashboard/employee/notifications";
-                                        }
-                                        setIsNotifOpen(false);
-                                    }}
-                                    className="w-full py-3 text-[11px] font-bold text-blue-600 hover:bg-blue-50 border-t border-gray-100 flex items-center justify-center gap-2 uppercase"
-                                >
-                                    VIEW FULL LOGS <ExternalLink size={12} />
-                                </button>
                             </div>
                         )}
                     </div>
 
-                    <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
-                        <div className="text-right hidden sm:block">
-                            <p className="text-sm font-black text-gray-900 leading-none mb-1">{userName}</p>
-                            <p className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{userRole}</p>
+                    {/* User Info Section */}
+                    <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
+                        <div className="text-right hidden md:block">
+                            {/* Full Name from Database via /me */}
+                            <p className="text-sm font-black text-slate-900 leading-none">
+                                {userData.fullName}
+                            </p>
+                            {/* Formatted Role */}
+                            <p className="text-[10px] text-indigo-600 font-bold uppercase mt-1 tracking-wider">
+                                {userData.role.replace('_', ' ')}
+                            </p>
                         </div>
-                        <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-blue-400 rounded-xl flex items-center justify-center text-white font-black shadow-md border-2 border-white">
-                            {userName.charAt(0).toUpperCase()}
+
+                        {/* Avatar Initial */}
+                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100 ring-2 ring-white">
+                            {userData.avatar}
                         </div>
                     </div>
                 </div>
