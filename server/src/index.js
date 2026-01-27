@@ -12,8 +12,9 @@ const workerRoutes = require('./routes/workerRoutes');
 const subAgentRoutes = require('./routes/subAgentRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
-const settingsRoutes = require('./routes/settingsRoutes'); // ✅ ADDED
-const notificationRoutes = require('./routes/notificationRoutes'); // ✅ ADDED
+const settingsRoutes = require('./routes/settingsRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -26,7 +27,13 @@ app.use(cors({
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
 }));
-app.use(express.json());
+
+/** * UPDATED: Increased limits to 5MB to handle Base64 image strings 
+ * Place this BEFORE your routes
+ */
+app.use(express.json({ limit: '5MB' }));
+app.use(express.urlencoded({ limit: '5MB', extended: true }));
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
@@ -37,8 +44,9 @@ app.use('/api/workers', workerRoutes);
 app.use('/api/sub-agents', subAgentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/settings', settingsRoutes); // ✅ ADDED
-app.use('/api/notifications', notificationRoutes); // ✅ ADDED
+app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/support', supportRoutes);
 
 // Health Check
 app.get('/', (req, res) => {
