@@ -15,7 +15,6 @@ export default function SubAgentPage() {
     const [userData, setUserData] = useState({ fullName: '', role: '' });
     const [loading, setLoading] = useState(true);
 
-    // Centralized logout
     const handleLogout = () => {
         localStorage.clear();
         router.push('/login');
@@ -23,12 +22,9 @@ export default function SubAgentPage() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        // FIX: Changed 'userRole' to 'role' to match your Login component logic
         const role = localStorage.getItem('role');
 
-        // 1. Auth Guard with case-insensitive check
         if (!token || role?.toLowerCase() !== 'employee') {
-            console.warn("Access denied: Invalid session or role mismatch.");
             handleLogout();
             return;
         }
@@ -44,7 +40,6 @@ export default function SubAgentPage() {
     const fetchAgents = async (token) => {
         setLoading(true);
         try {
-            // 1. Fetch both simultaneously
             const [agentsRes, workersRes] = await Promise.all([
                 fetch('http://localhost:5000/api/sub-agents', {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -54,7 +49,6 @@ export default function SubAgentPage() {
                 })
             ]);
 
-            // Handle session expiration (401)
             if (agentsRes.status === 401 || workersRes.status === 401) {
                 handleLogout();
                 return;
@@ -65,14 +59,11 @@ export default function SubAgentPage() {
 
             if (agentsResult.success && workersResult.success) {
                 const allWorkers = workersResult.data || [];
-
-                // 2. Map and Attach Count
                 const processedAgents = agentsResult.data.map(agent => {
                     const matchingWorkers = allWorkers.filter(worker => {
                         const wId = worker.subAgentId?._id || worker.subAgentId;
                         const aId = worker.agent?._id || worker.agent;
                         const targetId = wId || aId;
-
                         return String(targetId) === String(agent._id);
                     });
 
@@ -81,7 +72,6 @@ export default function SubAgentPage() {
                         totalWorkersBrought: matchingWorkers.length
                     };
                 });
-
                 setSubAgents(processedAgents);
             }
         } catch (err) {
@@ -114,6 +104,54 @@ export default function SubAgentPage() {
         }
     };
 
+    // --- NEW: UPDATE FUNCTION ---
+    const handleUpdateAgent = async (id, updatedData) => {
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(updatedData),
+            });
+            const result = await res.json();
+            if (result.success) {
+                await fetchAgents(token);
+                setSelectedSubAgent(result.data); // Refresh details view
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error("Update failed:", err);
+            return false;
+        }
+    };
+
+    // --- NEW: DELETE FUNCTION ---
+    const handleDeleteAgent = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this agent?")) return;
+
+        const token = localStorage.getItem('token');
+        try {
+            const res = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const result = await res.json();
+            if (result.success) {
+                await fetchAgents(token);
+                setView('list'); // Go back to list after deletion
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error("Delete failed:", err);
+            return false;
+        }
+    };
+
     return (
         <DashboardLayout
             role="employee"
@@ -125,7 +163,7 @@ export default function SubAgentPage() {
                 {loading && view === 'list' ? (
                     <div className="flex h-[60vh] flex-col items-center justify-center gap-4">
                         <Loader2 className="animate-spin text-blue-600" size={32} />
-                        <p className="text-gray-500 font-medium">Loading agents and worker data...</p>
+                        <p className="text-gray-500 font-medium">Loading data...</p>
                     </div>
                 ) : (
                     <>
@@ -144,6 +182,8 @@ export default function SubAgentPage() {
                             <SubAgentDetailsPage
                                 subAgent={selectedSubAgent}
                                 onBack={() => setView('list')}
+                                onUpdate={handleUpdateAgent} // Prop passed
+                                onDelete={handleDeleteAgent} // Prop passed
                             />
                         )}
                     </>

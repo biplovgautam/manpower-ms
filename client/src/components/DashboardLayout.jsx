@@ -1,8 +1,7 @@
 "use client";
 import axios from 'axios';
+import Cookies from 'js-cookie';
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie'; // Import cookies
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
@@ -12,7 +11,7 @@ export function DashboardLayout({
     notifications = [],
     role,
     currentPath,
-    onNavigate,
+    onNavigate, // <--- RECEIVED FROM PAGE
     onLogout: propOnLogout,
     onMarkAllAsRead
 }) {
@@ -20,18 +19,13 @@ export function DashboardLayout({
 
     const handleLogout = () => {
         if (propOnLogout) propOnLogout();
-
-        // 1. Clear all storage
         localStorage.clear();
         sessionStorage.clear();
         Cookies.remove('token', { path: '/' });
-
-        // 2. Immediate Redirect (window.location is faster for logout than router.push)
         window.location.href = '/login';
     };
 
     useEffect(() => {
-        // Only fetch if we don't have a user and WE DO have a token
         const token = localStorage.getItem('token');
         if (!propUser && !internalUser && token) {
             const fetchUser = async () => {
@@ -39,11 +33,8 @@ export function DashboardLayout({
                     const res = await axios.get('http://localhost:5000/api/auth/me', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
-                    if (res.data.success) {
-                        setInternalUser(res.data.user);
-                    }
+                    if (res.data.success) setInternalUser(res.data.user);
                 } catch (err) {
-                    // If fetching user fails (401), our new interceptor handles it!
                     console.error("Layout Fetch Error:", err);
                 }
             };
@@ -67,7 +58,7 @@ export function DashboardLayout({
                 role={memoizedUser.role.toLowerCase()}
                 currentPath={currentPath}
                 onNavigate={onNavigate}
-                onLogout={handleLogout} 
+                onLogout={handleLogout}
                 user={memoizedUser}
             />
 
@@ -75,7 +66,7 @@ export function DashboardLayout({
                 <Header
                     user={memoizedUser}
                     notifications={notifications}
-                    onNavigate={onNavigate}
+                    onNavigate={onNavigate} // <--- PASSED TO HEADER
                     onRefreshNotifications={onMarkAllAsRead}
                 />
 
