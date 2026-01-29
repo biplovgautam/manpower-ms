@@ -6,12 +6,12 @@ import {
   Bell, Briefcase, Building2,
   CheckCircle, Contact,
   Edit, FileText, Paperclip,
-  Plus, RefreshCw, ShieldCheck,
+  Plus, RefreshCw, Search, ShieldCheck,
   Trash2, TrendingUp,
   UserCircle, UserPlus, Users,
   X
 } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
 import {
   Area, AreaChart, BarChart, CartesianGrid,
@@ -62,13 +62,6 @@ function AdminStatCard({ title, value, icon, gradient, onClick }) {
 
 export default function AdminDashboard({ onNavigate = () => { } }) {
 
-  // ←←← PUT IT HERE — as the very first line inside the function
-  console.log("AdminDashboard rendered — onNavigate is:",
-    typeof onNavigate,
-    onNavigate ? onNavigate.toString().slice(0, 60) + "..." : "undefined"
-  );
-
-
   const [view, setView] = useState('dashboard');
   const [isBS, setIsBS] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -99,6 +92,108 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
   const [selectedEmployeeFilter, setSelectedEmployeeFilter] = useState(currentUserId || 'all');
   const [editId, setEditId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Global Search States
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchRef = useRef(null);
+
+  const debounce = (func, delay) => {
+    let timeoutId;
+    return (...args) => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
+  };
+
+  const performSearch = useCallback(async (q) => {
+    if (!q || q.trim().length < 2) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${API_BASE}/search`, {
+        params: { q: q.trim() },
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (res.data.success) {
+        setSearchResults(res.data.results || []);
+        setShowSearchResults(true);
+      }
+    } catch (err) {
+      console.error('Search failed', err);
+      toast.error('Search failed. Please try again.');
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  const debouncedSearch = useCallback(debounce(performSearch, 400), [performSearch]);
+
+  useEffect(() => {
+    debouncedSearch(searchQuery);
+  }, [searchQuery, debouncedSearch]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleResultClick = (item) => {
+    setSearchQuery('');
+    setShowSearchResults(false);
+
+    const id = item._id;
+
+    if (!id) {
+      toast.error("Cannot open item: missing ID");
+      return;
+    }
+
+    switch (item.type) {
+      case 'employee':
+      case 'staff':
+        onNavigate(`/employees?id=${id}`);
+        break;
+
+      case 'employer':
+        onNavigate(`/employers?id=${id}`);
+        break;
+
+      case 'worker':
+        onNavigate(`/workers?id=${id}`);
+        break;
+
+      case 'job-demand':
+        onNavigate(`/job-demand?id=${id}`);
+        break;
+
+      case 'sub-agent':
+        onNavigate(`/sub-agents?id=${id}`);
+        break;
+
+      case 'note':
+      case 'reminder':
+        toast.success(`Selected ${item.type}: ${item.content?.substring(0, 40) || 'Note'}...`);
+        break;
+
+      default:
+        toast.error(`Unknown entity type: ${item.type}`);
+        break;
+    }
+  };
 
   const fetchAdminData = useCallback(async () => {
     try {
@@ -292,7 +387,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
     <div className="min-h-screen bg-[#F1F5F9] p-6 md:p-10 space-y-10 text-slate-800 relative">
       <Toaster position="top-right" />
 
-      {/* Header */}
+      {/* Top Header Row */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="flex items-center gap-5">
           <div className="bg-indigo-600 p-4 rounded-2xl text-white shadow-xl">
@@ -341,7 +436,89 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         </div>
       </div>
 
-      {/* Stat Cards – now using the onNavigate prop passed from parent */}
+      {/* Search Bar - Full width, below header */}
+      <div ref={searchRef} className="relative w-full">
+        <div className="relative">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={22} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onFocus={() => setShowSearchResults(true)}
+            placeholder="Search employees, employers, workers, demands, agents, notes..."
+            className="w-full pl-14 pr-14 py-4 rounded-2xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none bg-white shadow-md text-base placeholder:text-slate-400"
+          />
+          {searchLoading && (
+            <RefreshCw className="absolute right-5 top-1/2 -translate-y-1/2 animate-spin text-indigo-600" size={22} />
+          )}
+          {searchQuery && !searchLoading && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+            >
+              <X size={22} />
+            </button>
+          )}
+        </div>
+
+        {/* Search Results Dropdown */}
+        {showSearchResults && (
+          <div className="absolute z-50 mt-2 w-full bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[60vh] overflow-y-auto">
+            {searchResults.length === 0 ? (
+              <div className="p-10 text-center text-slate-500">
+                No results found for <span className="font-medium">"{searchQuery}"</span>
+              </div>
+            ) : (
+              <>
+                <div className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider bg-slate-50 sticky top-0 border-b">
+                  Results ({searchResults.length})
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {searchResults.map((item) => (
+                    <button
+                      key={item._id}
+                      onClick={() => handleResultClick(item)}
+                      className="w-full px-6 py-4 text-left hover:bg-indigo-50 transition-colors flex items-center gap-5"
+                    >
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shrink-0 ${item.type === 'employee' ? 'bg-indigo-600' :
+                          item.type === 'employer' ? 'bg-emerald-600' :
+                            item.type === 'worker' ? 'bg-teal-600' :
+                              item.type === 'job-demand' ? 'bg-orange-600' :
+                                item.type === 'sub-agent' ? 'bg-purple-600' :
+                                  'bg-amber-600'
+                        }`}>
+                        {item.type === 'note' || item.type === 'reminder' ? (
+                          <FileText size={20} />
+                        ) : item.type === 'employee' ? (
+                          <Contact size={20} />
+                        ) : item.type === 'worker' ? (
+                          <Users size={20} />
+                        ) : item.type === 'employer' ? (
+                          <Building2 size={20} />
+                        ) : item.type === 'job-demand' ? (
+                          <Briefcase size={20} />
+                        ) : (
+                          <Users size={20} />
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-slate-900 truncate text-base">
+                          {item.title || item.fullName || item.name || item.employerName || item.jobTitle || item.content?.substring(0, 60) || '—'}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1 truncate">
+                          {item.type.toUpperCase()} • {item.subtitle || item.email || item.phone || item.country || item.category || item.status || '—'}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <AdminStatCard
@@ -349,9 +526,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           value={stats.workersInProcess}
           icon={<UserCircle />}
           gradient="from-blue-600 to-indigo-600"
-          onClick={() => {
-            onNavigate("/workers");
-          }}
+          onClick={() => onNavigate("/workers")}
         />
 
         <AdminStatCard
@@ -430,7 +605,7 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
         </Card>
       </div>
 
-      {/* Add Note Modal Popup */}
+      {/* Add Note Modal */}
       {showAddModal && (
         <>
           <div

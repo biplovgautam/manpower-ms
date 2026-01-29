@@ -1,8 +1,8 @@
 "use client";
 import axios from 'axios';
-import { useEffect, useMemo, useState } from 'react';
+import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
-import Cookies from 'js-cookie'; // Import cookies
+import { useEffect, useMemo, useState } from 'react';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
@@ -17,33 +17,30 @@ export function DashboardLayout({
     onMarkAllAsRead
 }) {
     const [internalUser, setInternalUser] = useState(null);
+    const router = useRouter();
 
-    const handleLogout = () => {
-        if (propOnLogout) propOnLogout();
-
-        // 1. Clear all storage
-        localStorage.clear();
-        sessionStorage.clear();
-        Cookies.remove('token', { path: '/' });
-
-        // 2. Immediate Redirect (window.location is faster for logout than router.push)
-        window.location.href = '/login';
+    const safeNavigate = (path) => {
+        if (onNavigate) {
+            onNavigate(path);
+        } else {
+            const basePath = currentPath?.includes('tenant-admin') ? 'tenant-admin' : 'employee';
+            router.push(`/dashboard/${basePath}/${path}`);
+        }
     };
 
     useEffect(() => {
-        // Only fetch if we don't have a user and WE DO have a token
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || Cookies.get('token');
+
+        // IMPORTANT: If propUser is already provided by the Page, don't fetch again
         if (!propUser && !internalUser && token) {
             const fetchUser = async () => {
                 try {
                     const res = await axios.get('http://localhost:5000/api/auth/me', {
                         headers: { Authorization: `Bearer ${token}` }
                     });
-                    if (res.data.success) {
-                        setInternalUser(res.data.user);
-                    }
+                    const data = res.data?.user || res.data?.data?.user || res.data?.data || res.data;
+                    if (data) setInternalUser(data);
                 } catch (err) {
-                    // If fetching user fails (401), our new interceptor handles it!
                     console.error("Layout Fetch Error:", err);
                 }
             };
@@ -53,21 +50,40 @@ export function DashboardLayout({
 
     const memoizedUser = useMemo(() => {
         const activeUser = propUser || internalUser;
+
+        // Exhaustive search for the name field
+        const foundName = activeUser?.fullName ||
+            activeUser?.name ||
+            activeUser?.username ||
+            activeUser?.displayName ||
+            (activeUser?.email ? activeUser.email.split('@')[0] : "");
+
+        const displayRole = activeUser?.role || role || "User";
+
         return {
-            id: activeUser?._id || "",
-            fullName: activeUser?.fullName || activeUser?.name || "Loading...",
-            role: activeUser?.role || role || "Member",
-            avatar: (activeUser?.fullName || "U").charAt(0).toUpperCase()
+            id: String(activeUser?._id || activeUser?.id || ""),
+            fullName: foundName,
+            role: displayRole,
+            avatar: foundName
+                ? foundName.charAt(0).toUpperCase()
+                : displayRole.charAt(0).toUpperCase()
         };
     }, [propUser, internalUser, role]);
+
+    const handleLogout = () => {
+        if (propOnLogout) propOnLogout();
+        localStorage.clear();
+        Cookies.remove('token');
+        window.location.href = '/login';
+    };
 
     return (
         <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900">
             <Sidebar
                 role={memoizedUser.role.toLowerCase()}
                 currentPath={currentPath}
-                onNavigate={onNavigate}
-                onLogout={handleLogout} 
+                onNavigate={safeNavigate}
+                onLogout={handleLogout}
                 user={memoizedUser}
             />
 
@@ -75,7 +91,7 @@ export function DashboardLayout({
                 <Header
                     user={memoizedUser}
                     notifications={notifications}
-                    onNavigate={onNavigate}
+                    onNavigate={safeNavigate}
                     onRefreshNotifications={onMarkAllAsRead}
                 />
 

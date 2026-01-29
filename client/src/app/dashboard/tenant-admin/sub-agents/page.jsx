@@ -1,7 +1,10 @@
 "use client";
 
+import axios from 'axios';
+import { RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { SubAgentDetailsPage } from '../../../../components/Admin/SubAgentDetailsPage';
 import { SubAgentListPage } from '../../../../components/Admin/SubAgentsListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
@@ -10,12 +13,13 @@ export default function AdminSubAgentsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
+    const selectedId = searchParams.get('id');
 
     const [subAgents, setSubAgents] = useState([]);
-    const [agentWorkers, setAgentWorkers] = useState([]); // Store workers for the selected agent
+    const [agentWorkers, setAgentWorkers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [view, setView] = useState('list');
     const [selectedAgent, setSelectedAgent] = useState(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
 
     const fetchSubAgents = useCallback(async () => {
         const token = localStorage.getItem('token');
@@ -38,7 +42,7 @@ export default function AdminSubAgentsPage() {
         }
     }, []);
 
-    // Fetch workers for a specific agent when details are viewed
+    // Fetch workers for selected agent
     const fetchAgentWorkers = async (agentId) => {
         const token = localStorage.getItem('token');
         try {
@@ -54,20 +58,44 @@ export default function AdminSubAgentsPage() {
         }
     };
 
+    // Auto-load detail when ?id= is present (from dashboard search)
+    useEffect(() => {
+        if (selectedId) {
+            const fetchDetail = async () => {
+                setLoadingDetail(true);
+                try {
+                    const token = localStorage.getItem('token');
+                    const res = await axios.get(`http://localhost:5000/api/sub-agents/${selectedId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.data.success) {
+                        setSelectedAgent(res.data.data);
+                        fetchAgentWorkers(res.data.data._id);
+                    } else {
+                        toast.error("Sub-agent not found");
+                        router.replace('/dashboard/tenant-admin/sub-agents');
+                    }
+                } catch (err) {
+                    toast.error("Failed to load sub-agent details");
+                    router.replace('/dashboard/tenant-admin/sub-agents');
+                } finally {
+                    setLoadingDetail(false);
+                }
+            };
+            fetchDetail();
+        } else {
+            setSelectedAgent(null);
+            setAgentWorkers([]);
+        }
+    }, [selectedId, router]);
+
     useEffect(() => {
         fetchSubAgents();
     }, [fetchSubAgents]);
 
-    useEffect(() => {
-        if (action === 'add') {
-            setView('add');
-        } else if (selectedAgent) {
-            setView('detail');
-            fetchAgentWorkers(selectedAgent._id);
-        } else {
-            setView('list');
-        }
-    }, [action, selectedAgent]);
+    const handleSelectSubAgent = (agent) => {
+        router.push(`/dashboard/tenant-admin/sub-agents?id=${agent._id}`);
+    };
 
     const handleUpdateStatus = async (id, newStatus) => {
         const token = localStorage.getItem('token');
@@ -108,50 +136,56 @@ export default function AdminSubAgentsPage() {
     };
 
     const handleBackToList = () => {
-        setSelectedAgent(null);
-        setAgentWorkers([]);
-        setView('list');
-        router.push('/dashboard/tenant-admin/sub-agents');
+        router.replace('/dashboard/tenant-admin/sub-agents');
     };
 
-    return (
-        <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
-            <div className="py-6 max-w-[1600px] mx-auto px-4">
-
-                {view === 'add' && (
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                        <h2 className="text-xl font-bold mb-4">Register New Sub-Agent</h2>
-                        <button onClick={handleBackToList} className="text-blue-500 hover:underline">
-                            ← Back to List
-                        </button>
-                    </div>
-                )}
-
-                {view === 'detail' && selectedAgent && (
-                    <div className="space-y-4">
-                        <button onClick={handleBackToList} className="text-sm text-gray-500 hover:text-black flex items-center gap-1">
-                            ← Back to Sub-Agents
-                        </button>
-
+    // If we have selected ID and loaded agent → show full details page (no modal)
+    if (selectedId && selectedAgent) {
+        return (
+            <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
+                <div className="py-6 max-w-[1600px] mx-auto px-4">
+                    {loadingDetail ? (
+                        <div className="flex justify-center items-center h-64">
+                            <RefreshCw className="animate-spin text-indigo-600" size={48} />
+                        </div>
+                    ) : (
                         <SubAgentDetailsPage
                             agent={selectedAgent}
                             workers={agentWorkers}
                             onDelete={handleDeleteAgent}
                             onStatusChange={handleUpdateStatus}
                         />
-                    </div>
-                )}
+                    )}
+                </div>
+            </DashboardLayout>
+        );
+    }
 
-                {view === 'list' && (
-                    <SubAgentListPage
-                        subAgents={subAgents}
-                        isLoading={isLoading}
-                        onSelectSubAgent={(agent) => {
-                            setSelectedAgent(agent);
-                            router.push(`/dashboard/tenant-admin/sub-agents?id=${agent._id}`);
-                        }}
-                    />
-                )}
+    // Add form view (placeholder)
+    if (action === 'add') {
+        return (
+            <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
+                <div className="py-6 max-w-[1600px] mx-auto px-4">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                        <h2 className="text-xl font-bold mb-4">Register New Sub-Agent</h2>
+                        <button onClick={handleBackToList} className="text-blue-500 hover:underline">
+                            ← Back to List
+                        </button>
+                    </div>
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    // Default: list view
+    return (
+        <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/sub-agents">
+            <div className="py-6 max-w-[1600px] mx-auto px-4">
+                <SubAgentListPage
+                    subAgents={subAgents}
+                    isLoading={isLoading}
+                    onSelectSubAgent={handleSelectSubAgent}
+                />
             </div>
         </DashboardLayout>
     );
