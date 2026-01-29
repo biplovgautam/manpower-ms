@@ -220,11 +220,184 @@ const deleteNote = async (req, res) => {
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: error.message });
     }
 };
+/**
+ * @desc    Global search across entities
+ * @route   GET /api/dashboard/search?q=...
+ */
+const searchGlobal = async (req, res) => {
+    try {
+        const { q } = req.query;
+        if (!q || q.trim().length < 2) {
+            return res.status(StatusCodes.OK).json({
+                success: true,
+                results: [],
+                message: "Query too short"
+            });
+        }
+
+        const searchTerm = q.trim();
+        const regex = new RegExp(searchTerm, 'i');
+
+        const companyId = req.user.companyId;
+
+        const [
+            employees,
+            employers,
+            workers,
+            jobDemands,
+            subAgents,
+            notes
+        ] = await Promise.all([
+            // Employees / Staff
+            User.find({
+                companyId,
+                role: 'employee',
+                $or: [
+                    { fullName: regex },
+                    { email: regex },
+                    { phone: regex }
+                ]
+            })
+                .select('fullName email phone _id role')
+                .limit(10)
+                .lean(),
+
+            // Employers
+            Employer.find({
+                companyId,
+                $or: [
+                    { employerName: regex },
+                    { contactPerson: regex },
+                    { email: regex },
+                    { country: regex }
+                ]
+            })
+                .select('employerName contactPerson email country _id')
+                .limit(10)
+                .lean(),
+
+            // Workers
+            Worker.find({
+                companyId,
+                $or: [
+                    { name: regex },
+                    { passportNumber: regex },
+                    { phone: regex }
+                ]
+            })
+                .select('name passportNumber phone _id status')
+                .limit(10)
+                .lean(),
+
+            // Job Demands
+            JobDemand.find({
+                companyId,
+                $or: [
+                    { jobTitle: regex },
+                    { companyName: regex },
+                    { country: regex }
+                ]
+            })
+                .select('jobTitle companyName country _id')
+                .limit(10)
+                .lean(),
+
+            // Sub Agents
+            SubAgent.find({
+                companyId,
+                $or: [
+                    { name: regex },
+                    { company: regex },
+                    { phone: regex }
+                ]
+            })
+                .select('name company phone _id')
+                .limit(10)
+                .lean(),
+
+            // Notes / Reminders
+            Note.find({
+                companyId,
+                $or: [
+                    { content: regex },
+                    { category: regex }
+                ]
+            })
+                .populate('createdBy', 'fullName')
+                .select('content category targetDate createdAt createdBy _id isCompleted')
+                .limit(15)
+                .lean()
+        ]);
+
+        const results = [
+            // Employees
+            ...employees.map(item => ({
+                type: 'employee',
+                ...item,
+                title: item.fullName,
+                subtitle: item.email || item.phone || 'Staff'
+            })),
+
+            // Employers
+            ...employers.map(item => ({
+                type: 'employer',
+                ...item,
+                title: item.employerName || item.contactPerson,
+                subtitle: item.country || item.email || 'Employer'
+            })),
+
+            // Workers
+            ...workers.map(item => ({
+                type: 'worker',
+                ...item,
+                title: item.name,
+                subtitle: item.passportNumber || item.phone || item.status || 'Worker'
+            })),
+
+            // Job Demands
+            ...jobDemands.map(item => ({
+                type: 'job-demand',
+                ...item,
+                title: item.jobTitle,
+                subtitle: item.companyName || item.country || 'Demand'
+            })),
+
+            // Sub Agents
+            ...subAgents.map(item => ({
+                type: 'sub-agent',
+                ...item,
+                title: item.name || item.company,
+                subtitle: item.phone || 'Sub-agent'
+            })),
+
+            // Notes
+            ...notes.map(item => ({
+                type: item.category === 'reminder' ? 'reminder' : 'note',
+                ...item,
+                title: item.content.substring(0, 70) + (item.content.length > 70 ? '...' : ''),
+                subtitle: `${item.category} • ${new Date(item.createdAt).toLocaleDateString()} • ${item.createdBy?.fullName || '—'}`
+            }))
+        ];
+
+        res.status(StatusCodes.OK).json({
+            success: true,
+            count: results.length,
+            results
+        });
+    } catch (err) {
+        console.error('Global search error:', err);
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+            success: false,
+            message: 'Search failed'
+        });
+    }
+};
 
 module.exports = {
     getDashboardData,
     addNote,
     updateNote,
     markReminderAsDone,
-    deleteNote
+    deleteNote,
+    searchGlobal
 };

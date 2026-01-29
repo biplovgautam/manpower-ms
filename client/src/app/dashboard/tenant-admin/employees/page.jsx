@@ -1,7 +1,9 @@
 "use client";
 
+import axios from 'axios';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 import { AddEmployeeForm } from '../../../../components/Admin/AddEmployeeForm';
 import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage';
 import { EmployeesListPage } from '../../../../components/Admin/EmployeesListPage';
@@ -11,11 +13,11 @@ export default function AdminEmployeesPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
+    const selectedId = searchParams.get('id');
 
     const [employees, setEmployees] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
-    const [view, setView] = useState('list');
 
     const fetchEmployees = useCallback(async () => {
         const token = localStorage.getItem('token');
@@ -28,7 +30,6 @@ export default function AdminEmployeesPage() {
             });
             const result = await response.json();
 
-            // DEBUG LOG - Check this in your browser console!
             console.log("Employees API Response:", result);
 
             if (response.ok && result.success) {
@@ -45,30 +46,43 @@ export default function AdminEmployeesPage() {
         }
     }, []);
 
+    // When ?id= is present, fetch full details and show detail view
+    useEffect(() => {
+        if (selectedId) {
+            const fetchDetail = async () => {
+                try {
+                    const token = localStorage.getItem('token');
+                    const res = await axios.get(`http://localhost:5000/api/auth/employees/${selectedId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    if (res.data.success) {
+                        setSelectedEmployee(res.data.data);
+                    } else {
+                        toast.error("Employee not found");
+                        router.replace('/dashboard/tenant-admin/employees');
+                    }
+                } catch (err) {
+                    toast.error("Failed to load employee");
+                    router.replace('/dashboard/tenant-admin/employees');
+                }
+            };
+            fetchDetail();
+        } else {
+            setSelectedEmployee(null);
+        }
+    }, [selectedId, router]);
+
     useEffect(() => {
         fetchEmployees();
     }, [fetchEmployees]);
 
-    useEffect(() => {
-        if (action === 'add') {
-            setView('add');
-        } else if (selectedEmployee) {
-            setView('detail');
-        } else {
-            setView('list');
-        }
-    }, [action, selectedEmployee]);
-
     const handleSelectEmployee = (emp) => {
-        // Re-find the employee from the state to ensure we have the latest counts 
-        // that were just fetched by fetchEmployees
         const latestData = employees.find(e => e._id === emp._id);
-        setSelectedEmployee(latestData || emp);
+        router.push(`/dashboard/tenant-admin/employees?id=${emp._id}`);
     };
 
     const handleBackToList = () => {
-        setSelectedEmployee(null);
-        router.push('/dashboard/tenant-admin/employees');
+        router.replace('/dashboard/tenant-admin/employees');
     };
 
     const handleAddSuccess = async () => {
@@ -76,32 +90,43 @@ export default function AdminEmployeesPage() {
         handleBackToList();
     };
 
-    return (
-        <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/employees">
-            <div className="min-h-screen w-full py-6 px-4 md:px-8 bg-slate-50/50">
-                {view === 'add' && (
-                    <AddEmployeeForm
-                        onBack={handleBackToList}
-                        onSuccess={handleAddSuccess}
-                    />
-                )}
-
-                {view === 'detail' && selectedEmployee && (
+    // Determine what to show
+    if (selectedId && selectedEmployee) {
+        return (
+            <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/employees">
+                <div className="min-h-screen w-full py-6 px-4 md:px-8 bg-slate-50/50">
                     <EmployeeDetailsPage
                         employee={selectedEmployee}
                         onBack={handleBackToList}
                     />
-                )}
+                </div>
+            </DashboardLayout>
+        );
+    }
 
-                {view === 'list' && (
-                    <EmployeesListPage
-                        employees={employees}
-                        isLoading={isLoading}
-                        onAddEmployee={() => router.push('/dashboard/tenant-admin/employees?action=add')}
-                        onSelect={handleSelectEmployee}
-                        onRefresh={fetchEmployees}
+    if (action === 'add') {
+        return (
+            <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/employees">
+                <div className="min-h-screen w-full py-6 px-4 md:px-8 bg-slate-50/50">
+                    <AddEmployeeForm
+                        onBack={handleBackToList}
+                        onSuccess={handleAddSuccess}
                     />
-                )}
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    return (
+        <DashboardLayout role="admin" currentPath="/dashboard/tenant-admin/employees">
+            <div className="min-h-screen w-full py-6 px-4 md:px-8 bg-slate-50/50">
+                <EmployeesListPage
+                    employees={employees}
+                    isLoading={isLoading}
+                    onAddEmployee={() => router.push('/dashboard/tenant-admin/employees?action=add')}
+                    onSelect={handleSelectEmployee}
+                    onRefresh={fetchEmployees}
+                />
             </div>
         </DashboardLayout>
     );
