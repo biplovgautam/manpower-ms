@@ -38,7 +38,7 @@ export default function EmployeePage() {
             onNavigate={(p) => router.push(`/dashboard/employee/${p}`)}
             onLogout={() => { localStorage.clear(); router.push('/login'); }}
         >
-            <EmployeeDashboard data={data} />
+          <EmployeeDashboard navigateTo={(path) => router.push(`/dashboard/employee/${path}`)} />
         </DashboardLayout>
     );
 }
