@@ -43,7 +43,6 @@ export function AddWorkerPage({
   const [documents, setDocuments] = useState([]);
   const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
 
-  // Document categories matching your backend expectations
   const documentCategories = [
     { value: "Passport", label: "Passport" },
     { value: "Birth Certificate", label: "Birth Certificate" },
@@ -111,11 +110,8 @@ export function AddWorkerPage({
         fileSize: (currentDoc.file.size / 1024).toFixed(2) + " KB",
         isExisting: false
       };
-
       setDocuments([...documents, newDoc]);
-      // Reset only the file-specific parts of currentDoc state
       setCurrentDoc({ file: null, category: "Passport", name: "" });
-
       const fileInput = document.getElementById('worker-file-input');
       if (fileInput) fileInput.value = '';
     }
@@ -127,13 +123,23 @@ export function AddWorkerPage({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // documents here contains only the ones not removed via handleRemoveDocument
-    onSave({ ...formData, documents });
+    
+    // Sanitize data to prevent MongoDB "Cast to ObjectId failed" for optional IDs
+    const sanitizedData = { ...formData };
+    const idFields = ["employerId", "jobDemandId", "subAgentId"];
+
+    idFields.forEach((field) => {
+      // If the field is empty, send null so the backend validation/Mongoose handles it correctly
+      if (!sanitizedData[field] || sanitizedData[field].trim() === "") {
+        sanitizedData[field] = null;
+      }
+    });
+
+    onSave({ ...sanitizedData, documents });
   };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10 px-4">
-      {/* HEADER */}
       <div className="flex items-center gap-4">
         <button type="button" onClick={onNavigate} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
           <ArrowLeft size={22} className="text-gray-600" />
@@ -143,13 +149,12 @@ export function AddWorkerPage({
             {isEditMode ? "Edit Worker Profile" : "Register New Worker"}
           </h1>
           <p className="text-gray-500 text-sm">
-            {isEditMode ? `Updating information for ${formData.name}` : "Ensure all legal documents are collected and labeled correctly."}
+            Fields marked with * are mandatory.
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* PERSONAL INFO */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
@@ -157,50 +162,63 @@ export function AddWorkerPage({
               <CardTitle className="text-md font-bold">Personal Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <Input label="Full Name" value={formData.name} onChange={(e) => handleChange("name", e.target.value)} required />
+              <Input label="Full Name *" value={formData.name} onChange={(e) => handleChange("name", e.target.value)} required />
               <Input label="Email Address" type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Passport Number" value={formData.passportNumber} onChange={(e) => handleChange("passportNumber", e.target.value)} required />
-                <Input label="Date of Birth" type="date" value={formData.dob} onChange={(e) => handleChange("dob", e.target.value)} required />
+                <Input label="Passport Number" value={formData.passportNumber} onChange={(e) => handleChange("passportNumber", e.target.value)} />
+                <Input label="Date of Birth *" type="date" value={formData.dob} onChange={(e) => handleChange("dob", e.target.value)} required />
               </div>
-              <Input label="Contact Number" value={formData.contact} onChange={(e) => handleChange("contact", e.target.value)} required />
-              <Input label="Address" value={formData.address} onChange={(e) => handleChange("address", e.target.value)} required />
+              <Input label="Contact Number *" value={formData.contact} onChange={(e) => handleChange("contact", e.target.value)} required />
+              <Input label="Address *" value={formData.address} onChange={(e) => handleChange("address", e.target.value)} required />
             </CardContent>
           </Card>
 
-          {/* DEPLOYMENT INFO */}
+          {/* DEPLOYMENT INFO - ALL OPTIONAL */}
           <Card className="border-none shadow-sm ring-1 ring-gray-200">
             <CardHeader className="bg-gray-50/50 border-b py-3">
-              <CardTitle className="text-md font-bold">Deployment Details</CardTitle>
+              <CardTitle className="text-md font-bold">Deployment Details (Optional)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <Select
                 label="Employer"
-                value={formData.employerId}
-                onChange={(e) => { handleChange("employerId", e.target.value); handleChange("jobDemandId", ""); }}
-                options={employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))}
-                required
+                value={formData.employerId || ""}
+                onChange={(e) => { 
+                    handleChange("employerId", e.target.value); 
+                    handleChange("jobDemandId", ""); 
+                }}
+                options={[
+                    { value: "", label: "None / Select Employer" },
+                    ...employers.map(emp => ({ value: emp._id || emp.id, label: emp.employerName || emp.name }))
+                ]}
               />
               <Select
                 label="Job Demand"
-                value={formData.jobDemandId}
+                value={formData.jobDemandId || ""}
                 disabled={!formData.employerId}
                 onChange={(e) => handleChange("jobDemandId", e.target.value)}
-                options={filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || jd.title }))}
-                required
+                options={[
+                    { value: "", label: "None / Select Job Demand" },
+                    ...filteredJobDemands.map(jd => ({ value: jd._id || jd.id, label: jd.jobTitle || jd.title }))
+                ]}
               />
               <Select
                 label="Sub-Agent"
-                value={formData.subAgentId}
+                value={formData.subAgentId || ""}
                 onChange={(e) => handleChange("subAgentId", e.target.value)}
-                options={subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))}
+                options={[
+                    { value: "", label: "Direct (No Agent)" },
+                    ...subAgents.map(sa => ({ value: sa._id || sa.id, label: sa.fullName || sa.name }))
+                ]}
               />
               <Select
                 label="Registration Status"
                 value={formData.status}
                 onChange={(e) => handleChange("status", e.target.value)}
-                options={[{ value: "pending", label: "Pending" }, { value: "processing", label: "Processing" }, { value: "active", label: "Active" }]}
-                required
+                options={[
+                    { value: "pending", label: "Pending" }, 
+                    { value: "processing", label: "Processing" }, 
+                    { value: "active", label: "Active" }
+                ]}
               />
             </CardContent>
           </Card>
@@ -216,7 +234,6 @@ export function AddWorkerPage({
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid grid-cols-1 lg:grid-cols-12">
-              {/* Checklist */}
               <div className="lg:col-span-4 bg-slate-50 p-6 border-r border-gray-100">
                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
                   <Info size={16} className="text-indigo-600" /> Required Checklist
@@ -231,7 +248,6 @@ export function AddWorkerPage({
                 </ul>
               </div>
 
-              {/* Document Upload Area */}
               <div className="lg:col-span-8 p-6 space-y-6 bg-white">
                 <div className="p-5 bg-indigo-50/30 border-2 border-dashed border-indigo-100 rounded-xl space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -242,7 +258,7 @@ export function AddWorkerPage({
                       onChange={(e) => setCurrentDoc({ ...currentDoc, category: e.target.value })}
                     />
                     <Input
-                      label="Document Label (e.g., Front Page)"
+                      label="Document Label"
                       placeholder="Enter custom label"
                       value={currentDoc.name}
                       onChange={(e) => setCurrentDoc({ ...currentDoc, name: e.target.value })}
@@ -259,13 +275,12 @@ export function AddWorkerPage({
                     disabled={!currentDoc.file || !currentDoc.name}
                     onClick={handleAddDocument}
                     className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm
-                                            ${(!currentDoc.file || !currentDoc.name) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
+                                ${(!currentDoc.file || !currentDoc.name) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
                   >
                     <Upload size={18} /> Attach Document
                   </button>
                 </div>
 
-                {/* List of Attached Files */}
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Currently Attached</h4>
                   {documents.length === 0 && (
@@ -279,7 +294,6 @@ export function AddWorkerPage({
                           <p className="text-sm font-bold text-gray-800">{doc.name}</p>
                           <p className="text-[10px] text-gray-500 uppercase font-medium">
                             {doc.category} • {doc.fileName || doc.file?.name} • {doc.fileSize}
-                            {doc.isExisting && " • STORED"}
                           </p>
                         </div>
                       </div>
@@ -296,7 +310,7 @@ export function AddWorkerPage({
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t">
-              <Textarea label="Additional Background Notes" placeholder="Mention any special remarks or document issues..." value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} />
+              <Textarea label="Additional Background Notes" placeholder="Remarks..." value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} />
             </div>
           </CardContent>
         </Card>

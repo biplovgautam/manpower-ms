@@ -49,6 +49,35 @@ function WorkersContent() {
     }
   };
 
+  /**
+   * NEW: Local Delete Handler
+   * This removes the worker from the UI state immediately after backend confirmation
+   */
+  const handleDeleteWorker = async (workerId) => {
+    const token = localStorage.getItem('token');
+    if (!confirm("Are you sure you want to delete this worker?")) return;
+
+    try {
+      const res = await fetch(`http://localhost:5000/api/workers/${workerId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const result = await res.json();
+      if (result.success) {
+        // Update local state to remove the worker instantly
+        setWorkers((prev) => prev.filter((w) => w._id !== workerId));
+        setView('list'); // Redirect back to list if deleting from details view
+        setSelectedWorker(null);
+      } else {
+        alert(result.message || "Failed to delete worker");
+      }
+    } catch (err) {
+      console.error("Delete failed:", err);
+      alert("An error occurred during deletion.");
+    }
+  };
+
   const handleNavigate = (newView, data = null) => {
     setSelectedWorker(data);
     setView(newView);
@@ -59,26 +88,20 @@ function WorkersContent() {
     const data = new FormData();
     const { documents, ...rest } = payload;
 
-    // 1. Append basic text fields
     Object.keys(rest).forEach((key) => {
       if (rest[key] !== null && rest[key] !== undefined) {
         data.append(key, rest[key]);
       }
     });
 
-    // 2. Separate Existing vs New Documents
-    // This is the fix for Deletion: Only documents currently in the 'documents' state are sent back.
     const existingToKeep = documents.filter(doc => doc.isExisting);
     const newUploads = documents.filter(doc => !doc.isExisting);
 
-    // Send the "Keep" list to the backend as a string
     data.append('existingDocuments', JSON.stringify(existingToKeep));
 
-    // 3. Append New Files with their Meta (Label and Category)
     newUploads.forEach((doc, index) => {
       if (doc.file) {
         data.append('files', doc.file);
-        // We send metadata tied to the index so the backend knows which label belongs to which file
         data.append(`docMeta_${index}`, JSON.stringify({
           name: doc.name,
           category: doc.category
@@ -94,10 +117,7 @@ function WorkersContent() {
 
       const res = await fetch(url, {
         method: isEdit ? 'PUT' : 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-          // Note: Do NOT set Content-Type header manually when using FormData
-        },
+        headers: { Authorization: `Bearer ${token}` },
         body: data,
       });
 
@@ -111,7 +131,6 @@ function WorkersContent() {
       }
     } catch (err) {
       console.error("Save failed:", err);
-      alert("An error occurred while saving.");
     }
   };
 
@@ -122,6 +141,7 @@ function WorkersContent() {
           workers={workers}
           onNavigate={handleNavigate}
           onSelectWorker={(w) => handleNavigate('details', w)}
+          onDeleteWorker={handleDeleteWorker} // Added this prop
         />
       )}
 
@@ -140,6 +160,7 @@ function WorkersContent() {
         <WorkerDetailsPage
           workerId={typeof selectedWorker === 'object' ? selectedWorker._id : selectedWorker}
           onNavigate={handleNavigate}
+          onDeleteSuccess={() => handleDeleteWorker(selectedWorker._id)} // Handle delete from details
         />
       )}
     </DashboardLayout>
