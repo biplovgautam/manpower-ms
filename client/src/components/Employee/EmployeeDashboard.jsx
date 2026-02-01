@@ -567,8 +567,9 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
         { title: "Employers", value: formatStatValue(stats.employersAdded), icon: <Building2 size={28} />, gradient: "from-blue-600 to-indigo-600", path: "employer" },
         { title: "Job Demands", value: formatStatValue(stats.activeJobDemands), icon: <Briefcase size={28} />, gradient: "from-purple-600 to-indigo-600", path: "job-demand" },
         { title: "Workers", value: formatStatValue(stats.workersInProcess), icon: <Users size={28} />, gradient: "from-emerald-600 to-teal-600", path: "worker" },
-        { title: "Priority Tasks", value: urgentCount, icon: <AlertCircle size={28} />, gradient: "from-orange-500 to-rose-600" },
         { title: "Sub Agents", value: formatStatValue(stats.activeSubAgents), icon: <UserCircle size={28} />, gradient: "from-slate-700 to-slate-900", path: "subagent" },
+        { title: "Priority Tasks", value: urgentCount, icon: <AlertCircle size={28} />, gradient: "from-orange-500 to-rose-600" },
+   
     ];
 
     return (
@@ -953,8 +954,8 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {[
-                            { to: "addworker", color: "emerald", icon: <UserPlus />, title: "Add Worker", desc: "Register & upload documents" },
-                            { to: "employer-add", color: "blue", icon: <Building2 />, title: "New Employer", desc: "Add company to directory" },
+                            { to: "worker", color: "emerald", icon: <UserPlus />, title: "Add Worker", desc: "Register & upload documents" },
+                            { to: "employer", color: "blue", icon: <Building2 />, title: "New Employer", desc: "Add company to directory" },
                             { to: "job-demand-add", color: "purple", icon: <FilePlus />, title: "Post Demand", desc: "Create job requirement" },
                             { to: "subagent", color: "orange", icon: <Users />, title: "Sub Agents", desc: "Manage recruitment partners" },
                         ].map((item) => (
