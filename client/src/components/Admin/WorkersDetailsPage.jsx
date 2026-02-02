@@ -9,6 +9,8 @@ import {
     Clock,
     ExternalLink,
     FileText,
+    Fingerprint,
+    FingerprintIcon,
     Mail,
     MapPin,
     Navigation,
@@ -88,11 +90,12 @@ export function WorkerDetailsPage({ worker, onBack }) {
                             </div>
                         </div>
                     </div>
-                    <div className="p-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+                    <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
                         <ContactItem icon={<Mail />} label="Email Address" value={worker.email} />
                         <ContactItem icon={<Phone />} label="Phone Number" value={worker.contact} />
                         <ContactItem icon={<Calendar />} label="Date of Birth" value={worker.dob ? new Date(worker.dob).toLocaleDateString() : null} />
                         <ContactItem icon={<MapPin />} label="Permanent Address" value={worker.address} />
+                        <ContactItem icon={<FingerprintIcon />} label="Citizenship Number" value={worker.citizenshipNumber} />
                     </div>
                 </Card>
             </div>
@@ -102,9 +105,9 @@ export function WorkerDetailsPage({ worker, onBack }) {
                 {/* LEFT COLUMN: PROFESSIONAL INFO & DOCUMENTS (SWAPPED) */}
                 <div className="col-span-12 lg:col-span-4 space-y-6">
                     {/* Origin/Destination Card */}
-                    <Card className="border-none shadow-xl rounded-[2rem] bg-blue-700 text-white overflow-hidden relative min-h-[140px] flex items-center">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <PlaneTakeoff size={80} />
+                    <Card className="border-none shadow-xl rounded-[2rem] bg-black-700 text-black overflow-hidden relative min-h-[140px] flex items-center">
+                        <div className="absolute right-0 p-8 opacity-5">
+                            <PlaneTakeoff size={100} />
                         </div>
                         <CardContent className="p-8 relative z-10 w-full">
                             <div className="flex items-center justify-between">
