@@ -1215,4 +1215,4 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
       `}</style>
         </>
     );
-}
+} 
