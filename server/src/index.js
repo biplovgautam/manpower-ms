@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
+const http = require('http'); // 1. Import HTTP module
+const { Server } = require('socket.io'); // 2. Import Socket.io
 
 // Route Imports
 const authRoutes = require('./routes/auth');
@@ -17,29 +19,54 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 
 const app = express();
+const server = http.createServer(app); // 3. Create HTTP server from express app
+
+// 4. Initialize Socket.io
+const io = new Server(server, {
+    cors: {
+        origin: process.env.CLIENT_URL || 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+        credentials: true
+    }
+});
+
+// 5. Make 'io' accessible in your controllers
+app.set('socketio', io);
+
+// Socket.io Connection Logic
+io.on('connection', (socket) => {
+    console.log('New client connected:', socket.id);
+
+    socket.on('join', (companyId) => {
+        if (companyId) {
+            socket.join(String(companyId));
+            console.log(`Socket ${socket.id} joined room: ${companyId}`);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Client disconnected');
+    });
+});
+
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/manpower_ms';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
-// 1. Essential App Settings
 app.set('trust proxy', 1);
 
-// 2. Optimized Middleware
 app.use(cors({
     origin: CLIENT_URL,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'], // Crucial for our new fetch logic
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
 }));
 
-// Body Parsers (placed before routes)
 app.use(express.json({ limit: '5MB' }));
 app.use(express.urlencoded({ limit: '5MB', extended: true }));
-
-// Static Files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// 3. API Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/employers', employerRoutes);
 app.use('/api/job-demands', jobDemandRoutes);
@@ -51,12 +78,10 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/support', supportRoutes);
 
-// Health Check
 app.get('/', (req, res) => {
     res.status(200).json({ status: "OK", message: "Manpower MS API Running" });
 });
 
-// 4. Global Error Handling Middleware (The "Safety Net")
 app.use((err, req, res, next) => {
     console.error(`[Error] ${err.message}`);
     res.status(err.status || 500).json({
@@ -65,12 +90,13 @@ app.use((err, req, res, next) => {
     });
 });
 
-// 5. Database & Server Start
 const startServer = async () => {
     try {
         await mongoose.connect(MONGO_URI);
         console.log('✅ MongoDB connected successfully.');
-        app.listen(PORT, () => {
+        
+        // 6. CRITICAL: Listen on 'server', NOT 'app'
+        server.listen(PORT, () => {
             console.log(`⚡ Server running on http://localhost:${PORT}`);
         });
     } catch (error) {

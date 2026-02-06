@@ -825,123 +825,131 @@ export default function AdminDashboard({ onNavigate = () => { } }) {
           </div>
         </div>
 
-        {/* Right - Operational Logs */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-xl font-black flex items-center gap-3">
-              <FileText size={24} className="text-indigo-600" /> Operational Logs
-            </h2>
+      {/* Right - Operational Logs */}
+      <div className="lg:col-span-7 space-y-6">
+        <div className="flex items-center justify-between px-2">
+          <h2 className="text-xl font-black flex items-center gap-3">
+            <FileText size={24} className="text-indigo-600" /> Operational Logs
+          </h2>
 
-            <select
-              className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm"
-              value={selectedEmployeeFilter}
-              onChange={e => setSelectedEmployeeFilter(e.target.value)}
-            >
-              <option value="all">Show Everyone</option>
-              <optgroup label="Staff Members">
-                {employees.map(emp => (
-                  <option key={emp._id} value={emp._id}>
-                    {String(emp._id).trim() === String(currentUserId).trim()
-                      ? "My Notes (Me)"
-                      : emp.fullName}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </div>
+          <select
+            className="p-2 rounded-xl border-2 border-indigo-100 bg-white text-sm font-bold shadow-sm outline-none focus:border-indigo-500"
+            value={selectedEmployeeFilter}
+            onChange={e => setSelectedEmployeeFilter(e.target.value)}
+          >
+            <option value="all">Show Everyone</option>
+            <optgroup label="Staff Members">
+              {employees.map(emp => (
+                <option key={emp._id} value={emp._id}>
+                  {String(emp._id).trim() === String(currentUserId).trim()
+                    ? "My Notes (Me)"
+                    : emp.fullName}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[850px] overflow-y-auto pr-2 custom-scrollbar">
-            {filteredNotes.map(note => {
-              const creatorId = note.createdBy?._id || note.createdBy;
-              const isOwnNote = String(creatorId).trim() === String(currentUserId).trim();
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[850px] overflow-y-auto pr-2 custom-scrollbar">
+          {filteredNotes.map(note => {
+            const creatorId = note.createdBy?._id || note.createdBy;
+            const isOwnNote = String(creatorId).trim() === String(currentUserId).trim();
+            
+            // AD/BS Conversion Logic
+            const adDate = new Date(note.createdAt);
+            const bsDate = convertADtoBS(note.createdAt);
 
-              return (
-                <div
-                  key={note._id}
-                  className={`p-6 rounded-3xl border-2 transition-all ${isOwnNote
-                    ? 'bg-indigo-50/60 border-indigo-200 shadow-md'
-                    : 'bg-white border-slate-100 shadow-sm'
-                    }`}
-                >
-                  <div className="flex justify-between items-start mb-4">
-                    <Badge
-                      className={`${note.category === 'urgent'
-                        ? 'bg-red-100 text-red-600'
-                        : 'bg-slate-100 text-slate-600'
-                        } border-none text-[10px] font-black uppercase px-3 py-1`}
+            return (
+              <div
+                key={note._id}
+                className={`p-6 rounded-3xl border-2 transition-all ${isOwnNote
+                  ? 'bg-indigo-50/60 border-indigo-200 shadow-md'
+                  : 'bg-white border-slate-100 shadow-sm'
+                  }`}
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <Badge
+                    className={`${note.category === 'urgent'
+                      ? 'bg-red-100 text-red-600'
+                      : 'bg-slate-100 text-slate-600'
+                      } border-none text-[10px] font-black uppercase px-3 py-1`}
+                  >
+                    {note.category}
+                  </Badge>
+
+                  {note.attachment && (
+                    <a
+                      href={`${FILE_BASE}${note.attachment}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
                     >
-                      {note.category}
-                    </Badge>
+                      <Paperclip size={16} />
+                    </a>
+                  )}
+                </div>
 
-                    {note.attachment && (
-                      <a
-                        href={`${FILE_BASE}${note.attachment}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
-                      >
-                        <Paperclip size={16} />
-                      </a>
+                <p className="text-md text-slate-800 font-medium leading-relaxed mb-5">
+                  {note.content}
+                </p>
+
+                <div className="flex items-center gap-2.5 mb-4">
+                  <div className={`w-2.5 h-2.5 rounded-full ${isOwnNote ? 'bg-indigo-500' : 'bg-slate-300'}`} />
+                  <span
+                    className={`text-xs font-bold uppercase tracking-wide ${isOwnNote ? 'text-indigo-700' : 'text-slate-500'}`}
+                  >
+                    BY {isOwnNote ? "ME" : (note.createdBy?.fullName || 'Unknown')}
+                  </span>
+                </div>
+
+                <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+                  <div className="flex gap-5">
+                    {isOwnNote && (
+                      <>
+                        <button
+                          onClick={() => handleEdit(note)}
+                          className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition-colors"
+                        >
+                          <Edit size={15} /> Edit
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(note._id)}
+                          className="flex items-center gap-1.5 text-rose-600 hover:text-rose-800 font-semibold text-sm transition-colors"
+                        >
+                          <Trash2 size={15} /> Delete
+                        </button>
+                      </>
                     )}
                   </div>
 
-                  <p className="text-md text-slate-800 font-medium leading-relaxed mb-5">
-                    {note.content}
-                  </p>
-
-                  <div className="flex items-center gap-2.5 mb-4">
-                    <div className={`w-2.5 h-2.5 rounded-full ${isOwnNote ? 'bg-indigo-500' : 'bg-slate-300'}`} />
-                    <span
-                      className={`text-xs font-bold uppercase tracking-wide ${isOwnNote ? 'text-indigo-700' : 'text-slate-500'}`}
-                    >
-                      BY {isOwnNote ? "ME" : (note.createdBy?.fullName || 'Unknown')}
-                    </span>
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                    <div className="flex gap-5">
-                      {isOwnNote && (
-                        <>
-                          <button
-                            onClick={() => handleEdit(note)}
-                            className="flex items-center gap-1.5 text-indigo-600 hover:text-indigo-800 font-semibold text-sm transition-colors"
-                          >
-                            <Edit size={15} /> Edit
-                          </button>
-
-                          <button
-                            onClick={() => handleDelete(note._id)}
-                            className="flex items-center gap-1.5 text-rose-600 hover:text-rose-800 font-semibold text-sm transition-colors"
-                          >
-                            <Trash2 size={15} /> Delete
-                          </button>
-                        </>
-                      )}
-                    </div>
-
-                    <span className="text-xs text-slate-400 font-medium">
-                      {new Date(note.createdAt).toLocaleDateString('en-GB')}
-                    </span>
-                  </div>
+                  {/* Toggleable Date Display */}
+                  <span className="text-xs text-slate-400 font-black">
+                    {isBS 
+                      ? `${bsDate.day} ${bsDate.month}` 
+                      : adDate.toLocaleDateString('en-GB')
+                    }
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            );
+          })}
         </div>
       </div>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #cbd5e1;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-      `}</style>
     </div>
-  );
+
+    <style jsx global>{`
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 6px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+    `}</style>
+  </div>
+);
 }
