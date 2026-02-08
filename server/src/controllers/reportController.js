@@ -31,7 +31,6 @@ exports.getPerformanceStats = async (req, res) => {
         startDate.setHours(0, 0, 0, 0);
         startDate.setDate(startDate.getDate() - timeframeDays);
 
-        // Use 'new' to fix the deprecated strike-through warning
         const compId = new mongoose.Types.ObjectId(companyId);
         const aggFilter = { companyId: compId };
 
@@ -40,7 +39,7 @@ exports.getPerformanceStats = async (req, res) => {
         }
 
         // 3. EXECUTE AGGREGATIONS
-        const [workerTrend, demandTrend, counts, statusData, topEmployers] = await Promise.all([
+        const [workerTrend, demandTrend, deploymentTrend, counts, statusData, topEmployers] = await Promise.all([
             // New Workers Trend
             Worker.aggregate([
                 { $match: { ...aggFilter, createdAt: { $gte: startDate } } },
@@ -61,6 +60,23 @@ exports.getPerformanceStats = async (req, res) => {
                 { $sort: { _id: 1 } }
             ]),
 
+            // ACTUAL Deployment Trend
+            // This tracks workers who reached "deployed" status during this period
+            Worker.aggregate([
+                { 
+                    $match: { 
+                        ...aggFilter, 
+                        status: "deployed", 
+                        updatedAt: { $gte: startDate } 
+                    } 
+                },
+                { $group: { 
+                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$updatedAt" } }, 
+                    count: { $sum: 1 } 
+                } },
+                { $sort: { _id: 1 } }
+            ]),
+
             // Global Totals
             Promise.all([
                 Worker.countDocuments(aggFilter),
@@ -75,20 +91,19 @@ exports.getPerformanceStats = async (req, res) => {
                 { $group: { _id: { $toLower: "$status" }, count: { $sum: 1 } } }
             ]),
 
-            // Top Employers FIX: Matching your Employer Schema field names
+            // Top Employers
             Employer.aggregate([
                 { $match: aggFilter },
                 {
                     $lookup: {
-                        from: "workers", // Ensure this is the actual collection name in MongoDB
+                        from: "workers", 
                         localField: "_id",
-                        foreignField: "employerId", // Corrected from 'employer' to 'employerId' based on typical schema
+                        foreignField: "employerId",
                         as: "workerDocs"
                     }
                 },
                 {
                     $project: {
-                        // FIX: Use 'employerName' from your Schema
                         name: { $ifNull: ["$employerName", "Unknown Employer"] },
                         loc: { $ifNull: ["$country", "N/A"] },
                         status: { $ifNull: ["$status", "active"] },
@@ -117,14 +132,10 @@ exports.getPerformanceStats = async (req, res) => {
             dateMap[dateStr] = { date: dateStr, workers: 0, demands: 0, deployed: 0 };
         }
 
+        // Fill the map with actual data from MongoDB
         workerTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].workers = item.count; });
         demandTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].demands = item.count; });
-
-        // Calculate a simulated "Success Trend"
-        const formattedChartData = Object.values(dateMap).map(item => ({
-            ...item,
-            deployed: Math.floor(item.workers * 0.7) 
-        }));
+        deploymentTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].deployed = item.count; });
 
         const statusMap = statusData.reduce((acc, curr) => {
             acc[curr._id] = curr.count;
@@ -144,7 +155,7 @@ exports.getPerformanceStats = async (req, res) => {
                 processing: statusMap['processing'] || statusMap['in-progress'] || 0,
                 pending: statusMap['pending'] || 0
             },
-            chartData: formattedChartData,
+            chartData: Object.values(dateMap), // Using actual DB values 
             topEmployers: topEmployers
         });
 

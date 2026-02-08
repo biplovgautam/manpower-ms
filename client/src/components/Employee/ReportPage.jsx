@@ -3,7 +3,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
-import { TrendingUp, Users, Briefcase, Calendar, Info, Loader2 } from 'lucide-react';
+import { TrendingUp, Users, Briefcase, Calendar, Loader2, Plane } from 'lucide-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,7 +28,6 @@ export function ReportsPage({ onNavigate = () => {} }) {
   const [loading, setLoading] = useState(true);
   const [backendData, setBackendData] = useState(null);
 
-  // FETCH REAL DATA FROM BACKEND
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -39,6 +38,8 @@ export function ReportsPage({ onNavigate = () => {} }) {
         });
 
         if (res.data.success) {
+          // DEBUG: Check your console to see the exact structure of chartData[0]
+          console.log("Backend Chart Data Sample:", res.data.chartData?.[0]);
           setBackendData(res.data);
         }
       } catch (err) {
@@ -50,7 +51,6 @@ export function ReportsPage({ onNavigate = () => {} }) {
     fetchStats();
   }, [filter]);
 
-  // MAP DATA FOR CHART
   const chartData = useMemo(() => {
     if (!backendData?.chartData) return null;
 
@@ -62,15 +62,24 @@ export function ReportsPage({ onNavigate = () => {} }) {
         {
           type: 'bar',
           label: 'Workers Added',
-          data: backendData.chartData.map((d) => d.workers), // Mapped from backend 'workers'
-          backgroundColor: 'rgba(34, 197, 94, 0.8)',
-          borderRadius: 6,
+          data: backendData.chartData.map((d) => d.workers || 0),
+          backgroundColor: 'rgba(34, 197, 94, 0.7)',
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+        {
+          type: 'bar',
+          label: 'Deployed',
+          // Tries multiple common keys in case backend naming differs from summary naming
+          data: backendData.chartData.map((d) => d.deployed ?? d.deployedCount ?? d.count ?? 0),
+          backgroundColor: 'rgba(245, 158, 11, 0.8)',
+          borderRadius: 4,
           yAxisID: 'y',
         },
         {
           type: 'line',
           label: 'Job Demands',
-          data: backendData.chartData.map((d) => d.demands), // Mapped from backend 'demands'
+          data: backendData.chartData.map((d) => d.demands || 0),
           borderColor: 'rgb(99, 102, 241)',
           borderWidth: 3,
           tension: 0.4,
@@ -123,7 +132,6 @@ export function ReportsPage({ onNavigate = () => {} }) {
           bg="bg-emerald-50" 
           onClick={() => onNavigate('worker')} 
         />
-        
         <StatCard 
           title="Active Demands" 
           value={summary.totalJobDemands || 0} 
@@ -132,15 +140,13 @@ export function ReportsPage({ onNavigate = () => {} }) {
           bg="bg-indigo-50" 
           onClick={() => onNavigate('job-demand')} 
         />
-
         <StatCard 
           title="Deployed" 
           value={summary.deployed || 0} 
-          icon={<TrendingUp />} 
-          color="text-green-600" 
-          bg="bg-green-50" 
+          icon={<Plane />} 
+          color="text-amber-600" 
+          bg="bg-amber-50" 
         />
-        
         <StatCard 
           title="Processing" 
           value={summary.processing || 0} 
@@ -152,7 +158,9 @@ export function ReportsPage({ onNavigate = () => {} }) {
 
       <Card className="border-none shadow-sm rounded-3xl overflow-hidden ring-1 ring-slate-100">
         <CardHeader className="border-b border-slate-50">
-          <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500">Performance Trends ({backendData?.viewType})</CardTitle>
+          <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-500">
+            Performance Trends ({backendData?.viewType})
+          </CardTitle>
         </CardHeader>
         <CardContent className="h-[400px] pt-6">
           {chartData && (
@@ -163,11 +171,34 @@ export function ReportsPage({ onNavigate = () => {} }) {
                 responsive: true, 
                 maintainAspectRatio: false, 
                 plugins: {
-                  legend: { position: 'top', labels: { usePointStyle: true, font: { weight: 'bold' } } }
+                  legend: { 
+                    position: 'top', 
+                    labels: { usePointStyle: true, padding: 20, font: { weight: 'bold', size: 11 } } 
+                  },
+                  tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#1e293b',
+                    bodyColor: '#475569',
+                    borderColor: '#e2e8f0',
+                    borderWidth: 1,
+                    padding: 12,
+                    usePointStyle: true,
+                  }
                 },
                 scales: { 
-                  y: { beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Workers' } }, 
-                  y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, title: { display: true, text: 'Demands' } } 
+                  y: { 
+                    beginAtZero: true, 
+                    grid: { color: '#f8fafc' }, 
+                    title: { display: true, text: 'Worker Count', font: { size: 10, weight: 'bold' } } 
+                  }, 
+                  y1: { 
+                    position: 'right', 
+                    beginAtZero: true, 
+                    grid: { drawOnChartArea: false }, 
+                    title: { display: true, text: 'Job Demands', font: { size: 10, weight: 'bold' } } 
+                  } 
                 } 
               }} 
             />
