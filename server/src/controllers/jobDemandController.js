@@ -7,13 +7,26 @@ const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 
 /**
- * @desc    Get all Job Demands (Company-wide) with Live Fulfillment Counts
- * @route   GET /api/job-demands
+ * HELPER: Calculates if a demand should be 'closed'
+ */
+const getComputedStatus = (demand, actualWorkerCount) => {
+  const requiredCount = demand.requiredWorkers || 0;
+  
+  // Rule 1: Fulfillment check
+  const isFull = actualWorkerCount >= requiredCount && requiredCount > 0;
+  
+  // Rule 2: Deadline check
+  const isExpired = demand.deadline && new Date(demand.deadline) < new Date();
+
+  return (isFull || isExpired) ? 'closed' : 'open';
+};
+
+/**
+ * @desc    Get all Job Demands (Company-wide)
  */
 exports.getJobDemands = async (req, res) => {
   try {
     const { companyId } = req.user;
-
     if (!companyId) {
       return res.status(StatusCodes.UNAUTHORIZED).json({ success: false, error: "Company context missing" });
     }
@@ -23,21 +36,19 @@ exports.getJobDemands = async (req, res) => {
       .populate('createdBy', 'fullName')
       .sort({ createdAt: -1 });
 
-    // Sync counts by checking the Worker collection directly
     const dataWithLiveCounts = await Promise.all(jobDemands.map(async (jd) => {
-      const actualWorkerCount = await Worker.countDocuments({ 
-        jobDemandId: jd._id,
-        companyId: companyId 
-      });
+      const actualWorkerCount = await Worker.countDocuments({ jobDemandId: jd._id });
+      const computedStatus = getComputedStatus(jd, actualWorkerCount);
+
+      // Only update database if the status has actually changed
+      if (jd.status !== computedStatus) {
+        await JobDemand.updateOne({ _id: jd._id }, { $set: { status: computedStatus } });
+        jd.status = computedStatus;
+      }
 
       const demandObj = jd.toObject();
-      
-      // Inject dummy objects if the internal array is out of sync 
-      // so frontend jd.workers.length reflects reality
-      if (!demandObj.workers || demandObj.workers.length !== actualWorkerCount) {
-        demandObj.workers = new Array(actualWorkerCount).fill({}); 
-      }
-      
+      // Ensure frontend sees correct length for progress bars/logic
+      demandObj.workers = new Array(actualWorkerCount).fill({}); 
       return demandObj;
     }));
 
@@ -52,8 +63,7 @@ exports.getJobDemands = async (req, res) => {
 };
 
 /**
- * @desc    Get Single Job Demand with Merged Workers (Internal + Referenced)
- * @route   GET /api/job-demands/:id
+ * @desc    Get Single Job Demand
  */
 exports.getJobDemandById = async (req, res) => {
   try {
@@ -61,58 +71,42 @@ exports.getJobDemandById = async (req, res) => {
     const { companyId } = req.user;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ 
-        success: false, 
-        error: "Invalid Job Demand ID format" 
-      });
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, error: "Invalid ID format" });
     }
 
-    let jobDemandDoc = await JobDemand.findOne({ _id: id, companyId })
+    const jobDemandDoc = await JobDemand.findOne({ _id: id, companyId })
       .populate('employerId', 'employerName')
-      .populate('createdBy', 'fullName')
-      .populate({
-        path: 'workers',
-        select: 'name fullName status currentStage passportNumber citizenshipNumber contact',
-      });
+      .populate('createdBy', 'fullName');
 
     if (!jobDemandDoc) {
-      return res.status(StatusCodes.NOT_FOUND).json({ 
-        success: false, 
-        error: "Job Demand not found" 
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Job Demand not found" });
     }
 
-    // Find workers referencing this ID (even if not in the JobDemand's worker array)
-    const workersByRef = await Worker.find({ 
-      jobDemandId: id,
-      companyId: companyId 
-    }).select('name fullName status currentStage passportNumber citizenshipNumber contact');
+    const workersByRef = await Worker.find({ jobDemandId: id, companyId })
+      .select('name fullName status currentStage passportNumber citizenshipNumber contact');
 
-    // Merge logic: ensure unique workers by using a Map
-    const workerMap = new Map();
-    if (jobDemandDoc.workers) {
-      jobDemandDoc.workers.forEach(w => {
-        if (w && w._id) workerMap.set(w._id.toString(), w);
-      });
+    // Sync status on the fly
+    const computedStatus = getComputedStatus(jobDemandDoc, workersByRef.length);
+    if (jobDemandDoc.status !== computedStatus) {
+      await JobDemand.updateOne({ _id: id }, { $set: { status: computedStatus } });
+      jobDemandDoc.status = computedStatus;
     }
-    workersByRef.forEach(w => workerMap.set(w._id.toString(), w));
 
     const jobDemandData = jobDemandDoc.toObject();
-    jobDemandData.workers = Array.from(workerMap.values());
+    jobDemandData.workers = workersByRef;
 
     res.status(StatusCodes.OK).json({ 
       success: true, 
       data: jobDemandData,
-      totalCandidates: jobDemandData.workers.length 
+      totalCandidates: workersByRef.length 
     });
   } catch (error) {
-    console.error("Fetch Detail Error:", error);
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
   }
 };
 
 /**
- * @desc    Create new Job Demand
+ * @desc    Create Job Demand
  */
 exports.createJobDemand = async (req, res) => {
   try {
@@ -122,13 +116,15 @@ exports.createJobDemand = async (req, res) => {
 
     const employer = await Employer.findOne({ employerName, companyId });
     if (!employer) {
-      return res.status(StatusCodes.NOT_FOUND).json({ 
-        error: "Employer not found in your company records" 
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "Employer not found" });
     }
+
+    // Determine initial status based on deadline
+    const initialStatus = (otherData.deadline && new Date(otherData.deadline) < new Date()) ? 'closed' : 'open';
 
     const jobDemand = await JobDemand.create({
       ...otherData,
+      status: initialStatus,
       employerId: employer._id,
       createdBy: userId,
       companyId: companyId,
@@ -136,9 +132,7 @@ exports.createJobDemand = async (req, res) => {
     });
 
     await createNotification({
-      companyId,
-      createdBy: userId,
-      category: 'demand',
+      companyId, createdBy: userId, category: 'demand',
       content: `added a new job demand: ${jobDemand.jobTitle} for ${employerName}`
     });
 
@@ -168,23 +162,28 @@ exports.updateJobDemand = async (req, res) => {
       if (employer) updateData.employerId = employer._id;
     }
 
+    // Update first
     const jobDemand = await JobDemand.findOneAndUpdate(filter, updateData, {
       new: true,
       runValidators: true
-    }).populate('workers', 'name status');
+    });
 
     if (!jobDemand) {
-      return res.status(StatusCodes.FORBIDDEN).json({
-        success: false,
-        error: "Permission denied or Demand does not exist."
-      });
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, error: "Access denied or not found" });
+    }
+
+    // Now recalculate status based on potential new requiredWorkers or deadline
+    const actualWorkerCount = await Worker.countDocuments({ jobDemandId: id });
+    const computedStatus = getComputedStatus(jobDemand, actualWorkerCount);
+    
+    if (jobDemand.status !== computedStatus) {
+      jobDemand.status = computedStatus;
+      await jobDemand.save();
     }
 
     await createNotification({
-      companyId,
-      createdBy: userId,
-      category: 'demand',
-      content: `updated the details for job demand: ${jobDemand.jobTitle}`
+      companyId, createdBy: userId, category: 'demand',
+      content: `updated job demand: ${jobDemand.jobTitle}`
     });
 
     res.status(StatusCodes.OK).json({ success: true, data: jobDemand });
@@ -203,36 +202,29 @@ exports.deleteJobDemand = async (req, res) => {
     const userId = req.user._id || req.user.userId;
 
     let filter = { _id: id, companyId };
-    if (role !== 'admin' && role !== 'tenant_admin') {
-      filter.createdBy = userId;
-    }
+    if (role !== 'admin' && role !== 'tenant_admin') { filter.createdBy = userId; }
 
     const demandToDelete = await JobDemand.findOne(filter);
     if (!demandToDelete) {
-      return res.status(StatusCodes.NOT_FOUND).json({
-        success: false,
-        error: "Demand not found or unauthorized access."
-      });
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "Access denied" });
     }
 
     const title = demandToDelete.jobTitle;
     await demandToDelete.deleteOne();
 
     await createNotification({
-      companyId, createdBy: userId,
-      category: 'demand',
-      content: `removed the job demand: ${title}`
+      companyId, createdBy: userId, category: 'demand',
+      content: `removed job demand: ${title}`
     });
 
-    res.status(StatusCodes.OK).json({ success: true, message: "Demand successfully deleted" });
+    res.status(StatusCodes.OK).json({ success: true, message: "Deleted successfully" });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
   }
 };
 
 /**
- * @desc    Get Employer Specific Demands with Live Worker Counts
- * @route   GET /api/job-demands/employer/:employerId
+ * @desc    Get Employer Specific Demands
  */
 exports.getEmployerJobDemands = async (req, res) => {
   try {
@@ -241,25 +233,21 @@ exports.getEmployerJobDemands = async (req, res) => {
 
     const jobDemands = await JobDemand.find({ employerId, companyId }).sort({ createdAt: -1 });
 
-    // Sync counts for the employer view
     const updatedDemands = await Promise.all(jobDemands.map(async (jd) => {
-      const actualWorkerCount = await Worker.countDocuments({ 
-        jobDemandId: jd._id,
-        companyId: companyId 
-      });
+      const actualWorkerCount = await Worker.countDocuments({ jobDemandId: jd._id });
+      const computedStatus = getComputedStatus(jd, actualWorkerCount);
+
+      if (jd.status !== computedStatus) {
+        await JobDemand.updateOne({ _id: jd._id }, { $set: { status: computedStatus } });
+        jd.status = computedStatus;
+      }
 
       const demandObj = jd.toObject();
-      if (!demandObj.workers || demandObj.workers.length !== actualWorkerCount) {
-        demandObj.workers = new Array(actualWorkerCount).fill({}); 
-      }
+      demandObj.workers = new Array(actualWorkerCount).fill({}); 
       return demandObj;
     }));
 
-    res.status(StatusCodes.OK).json({
-      success: true,
-      count: updatedDemands.length,
-      data: updatedDemands
-    });
+    res.status(StatusCodes.OK).json({ success: true, count: updatedDemands.length, data: updatedDemands });
   } catch (error) {
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
   }

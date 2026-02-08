@@ -5,7 +5,8 @@ import {
   Calendar,
   Plus,
   Search,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -27,12 +28,13 @@ export function JobDemandListPage({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const getStatusVariant = (status) => {
+  // Helper to determine badge color
+  const getStatusVariant = (status, isAutoClosed) => {
+    if (isAutoClosed || status?.toLowerCase() === 'closed') return 'secondary';
     switch (status?.toLowerCase()) {
       case 'open': return 'success';
       case 'pending':
       case 'in-progress': return 'warning';
-      case 'closed': return 'secondary';
       default: return 'default';
     }
   };
@@ -51,7 +53,7 @@ export function JobDemandListPage({
   return (
     <div className="max-w-7xl mx-auto p-8 space-y-8 antialiased">
 
-      {/* 1. Enhanced Header */}
+      {/* 1. Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-1">
           <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">
@@ -61,16 +63,16 @@ export function JobDemandListPage({
             Manage hiring quotas and recruitment pipelines.
           </p>
         </div>
-       <Button
-  onClick={() => onNavigate('create')}
-  className="flex items-center justify-center h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-md shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95"
->
-  <Plus size={18} className="mr-2 stroke-[2.5px]" />
-  <span>Create New Demand</span>
-</Button>
+        <Button
+          onClick={() => onNavigate('create')}
+          className="flex items-center justify-center h-11 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium shadow-md shadow-indigo-200 transition-all hover:-translate-y-0.5 active:scale-95"
+        >
+          <Plus size={18} className="mr-2 stroke-[2.5px]" />
+          <span>Create New Demand</span>
+        </Button>
       </div>
 
-      {/* 2. Refined Search */}
+      {/* 2. Search */}
       <div className="relative max-w-md group">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <Search className="text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={20} />
@@ -91,7 +93,7 @@ export function JobDemandListPage({
         )}
       </div>
 
-      {/* 3. Minimalist Data Table */}
+      {/* 3. Data Table */}
       <Card className="border-none shadow-2xl shadow-slate-200/60 overflow-hidden bg-white rounded-3xl ring-1 ring-slate-100">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -107,57 +109,79 @@ export function JobDemandListPage({
               </TableHeader>
               <TableBody>
                 {filtered.length > 0 ? (
-                  filtered.map((jd) => (
-                    <TableRow
-                      key={jd._id}
-                      onClick={() => onNavigate('details', jd)}
-                      className="group hover:bg-slate-50/80 cursor-pointer transition-all border-b border-slate-50 last:border-0"
-                    >
-                      <TableCell className="py-6 pl-8">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm">
-                            <Briefcase size={22} />
+                  filtered.map((jd) => {
+                    // AUTO-CLOSE LOGIC
+                    const filled = jd.workers?.length || 0;
+                    const required = jd.requiredWorkers || 0;
+                    const isFull = filled >= required && required > 0;
+                    
+                    const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
+                    const isAutoClosed = isFull || isExpired;
+
+                    return (
+                      <TableRow
+                        key={jd._id}
+                        onClick={() => onNavigate('details', jd)}
+                        className="group hover:bg-slate-50/80 cursor-pointer transition-all border-b border-slate-50 last:border-0"
+                      >
+                        <TableCell className="py-6 pl-8">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm">
+                              <Briefcase size={22} />
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 text-base group-hover:text-indigo-600 transition-colors">
+                                {jd.jobTitle}
+                              </p>
+                              <p className="text-sm text-slate-400 font-semibold uppercase tracking-tight">
+                                {jd.employerId?.employerName || jd.employerName}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-900 text-base group-hover:text-indigo-600 transition-colors">
-                              {jd.jobTitle}
-                            </p>
-                            <p className="text-sm text-slate-400 font-semibold uppercase tracking-tight">
-                              {jd.employerId?.employerName || jd.employerName}
-                            </p>
+                        </TableCell>
+
+                        <TableCell className="text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="text-lg font-black text-slate-700">
+                              {filled}/{required}
+                            </span>
+                            {isFull && <span className="text-[10px] text-emerald-600 font-bold uppercase">Filled</span>}
                           </div>
-                        </div>
-                      </TableCell>
+                        </TableCell>
 
-                      <TableCell className="text-center">
-                        <span className="text-lg font-black text-slate-700">
-                          {jd.requiredWorkers}
-                        </span>
-                      </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={getStatusVariant(jd.status, isAutoClosed)}
+                            className="rounded-lg px-3 py-1 text-[11px] font-bold uppercase border-none ring-1 ring-inset shadow-sm"
+                          >
+                            {isAutoClosed ? 'Closed' : (jd.status || 'Open')}
+                          </Badge>
+                        </TableCell>
 
-                      <TableCell>
-                        <Badge
-                          variant={getStatusVariant(jd.status)}
-                          className="rounded-lg px-3 py-1 text-[11px] font-bold uppercase border-none ring-1 ring-inset shadow-sm"
-                        >
-                          {jd.status || 'Open'}
-                        </Badge>
-                      </TableCell>
+                        <TableCell className="text-sm text-slate-500 font-medium">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Calendar size={16} className={isExpired ? "text-red-400" : "text-slate-300"} />
+                              <span className={isExpired ? "text-red-500 font-bold" : ""}>
+                                {jd.deadline ? new Date(jd.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '---'}
+                              </span>
+                            </div>
+                            {isExpired && !isFull && (
+                              <span className="text-[10px] text-red-500 font-bold flex items-center gap-1 uppercase">
+                                <AlertCircle size={10} /> Past Deadline
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
 
-                      <TableCell className="text-sm text-slate-500 font-medium">
-                        <div className="flex items-center gap-2">
-                          <Calendar size={16} className="text-slate-300" />
-                          {jd.deadline ? new Date(jd.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '---'}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="text-right pr-8">
-                        <div className="inline-flex items-center justify-center w-10 h-10 rounded-full text-slate-300 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-all">
-                          <ArrowUpRight size={20} />
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                        <TableCell className="text-right pr-8">
+                          <div className="inline-flex items-center justify-center w-10 h-10 rounded-full text-slate-300 group-hover:text-indigo-600 group-hover:bg-indigo-50 transition-all">
+                            <ArrowUpRight size={20} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell colSpan={5} className="py-32 text-center">
@@ -181,4 +205,3 @@ export function JobDemandListPage({
     </div>
   );
 }
-

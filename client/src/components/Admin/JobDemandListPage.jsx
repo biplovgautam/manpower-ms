@@ -7,7 +7,9 @@ import {
     LayoutDashboard,
     Search,
     Target,
-    Users
+    Users,
+    AlertTriangle,
+    CheckCircle
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -40,13 +42,13 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
         });
     }, [jobDemands, searchTerm]);
 
-    // Stats calculation matching the Employer pattern
+    // Stats calculation
     const activeCount = jobDemands.filter(j => j.status?.toLowerCase() === 'open').length;
     const totalRequired = jobDemands.reduce((acc, curr) => acc + (Number(curr.requiredWorkers) || 0), 0);
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
-            {/* 1. Page Header (Matched to Employer Style) */}
+            {/* 1. Page Header */}
             <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 px-1">
                 <div>
                     <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">Job Demands</h1>
@@ -143,6 +145,10 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                         const assigned = jd.workers?.length || 0;
                                         const required = jd.requiredWorkers || 0;
                                         const percent = required > 0 ? (assigned / required) * 100 : 0;
+                                        
+                                        // Specific Status Logic
+                                        const isFull = assigned >= required && required > 0;
+                                        const isExpired = jd.deadline && new Date(jd.deadline) < new Date();
 
                                         return (
                                             <TableRow
@@ -152,8 +158,8 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                             >
                                                 <TableCell className="py-4 pl-6">
                                                     <div className="flex items-center gap-3">
-                                                        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-600 group-hover:text-white transition-all">
-                                                            <Briefcase size={18} />
+                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isFull ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500 group-hover:bg-blue-600 group-hover:text-white'}`}>
+                                                            {isFull ? <CheckCircle size={18} /> : <Briefcase size={18} />}
                                                         </div>
                                                         <div>
                                                             <p className="font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
@@ -167,26 +173,35 @@ export function AdminJobDemandListPage({ jobDemands = [], onNavigate, isLoading 
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex flex-col items-center gap-1 min-w-[100px]">
-                                                        <span className="text-[11px] font-bold text-gray-700">{assigned} / {required}</span>
+                                                        <span className={`text-[11px] font-bold ${isFull ? 'text-emerald-600' : 'text-gray-700'}`}>
+                                                            {assigned} / {required} {isFull && " (FULL)"}
+                                                        </span>
                                                         <div className="h-1 w-20 bg-gray-100 rounded-full overflow-hidden">
                                                             <div 
-                                                                className={`h-full transition-all ${percent >= 100 ? 'bg-emerald-500' : 'bg-blue-600'}`} 
-                                                                style={{ width: `${percent}%` }} 
+                                                                className={`h-full transition-all ${isFull ? 'bg-emerald-500' : 'bg-blue-600'}`} 
+                                                                style={{ width: `${Math.min(percent, 100)}%` }} 
                                                             />
                                                         </div>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Badge
-                                                        variant={jd.status?.toLowerCase() === 'open' ? 'success' : 'secondary'}
-                                                        className="rounded-md px-2.5 py-0.5 text-[10px] font-bold border-none"
-                                                    >
-                                                        {(jd.status || 'Draft').toUpperCase()}
-                                                    </Badge>
+                                                    <div className="flex flex-col gap-1">
+                                                        <Badge
+                                                            variant={jd.status?.toLowerCase() === 'open' ? 'success' : 'secondary'}
+                                                            className="rounded-md px-2.5 py-0.5 text-[10px] font-bold border-none w-fit"
+                                                        >
+                                                            {(jd.status || 'Draft').toUpperCase()}
+                                                        </Badge>
+                                                        {isExpired && (
+                                                            <span className="text-[9px] font-bold text-red-500 flex items-center gap-1">
+                                                                <AlertTriangle size={10} /> EXPIRED
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
-                                                <TableCell className="text-xs text-gray-500 font-medium">
+                                                <TableCell className={`text-xs font-medium ${isExpired ? 'text-red-500' : 'text-gray-500'}`}>
                                                     <div className="flex items-center gap-2">
-                                                        <Clock size={14} className="text-gray-400" />
+                                                        <Clock size={14} className={isExpired ? 'text-red-400' : 'text-gray-400'} />
                                                         {jd.deadline ? new Date(jd.deadline).toLocaleDateString() : '---'}
                                                     </div>
                                                 </TableCell>
