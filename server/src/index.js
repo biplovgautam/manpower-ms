@@ -52,7 +52,6 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/manpower_ms';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
-
 app.set('trust proxy', 1);
 
 app.use(cors({
@@ -64,7 +63,8 @@ app.use(cors({
 
 app.use(express.json({ limit: '5MB' }));
 app.use(express.urlencoded({ limit: '5MB', extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploads from project root (works for both src and dist builds)
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // API Routes
 app.use('/api/auth', authRoutes);

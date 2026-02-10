@@ -6,6 +6,7 @@ import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 import { JobDemandDetailsPage } from '../../../../components/Employee/JobDemandDetailsPage';
 import { JobDemandListPage } from '../../../../components/Employee/JobDemandListPage';
+import { apiUrl } from '@/lib/api';
 
 function JobDemandsContent() {
     const router = useRouter();
@@ -18,8 +19,8 @@ function JobDemandsContent() {
     const [selectedJobDemand, setSelectedJobDemand] = useState(null);
     const [userData, setUserData] = useState({ fullName: '', role: '' });
 
-    const API_URL = 'http://localhost:5000/api/job-demands';
-    const EMPLOYERS_API_URL = 'http://localhost:5000/api/employers';
+    const API_URL = apiUrl('/api/job-demands');
+    const EMPLOYERS_API_URL = apiUrl('/api/employers');
 
     const fetchJobDemands = useCallback(async (token) => {
         try {

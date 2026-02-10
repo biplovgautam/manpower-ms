@@ -6,6 +6,7 @@ import { AddEmployerPage } from '../../../../components/Employee/AddEmployer';
 import { CreateJobDemandPage } from '../../../../components/Employee/CreateJobDemandPage';
 import { EmployerDetailsPage } from '../../../../components/Employee/EmployerDetailPage';
 import { EmployerListPage } from '../../../../components/Employee/EmployerListPage';
+import { apiUrl } from '@/lib/api';
 
 function EmployersContent() {
     const router = useRouter();
@@ -48,7 +49,7 @@ function EmployersContent() {
 
     const fetchEmployers = async (token) => {
         try {
-            const res = await fetch('http://localhost:5000/api/employers', {
+            const res = await fetch(apiUrl('/api/employers'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
@@ -69,7 +70,7 @@ function EmployersContent() {
         setIsLoadingDetails(true);
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/employers/${emp._id}`, {
+            const res = await fetch(apiUrl(`/api/employers/${emp._id}`), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
@@ -90,7 +91,7 @@ function EmployersContent() {
             const token = localStorage.getItem('token');
             const targetEmployer = employers.find(e => e.employerName === submissionData.employerName);
 
-            const res = await fetch('http://localhost:5000/api/demands', {
+            const res = await fetch(apiUrl('/api/demands'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -112,7 +113,7 @@ function EmployersContent() {
 
     const handleSave = async (formData) => {
         const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5000/api/employers', {
+        const res = await fetch(apiUrl('/api/employers'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(formData)
@@ -127,7 +128,7 @@ function EmployersContent() {
 
     const handleUpdate = async (formData) => {
         const token = localStorage.getItem('token');
-        const res = await fetch(`http://localhost:5000/api/employers/${selectedEmployer._id}`, {
+        const res = await fetch(apiUrl(`/api/employers/${selectedEmployer._id}`), {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(formData)
@@ -143,7 +144,7 @@ function EmployersContent() {
         if (!window.confirm("Are you sure?")) return;
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/employers/${id}`, {
+            const res = await fetch(apiUrl(`/api/employers/${id}`), {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

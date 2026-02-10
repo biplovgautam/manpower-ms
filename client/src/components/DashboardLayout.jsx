@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
+import { API_BASE_URL, apiUrl } from '@/lib/api';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
@@ -16,7 +17,7 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
     const pathname = usePathname();
     const router = useRouter();
 
-    const API_BASE = "http://localhost:5000/api";
+    const API_BASE = apiUrl('/api');
 
     // 1. Fetch User Profile
     const fetchUserProfile = useCallback(async () => {
@@ -87,7 +88,7 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         // Wait for user ID to be available before connecting
         if (!memoizedUser.id || !token) return;
 
-        const newSocket = io('http://localhost:5000', {
+        const newSocket = io(API_BASE_URL, {
             auth: { token },
             reconnectionAttempts: 5,
             transports: ['websocket'] // Often more stable for Node backends

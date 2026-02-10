@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { ReportsPage } from '../../../../components/Employee/ReportPage';
+import { apiUrl } from '@/lib/api';
 
 export default function ReportsDashboard() {
     const router = useRouter();
@@ -52,7 +53,7 @@ export default function ReportsDashboard() {
 
     const fetchReportStats = async (token) => {
         try {
-            const res = await fetch('http://localhost:5000/api/reports/performance-stats', {
+            const res = await fetch(apiUrl('/api/reports/performance-stats'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 

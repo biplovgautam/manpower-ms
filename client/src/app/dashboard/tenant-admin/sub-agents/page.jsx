@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { SubAgentDetailsPage } from '../../../../components/Admin/SubAgentDetailsPage';
 import { SubAgentListPage } from '../../../../components/Admin/SubAgentsListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 export default function AdminSubAgentsPage() {
     const router = useRouter();
@@ -27,7 +28,7 @@ export default function AdminSubAgentsPage() {
 
         try {
             setIsLoading(true);
-            const response = await fetch('http://localhost:5000/api/sub-agents', {
+            const response = await fetch(apiUrl('/api/sub-agents'), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
@@ -50,7 +51,7 @@ export default function AdminSubAgentsPage() {
     const fetchAgentWorkers = async (agentId) => {
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch(`http://localhost:5000/api/sub-agents/${agentId}/workers`, {
+            const response = await fetch(apiUrl(`/api/sub-agents/${agentId}/workers`), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();
@@ -71,7 +72,7 @@ export default function AdminSubAgentsPage() {
                 setLoadingDetail(true);
                 try {
                     const token = localStorage.getItem('token');
-                    const res = await axios.get(`http://localhost:5000/api/sub-agents/${selectedId}`, {
+                    const res = await axios.get(apiUrl(`/api/sub-agents/${selectedId}`), {
                         headers: { Authorization: `Bearer ${token}` }
                     });
 
@@ -110,7 +111,7 @@ export default function AdminSubAgentsPage() {
     const handleUpdateStatus = async (id, newStatus) => {
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+            const response = await fetch(apiUrl(`/api/sub-agents/${id}`), {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -138,7 +139,7 @@ export default function AdminSubAgentsPage() {
 
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+            const response = await fetch(apiUrl(`/api/sub-agents/${id}`), {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

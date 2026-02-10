@@ -6,6 +6,7 @@ import { toast } from 'react-hot-toast';
 import { EmployerDetailPage } from '../../../../components/Admin/EmployerDetailPage';
 import { EmployersListPage } from '../../../../components/Admin/EmployersListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 export default function AdminEmployersPage() {
     const router = useRouter();
@@ -32,7 +33,7 @@ export default function AdminEmployersPage() {
 
             try {
                 setIsLoading(true);
-                const response = await fetch('http://localhost:5000/api/employers', {
+                const response = await fetch(apiUrl('/api/employers'), {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -65,7 +66,7 @@ export default function AdminEmployersPage() {
             const fetchDetail = async () => {
                 const token = localStorage.getItem('token');
                 try {
-                    const response = await fetch(`http://localhost:5000/api/employers/${selectedId}`, {
+                    const response = await fetch(apiUrl(`/api/employers/${selectedId}`), {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 

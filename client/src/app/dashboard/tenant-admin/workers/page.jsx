@@ -8,6 +8,7 @@ import { toast } from 'react-hot-toast';
 import { WorkerDetailsPage } from '../../../../components/Admin/WorkersDetailsPage';
 import { WorkersListPage } from '../../../../components/Admin/WorkersListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 export default function AdminWorkersPage() {
     const router = useRouter();
@@ -24,7 +25,7 @@ export default function AdminWorkersPage() {
         const token = localStorage.getItem('token');
         try {
             setIsLoading(true);
-            const response = await fetch('http://localhost:5000/api/workers', {
+            const response = await fetch(apiUrl('/api/workers'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();
@@ -54,7 +55,7 @@ export default function AdminWorkersPage() {
                 setLoadingDetail(true);
                 try {
                     const token = localStorage.getItem('token');
-                    const res = await axios.get(`http://localhost:5000/api/workers/${selectedId}`, {
+                    const res = await axios.get(apiUrl(`/api/workers/${selectedId}`), {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     if (res.data.success) {

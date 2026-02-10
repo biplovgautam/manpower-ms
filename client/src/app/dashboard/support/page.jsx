@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import { SupportPage } from '../../../components/SupportPage';
+import { apiUrl } from '@/lib/api';
 
 // If you have an Admin-specific inbox component, import it here:
 // import { SupportInbox } from '../../../components/SupportInbox'; 
@@ -23,7 +24,7 @@ function SupportContent() {
         }
 
         try {
-            const response = await fetch('http://localhost:5000/api/auth/me', {
+            const response = await fetch(apiUrl('/api/auth/me'), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'

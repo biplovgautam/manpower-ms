@@ -8,6 +8,7 @@ import { AddEmployeeForm } from '../../../../components/Admin/AddEmployeeForm';
 import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage';
 import { EmployeesListPage } from '../../../../components/Admin/EmployeesListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 export default function AdminEmployeesPage() {
     const router = useRouter();
@@ -25,7 +26,7 @@ export default function AdminEmployeesPage() {
 
         try {
             setIsLoading(true);
-            const response = await fetch('http://localhost:5000/api/auth/employees', {
+            const response = await fetch(apiUrl('/api/auth/employees'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();
@@ -52,7 +53,7 @@ export default function AdminEmployeesPage() {
             const fetchDetail = async () => {
                 try {
                     const token = localStorage.getItem('token');
-                    const res = await axios.get(`http://localhost:5000/api/auth/employees/${selectedId}`, {
+                    const res = await axios.get(apiUrl(`/api/auth/employees/${selectedId}`), {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     if (res.data.success) {

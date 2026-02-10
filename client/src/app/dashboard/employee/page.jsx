@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import EmployeeDashboard from '../../../components/Employee/EmployeeDashboard';
+import { apiUrl } from '@/lib/api';
 
 /**
  * EmployeePage (Root Dashboard)
@@ -29,7 +30,7 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
 
         try {
             // 2. Fetch fresh user profile from backend
-            const response = await axios.get('http://localhost:5000/api/auth/me', {
+            const response = await axios.get(apiUrl('/api/auth/me'), {
                 headers: { Authorization: `Bearer ${token}` }
             });
 

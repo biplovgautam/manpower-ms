@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
+import { apiUrl, fileUrl } from '@/lib/api';
 import {
   Area, AreaChart, BarChart, CartesianGrid,
   Bar as ReBar,
@@ -27,9 +28,9 @@ import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { AddEmployeeForm } from './AddEmployeeForm';
 
-const API_BASE = 'http://localhost:5000/api/dashboard';
-const WORKER_API = 'http://localhost:5000/api/workers'; // adjust if your route is different
-const FILE_BASE = 'http://localhost:5000';
+const API_BASE = apiUrl('/api/dashboard');
+const WORKER_API = apiUrl('/api/workers'); // adjust if your route is different
+const FILE_BASE = fileUrl();
 const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
 
 const getNepalTime = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));

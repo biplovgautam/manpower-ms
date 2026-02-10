@@ -22,6 +22,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { apiUrl } from '@/lib/api';
 
 /**
  * UTILS & CONSTANTS
@@ -59,7 +60,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
     if (!id) return;
     try {
       const token = localStorage.getItem('token');
-      const res = await axios.get(`http://localhost:5000/api/workers/${id}`, {
+      const res = await axios.get(apiUrl(`/api/workers/${id}`), {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data.success) setWorker(res.data.data);
@@ -98,14 +99,14 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
       const token = localStorage.getItem('token');
       
       await axios.patch(
-        `http://localhost:5000/api/workers/${worker._id}/stage/${stageIdentifier}`,
+        apiUrl(`/api/workers/${worker._id}/stage/${stageIdentifier}`),
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (newStatus === 'rejected') {
         await axios.patch(
-          `http://localhost:5000/api/workers/${worker._id}`,
+          apiUrl(`/api/workers/${worker._id}`),
           { status: 'rejected' },
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -124,7 +125,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
     setIsDeleting(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/workers/${worker._id}`, {
+      await axios.delete(apiUrl(`/api/workers/${worker._id}`), {
         headers: { Authorization: `Bearer ${token}` }
       });
       onNavigate('list');

@@ -2,9 +2,10 @@
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { RegisterPage } from '../../../components/RegisterPage';
+import { apiUrl } from '@/lib/api';
 
 // Update this URL if your backend is deployed elsewhere
-const API_URL = 'http://localhost:5000/api/auth/register';
+const API_URL = apiUrl('/api/auth/register');
 
 export default function Register() {
   const router = useRouter();

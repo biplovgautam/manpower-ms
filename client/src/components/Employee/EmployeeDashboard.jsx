@@ -29,13 +29,14 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast, Toaster } from "react-hot-toast";
+import { apiUrl, fileUrl } from "@/lib/api";
 
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 
-const API_BASE = "http://localhost:5000/api/dashboard";
-const FILE_BASE = "http://localhost:5000";
+const API_BASE = apiUrl("/api/dashboard");
+const FILE_BASE = fileUrl();
 
 const NEPALI_MONTHS = [
     "Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj",

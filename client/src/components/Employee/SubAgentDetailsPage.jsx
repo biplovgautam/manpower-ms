@@ -14,6 +14,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { apiUrl } from '@/lib/api';
 
 export function SubAgentDetailsPage({ subAgent, onBack, onUpdate, onDelete }) {
     const [workers, setWorkers] = useState([]);
@@ -42,7 +43,7 @@ export function SubAgentDetailsPage({ subAgent, onBack, onUpdate, onDelete }) {
         setLoading(true);
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`http://localhost:5000/api/sub-agents/${subAgent._id}/workers`, {
+            const res = await fetch(apiUrl(`/api/sub-agents/${subAgent._id}/workers`), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();

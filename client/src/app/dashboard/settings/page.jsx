@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../components/DashboardLayout';
 import { SettingsPage } from '../../../components/SettingsPage';
+import { apiUrl } from '@/lib/api';
 
 function SettingsContent() {
     const router = useRouter();
@@ -19,7 +20,7 @@ function SettingsContent() {
 
         try {
             // 1. Get User + Company Settings
-            const response = await fetch('http://localhost:5000/api/auth/me', config);
+            const response = await fetch(apiUrl('/api/auth/me'), config);
             const userRes = await response.json();
             if (!response.ok) throw new Error("SESSION_EXPIRED");
 
@@ -30,7 +31,7 @@ function SettingsContent() {
 
             // 2. Fetch Employee List if Admin
             if (isAdmin) {
-                const eRes = await fetch('http://localhost:5000/api/settings/blocked-members', config);
+                const eRes = await fetch(apiUrl('/api/settings/blocked-members'), config);
                 const eJson = await eRes.json();
                 // Extracting the .data array from the response
                 employeeData = eJson.data || [];

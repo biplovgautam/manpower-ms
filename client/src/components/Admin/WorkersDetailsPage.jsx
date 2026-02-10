@@ -23,6 +23,7 @@ import {
 import React from 'react';
 import { Badge } from '../ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
+import { fileUrl } from '@/lib/api';
 
 const formatAuditDate = (dateString) => {
     if (!dateString) return { date: "—", time: "" };
@@ -168,7 +169,7 @@ export function WorkerDetailsPage({ worker, onBack }) {
                                         <p className="text-[9px] text-slate-400 font-bold uppercase">{doc.category || 'Other'}</p>
                                     </div>
                                     {doc.path && (
-                                        <a href={`http://localhost:5000/${doc.path}`} target="_blank" rel="noreferrer" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
+                                        <a href={fileUrl(doc.path)} target="_blank" rel="noreferrer" className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all">
                                             <ExternalLink size={14} />
                                         </a>
                                     )}

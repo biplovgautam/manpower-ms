@@ -9,6 +9,7 @@ import { toast, Toaster } from 'react-hot-toast';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Input } from '../ui/Input';
+import { apiUrl } from '@/lib/api';
 
 export function AddEmployeeForm({ onBack, onSuccess }) {
     const [formData, setFormData] = useState({
@@ -44,7 +45,7 @@ export function AddEmployeeForm({ onBack, onSuccess }) {
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:5000/api/auth/add-employee', {
+            const response = await fetch(apiUrl('/api/auth/add-employee'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
