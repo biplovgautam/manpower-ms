@@ -7,8 +7,9 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { LoginPage } from '../../../components/LoginPage';
+import { apiUrl } from '@/lib/api';
 
-const API_URL = 'http://localhost:5000/api/auth/login';
+const API_URL = apiUrl('/api/auth/login');
 
 export default function Login() {
     const router = useRouter();

@@ -8,6 +8,7 @@ import {
     LifeBuoy, MessageSquarePlus, Send, ShieldCheck, X
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { apiUrl } from '@/lib/api';
 
 export function SupportPage({ user }) {
     const [messages, setMessages] = useState([]);
@@ -26,7 +27,7 @@ export function SupportPage({ user }) {
     const fetchHistory = useCallback(async () => {
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch('http://localhost:5000/api/support/my-reports', {
+            const response = await fetch(apiUrl('/api/support/my-reports'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const resData = await response.json();
@@ -75,7 +76,7 @@ export function SupportPage({ user }) {
         const token = localStorage.getItem('token');
 
         try {
-            const response = await fetch('http://localhost:5000/api/support', {
+            const response = await fetch(apiUrl('/api/support'), {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

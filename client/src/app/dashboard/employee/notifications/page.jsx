@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import NotificationsPage from '../../../../components/NotificationPage';
+import { apiUrl } from '@/lib/api';
 
 export default function EmployeeNotifPage() {
     const router = useRouter();
@@ -16,8 +17,8 @@ export default function EmployeeNotifPage() {
             const headers = { Authorization: `Bearer ${token}` };
 
             const [dashRes, authRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/dashboard', { headers }),
-                axios.get('http://localhost:5000/api/auth/me', { headers })
+                axios.get(apiUrl('/api/dashboard'), { headers }),
+                axios.get(apiUrl('/api/auth/me'), { headers })
             ]);
 
             const fullUser = authRes.data?.data || authRes.data?.user || authRes.data;
@@ -40,7 +41,7 @@ export default function EmployeeNotifPage() {
     const handleMarkAllAsRead = async () => {
         const userId = String(data.user?._id || data.user?.id || "");
         try {
-            await axios.patch('http://localhost:5000/api/notifications/read-all', {}, {
+            await axios.patch(apiUrl('/api/notifications/read-all'), {}, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
             });
 

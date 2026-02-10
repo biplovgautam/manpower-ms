@@ -26,10 +26,11 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent } from '../ui/Card';
 import { AddEmployeeForm } from './AddEmployeeForm';
+import { apiUrl, FILE_BASE_URL } from '@/lib/api';
 
-const API_BASE = 'http://localhost:5000/api/dashboard';
-const WORKER_API = 'http://localhost:5000/api/workers'; // adjust if your route is different
-const FILE_BASE = 'http://localhost:5000';
+const API_BASE = apiUrl('/api/dashboard');
+const WORKER_API = apiUrl('/api/workers'); // adjust if your route is different
+const FILE_BASE = FILE_BASE_URL;
 const NEPALI_MONTHS = ["Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
 
 const getNepalTime = () => new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kathmandu" }));

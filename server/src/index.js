@@ -21,10 +21,20 @@ const supportRoutes = require('./routes/supportRoutes');
 const app = express();
 const server = http.createServer(app); // 3. Create HTTP server from express app
 
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+const CLIENT_URLS = process.env.CLIENT_URLS || '';
+const allowedOrigins = Array.from(
+    new Set(
+        [CLIENT_URL, ...CLIENT_URLS.split(',')]
+            .map((url) => url.trim())
+            .filter(Boolean)
+    )
+);
+
 // 4. Initialize Socket.io
 const io = new Server(server, {
     cors: {
-        origin: process.env.CLIENT_URL || 'http://localhost:3000',
+        origin: allowedOrigins.length ? allowedOrigins : CLIENT_URL,
         methods: ['GET', 'POST'],
         credentials: true
     }
@@ -51,12 +61,11 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/manpower_ms';
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
 
 app.set('trust proxy', 1);
 
 app.use(cors({
-    origin: CLIENT_URL,
+    origin: allowedOrigins.length ? allowedOrigins : CLIENT_URL,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -64,7 +73,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '5MB' }));
 app.use(express.urlencoded({ limit: '5MB', extended: true }));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // API Routes
 app.use('/api/auth', authRoutes);

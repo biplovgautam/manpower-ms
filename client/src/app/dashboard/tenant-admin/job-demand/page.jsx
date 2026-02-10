@@ -1,12 +1,14 @@
 "use client";
 
 import axios from 'axios';
+import { RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { AdminJobDemandDetailsPage } from '../../../../components/Admin/JobDemandDetailPage';
 import { AdminJobDemandListPage } from '../../../../components/Admin/JobDemandListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 // Placeholder form (replace with your real add form)
 const AdminJobDemandForm = ({ onBack, onSuccess }) => (
@@ -17,7 +19,7 @@ const AdminJobDemandForm = ({ onBack, onSuccess }) => (
     </div>
 );
 
-export default function AdminJobDemandPage() {
+function AdminJobDemandPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
@@ -34,7 +36,7 @@ export default function AdminJobDemandPage() {
 
         try {
             setIsLoading(true);
-            const response = await fetch('http://localhost:5000/api/job-demands', {
+            const response = await fetch(apiUrl('/api/job-demands'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();
@@ -62,7 +64,7 @@ export default function AdminJobDemandPage() {
                 setLoadingDetail(true);
                 try {
                     const token = localStorage.getItem('token');
-                    const res = await axios.get(`http://localhost:5000/api/job-demands/${selectedId}`, {
+                    const res = await axios.get(apiUrl(`/api/job-demands/${selectedId}`), {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     if (res.data.success) {
@@ -153,5 +155,13 @@ export default function AdminJobDemandPage() {
                 />
             </div>
         </DashboardLayout>
+    );
+}
+
+export default function AdminJobDemandPage() {
+    return (
+        <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
+            <AdminJobDemandPageContent />
+        </Suspense>
     );
 }

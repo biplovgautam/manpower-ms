@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
+import { apiUrl, API_BASE_URL } from '@/lib/api';
 
 export function DashboardLayout({ children, user: propUser, role, onNavigate }) {
     const [notifications, setNotifications] = useState([]);
@@ -16,7 +17,7 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
     const pathname = usePathname();
     const router = useRouter();
 
-    const API_BASE = "http://localhost:5000/api";
+    const API_BASE = apiUrl('/api');
 
     // 1. Fetch User Profile
     const fetchUserProfile = useCallback(async () => {
@@ -80,7 +81,7 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         const token = localStorage.getItem('token');
         if (!memoizedUser.id || !token) return;
 
-        const newSocket = io('http://localhost:5000', {
+        const newSocket = io(API_BASE_URL, {
             auth: { token },
             reconnectionAttempts: 5
         });

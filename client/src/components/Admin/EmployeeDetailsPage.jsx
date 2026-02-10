@@ -12,6 +12,7 @@ import {
     Zap
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { apiUrl } from '@/lib/api';
 
 export function EmployeeDetailsPage({ employee, onBack }) {
     const [data, setData] = useState({ employers: [], demands: [], workers: [] });
@@ -22,7 +23,7 @@ export function EmployeeDetailsPage({ employee, onBack }) {
     const fetchEmployeeData = useCallback(async () => {
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch(`http://localhost:5000/api/auth/employees/${employee._id}`, {
+            const response = await fetch(apiUrl(`/api/auth/employees/${employee._id}`), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();

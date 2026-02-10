@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { SubAgentDetailsPage } from '../../../../components/Employee/SubAgentDetailsPage';
 import { SubAgentListPage } from '../../../../components/Employee/SubAgentListPage';
+import { apiUrl } from '@/lib/api';
 
 export default function SubAgentPage() {
     const router = useRouter();
@@ -41,10 +42,10 @@ export default function SubAgentPage() {
         setLoading(true);
         try {
             const [agentsRes, workersRes] = await Promise.all([
-                fetch('http://localhost:5000/api/sub-agents', {
+                fetch(apiUrl('/api/sub-agents'), {
                     headers: { 'Authorization': `Bearer ${token}` }
                 }),
-                fetch('http://localhost:5000/api/workers', {
+                fetch(apiUrl('/api/workers'), {
                     headers: { 'Authorization': `Bearer ${token}` }
                 })
             ]);
@@ -84,7 +85,7 @@ export default function SubAgentPage() {
     const handleAddAgent = async (agentData) => {
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch('http://localhost:5000/api/sub-agents', {
+            const res = await fetch(apiUrl('/api/sub-agents'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -108,7 +109,7 @@ export default function SubAgentPage() {
     const handleUpdateAgent = async (id, updatedData) => {
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+            const res = await fetch(apiUrl(`/api/sub-agents/${id}`), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -135,7 +136,7 @@ export default function SubAgentPage() {
 
         const token = localStorage.getItem('token');
         try {
-            const res = await fetch(`http://localhost:5000/api/sub-agents/${id}`, {
+            const res = await fetch(apiUrl(`/api/sub-agents/${id}`), {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });

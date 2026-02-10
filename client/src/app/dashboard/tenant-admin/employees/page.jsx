@@ -2,14 +2,15 @@
 
 import axios from 'axios';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { AddEmployeeForm } from '../../../../components/Admin/AddEmployeeForm';
 import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage';
 import { EmployeesListPage } from '../../../../components/Admin/EmployeesListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
-export default function AdminEmployeesPage() {
+function AdminEmployeesPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
@@ -25,7 +26,7 @@ export default function AdminEmployeesPage() {
 
         try {
             setIsLoading(true);
-            const response = await fetch('http://localhost:5000/api/auth/employees', {
+            const response = await fetch(apiUrl('/api/auth/employees'), {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await response.json();
@@ -52,7 +53,7 @@ export default function AdminEmployeesPage() {
             const fetchDetail = async () => {
                 try {
                     const token = localStorage.getItem('token');
-                    const res = await axios.get(`http://localhost:5000/api/auth/employees/${selectedId}`, {
+                    const res = await axios.get(apiUrl(`/api/auth/employees/${selectedId}`), {
                         headers: { Authorization: `Bearer ${token}` }
                     });
                     if (res.data.success) {
@@ -129,5 +130,13 @@ export default function AdminEmployeesPage() {
                 />
             </div>
         </DashboardLayout>
+    );
+}
+
+export default function AdminEmployeesPage() {
+    return (
+        <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
+            <AdminEmployeesPageContent />
+        </Suspense>
     );
 }

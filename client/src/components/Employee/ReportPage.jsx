@@ -20,6 +20,7 @@ import {
 } from 'chart.js';
 import { Chart } from 'react-chartjs-2';
 import 'chartjs-adapter-date-fns';
+import { apiUrl } from '@/lib/api';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, BarController, LineController, Title, Tooltip, Legend, Filler);
 
@@ -33,7 +34,7 @@ export function ReportsPage({ onNavigate = () => {} }) {
       try {
         setLoading(true);
         const token = localStorage.getItem('token');
-        const res = await axios.get(`http://localhost:5000/api/reports/performance-stats?view=${filter}`, {
+        const res = await axios.get(apiUrl(`/api/reports/performance-stats?view=${filter}`), {
           headers: { Authorization: `Bearer ${token}` }
         });
 

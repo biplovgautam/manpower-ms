@@ -16,6 +16,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { apiUrl } from '@/lib/api';
 
 export function SettingsPage({ data, refreshData }) {
     const router = useRouter();
@@ -53,7 +54,7 @@ export function SettingsPage({ data, refreshData }) {
         const previousState = isPassportPrivate;
         setIsPassportPrivate(!previousState);
         try {
-            const res = await axios.patch('http://localhost:5000/api/settings/toggle-passport-privacy', {}, config);
+            const res = await axios.patch(apiUrl('/api/settings/toggle-passport-privacy'), {}, config);
             if (res.data.success) {
                 setIsPassportPrivate(res.data.isPassportPrivate);
                 toast.success(res.data.isPassportPrivate ? "Privacy Enabled" : "Privacy Disabled");
@@ -67,7 +68,7 @@ export function SettingsPage({ data, refreshData }) {
 
     const handleBlockToggle = async (employeeId) => {
         try {
-            const res = await axios.patch(`http://localhost:5000/api/settings/block-member/${employeeId}`, {}, config);
+            const res = await axios.patch(apiUrl(`/api/settings/block-member/${employeeId}`), {}, config);
             toast.success(res.data.msg);
             refreshData();
         } catch (err) {
@@ -80,7 +81,7 @@ export function SettingsPage({ data, refreshData }) {
         const updated = { ...notifs, [key]: !notifs[key] };
         setNotifs(updated);
         try {
-            const res = await axios.patch('http://localhost:5000/api/settings/notifications', { settings: updated }, config);
+            const res = await axios.patch(apiUrl('/api/settings/notifications'), { settings: updated }, config);
             if (res.data.success) setNotifs(res.data.data);
         } catch (err) {
             setNotifs(previousNotifs);
@@ -92,7 +93,7 @@ export function SettingsPage({ data, refreshData }) {
         if (!emails.newEmail) return toast.error("Please enter a new email");
         setLoadingAction('email');
         try {
-            await axios.patch('http://localhost:5000/api/settings/change-email', emails, config);
+            await axios.patch(apiUrl('/api/settings/change-email'), emails, config);
             toast.success("Email updated");
             setEmails({ newEmail: "" });
             refreshData();
@@ -108,7 +109,7 @@ export function SettingsPage({ data, refreshData }) {
         if (passwords.newPassword !== passwords.confirmPassword) return toast.error("Passwords do not match!");
         setLoadingAction('pass');
         try {
-            await axios.patch('http://localhost:5000/api/settings/change-password', {
+            await axios.patch(apiUrl('/api/settings/change-password'), {
                 oldPassword: passwords.oldPassword,
                 newPassword: passwords.newPassword
             }, config);

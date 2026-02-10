@@ -1,13 +1,15 @@
 // client/src/app/page.js (UPDATED)
 
 import Link from 'next/link';
+import { API_BASE_URL, FILE_BASE_URL } from '@/lib/api';
 
 export default function Home() {
     return (
         <div style={{ padding: '50px', fontFamily: 'Arial, sans-serif' }}>
             <h1>Manpower Management System Frontend (Client)</h1>
             <p>This is the Next.js application running on **http://localhost:3000**.</p>
-            <p>The backend API is running on **http://localhost:5000**.</p>
+            <p>The backend API base is <strong>{API_BASE_URL}</strong>.</p>
+            <p>File downloads are served from <strong>{FILE_BASE_URL}</strong>.</p>
 
             <div style={{ marginTop: '30px', padding: '20px', border: '1px solid #0070f3', borderRadius: '8px', backgroundColor: '#f0f8ff' }}>
                 <h2>Authentication Status</h2>
