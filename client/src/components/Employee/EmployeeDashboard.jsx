@@ -18,7 +18,6 @@ import {
     Paperclip,
     Plus,
     RefreshCw,
-    // ──── added for global search ────
     Search,
     ShieldCheck,
     Trash2,
@@ -560,7 +559,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
     }, [workersMap, employersMap, demandsMap, subAgentsMap]);
 
     // ────────────────────────────────────────────────
-    //   GLOBAL SEARCH (added - nothing removed)
+    //   GLOBAL SEARCH
     // ────────────────────────────────────────────────
 
     const [searchQuery, setSearchQuery] = useState("");
@@ -620,6 +619,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // ✅ FIX: Absolute paths for search navigation
     const handleResultClick = (item) => {
         setSearchQuery('');
         setShowSearchResults(false);
@@ -632,16 +632,16 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
 
         switch (item.type) {
             case 'worker':
-                navigateTo(`worker?id=${id}`);
+                navigateTo(`/dashboard/employee/worker?id=${id}`);
                 break;
             case 'employer':
-                navigateTo(`employer?id=${id}`);
+                navigateTo(`/dashboard/employee/employer?id=${id}`);
                 break;
             case 'job-demand':
-                navigateTo(`job-demand?id=${id}`);
+                navigateTo(`/dashboard/employee/job-demand?id=${id}`);
                 break;
             case 'sub-agent':
-                navigateTo(`subagent?id=${id}`);
+                navigateTo(`/dashboard/employee/subagent?id=${id}`);
                 break;
             case 'note':
             case 'reminder':
@@ -661,11 +661,12 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
         );
     }
 
+    // ✅ FIX: Stat cards with absolute paths
     const statCards = [
-        { title: "Employers", value: formatStatValue(stats.employersAdded), icon: <Building2 size={28} />, gradient: "from-blue-600 to-indigo-600", path: "employer" },
-        { title: "Job Demands", value: formatStatValue(stats.activeJobDemands), icon: <Briefcase size={28} />, gradient: "from-purple-600 to-indigo-600", path: "job-demand" },
-        { title: "Workers", value: formatStatValue(stats.workersInProcess), icon: <Users size={28} />, gradient: "from-emerald-600 to-teal-600", path: "worker" },
-        { title: "Sub Agents", value: formatStatValue(stats.activeSubAgents), icon: <UserCircle size={28} />, gradient: "from-slate-700 to-slate-900", path: "subagent" },
+        { title: "Employers", value: formatStatValue(stats.employersAdded), icon: <Building2 size={28} />, gradient: "from-blue-600 to-indigo-600", path: "/dashboard/employee/employer" },
+        { title: "Job Demands", value: formatStatValue(stats.activeJobDemands), icon: <Briefcase size={28} />, gradient: "from-purple-600 to-indigo-600", path: "/dashboard/employee/job-demand" },
+        { title: "Workers", value: formatStatValue(stats.workersInProcess), icon: <Users size={28} />, gradient: "from-emerald-600 to-teal-600", path: "/dashboard/employee/worker" },
+        { title: "Sub Agents", value: formatStatValue(stats.activeSubAgents), icon: <UserCircle size={28} />, gradient: "from-slate-700 to-slate-900", path: "/dashboard/employee/subagent" },
         { title: "Priority Tasks", value: urgentCount, icon: <AlertCircle size={28} />, gradient: "from-orange-500 to-rose-600" },
     ];
 
@@ -721,7 +722,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                     </div>
                 </div>
 
-                {/* ──── GLOBAL SEARCH BAR (added here) ──── */}
+                {/* ──── GLOBAL SEARCH BAR ──── */}
                 <div ref={searchRef} className="relative w-full">
                     <div className="relative">
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={22} />
@@ -1154,7 +1155,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                     </div>
                 </div>
 
-                {/* Command Center */}
+                {/* Command Center - ✅ FIX: Absolute paths */}
                 <div className="pt-10 border-t border-slate-200">
                     <div className="mb-6 px-2">
                         <h2 className="text-2xl font-black text-slate-900">Command Center</h2>
@@ -1162,24 +1163,24 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {[
-                            { to: "worker", color: "emerald", icon: <UserPlus />, title: "Add Worker", desc: "Register & upload documents" },
-                            { to: "employer", color: "blue", icon: <Building2 />, title: "New Employer", desc: "Add company to directory" },
-                            { to: "job-demand-add", color: "purple", icon: <FilePlus />, title: "Post Demand", desc: "Create job requirement" },
-                            { to: "subagent", color: "orange", icon: <Users />, title: "Sub Agents", desc: "Manage recruitment partners" },
-                        ].map((item) => (
-                            <button
-                                key={item.title}
-                                onClick={() => navigateTo(item.to)}
-                                className="flex flex-col p-7 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group text-left"
-                            >
-                                <div className={`w-14 h-14 rounded-2xl bg-${item.color}-100 text-${item.color}-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
-                                    {item.icon}
-                                </div>
-                                <span className="text-base font-black text-slate-900">{item.title}</span>
-                                <p className="text-sm text-slate-500 mt-1.5">{item.desc}</p>
-                            </button>
-                        ))}
+{[
+  { to: "/dashboard/employee/worker?action=add",      color: "emerald", icon: <UserPlus />,    title: "Add Worker",       desc: "Register & upload documents" },
+  { to: "/dashboard/employee/employer?action=add",    color: "blue",    icon: <Building2 />,   title: "New Employer",     desc: "Add company to directory" },
+  { to: "/dashboard/employee/job-demand?action=add",  color: "purple",  icon: <FilePlus />,    title: "Post Demand",      desc: "Create job requirement" },
+  { to: "/dashboard/employee/subagent",               color: "orange",  icon: <Users />,       title: "Sub Agents",       desc: "Manage recruitment partners" },
+].map((item) => (
+  <button
+    key={item.title}
+    onClick={() => navigateTo(item.to)}
+    className="flex flex-col p-7 bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl transition-all group text-left"
+  >
+    <div className={`w-14 h-14 rounded-2xl bg-${item.color}-100 text-${item.color}-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
+      {item.icon}
+    </div>
+    <span className="text-base font-black text-slate-900">{item.title}</span>
+    <p className="text-sm text-slate-500 mt-1.5">{item.desc}</p>
+  </button>
+))}
                     </div>
                 </div>
             </div>
@@ -1215,4 +1216,4 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
       `}</style>
         </>
     );
-} 
+}

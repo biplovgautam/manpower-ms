@@ -16,6 +16,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { Input, Textarea } from "../ui/Input";
 import { Select } from "../ui/Select";
 
+// Constant for 5MB limit
+const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
 export function AddWorkerPage({
   initialData = null,
   employers = [],
@@ -44,6 +47,7 @@ export function AddWorkerPage({
 
   const [documents, setDocuments] = useState([]);
   const [currentDoc, setCurrentDoc] = useState({ file: null, category: "Passport", name: "" });
+  const [fileError, setFileError] = useState("");
 
   const documentCategories = [
     { value: "Passport", label: "Passport" },
@@ -97,7 +101,25 @@ export function AddWorkerPage({
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // --- UPDATED LOGIC: Specific Lock Reasons ---
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    setFileError(""); // Reset error
+
+    if (file) {
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setFileError(`File "${file.name}" is too large. Maximum size is 5MB.`);
+        e.target.value = ""; // Clear input
+        return;
+      }
+      // Auto-set the document label to the file name if it's currently empty
+      setCurrentDoc(prev => ({ 
+        ...prev, 
+        file: file, 
+        name: prev.name || file.name.split('.')[0] 
+      }));
+    }
+  };
+
   const filteredJobDemands = jobDemands
     .filter(jd => {
       if (!formData.employerId) return false;
@@ -116,7 +138,6 @@ export function AddWorkerPage({
 
       let lockReason = "";
       if (!isAssignedToCurrentWorker) {
-        // Priority: Deadline > Fulfillment > Manual Status
         if (isExpired) lockReason = "PAST DEADLINE";
         else if (isFull) lockReason = "DEMAND FULL";
         else if (isStatusClosed) lockReason = "CLOSED";
@@ -143,6 +164,7 @@ export function AddWorkerPage({
       };
       setDocuments([...documents, newDoc]);
       setCurrentDoc({ file: null, category: "Passport", name: "" });
+      setFileError("");
       const fileInput = document.getElementById('worker-file-input');
       if (fileInput) fileInput.value = '';
     }
@@ -309,18 +331,30 @@ export function AddWorkerPage({
                       onChange={(e) => setCurrentDoc({ ...currentDoc, name: e.target.value })}
                     />
                   </div>
-                  <input
-                    id="worker-file-input"
-                    type="file"
-                    className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                    onChange={(e) => setCurrentDoc({ ...currentDoc, file: e.target.files[0] })}
-                  />
+                  
+                  <div className="space-y-2">
+                    <input
+                      id="worker-file-input"
+                      type="file"
+                      className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                      onChange={handleFileChange}
+                    />
+                    <p className="text-[10px] text-gray-400 pl-1 font-medium italic">Max file size: 5.00 MB</p>
+                    
+                    {fileError && (
+                      <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-100 rounded-lg text-red-600 text-xs font-bold animate-pulse">
+                        <AlertTriangle size={14} />
+                        {fileError}
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     type="button"
-                    disabled={!currentDoc.file || !currentDoc.name}
+                    disabled={!currentDoc.file || !currentDoc.name || !!fileError}
                     onClick={handleAddDocument}
                     className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm
-                                ${(!currentDoc.file || !currentDoc.name) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
+                                ${(!currentDoc.file || !currentDoc.name || !!fileError) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-indigo-600 text-white hover:bg-indigo-700"}`}
                   >
                     <Upload size={18} /> Attach Document
                   </button>
@@ -329,7 +363,10 @@ export function AddWorkerPage({
                 <div className="space-y-3">
                   <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Currently Attached</h4>
                   {documents.length === 0 && (
-                    <p className="text-center py-6 text-gray-400 text-sm italic border rounded-lg">No documents attached.</p>
+                    <div className="text-center py-10 border border-dashed rounded-xl bg-gray-50">
+                       <FileText size={32} className="mx-auto text-gray-300 mb-2 opacity-50" />
+                       <p className="text-gray-400 text-sm italic">No documents attached yet.</p>
+                    </div>
                   )}
                   {documents.map((doc, i) => (
                     <div key={i} className={`flex justify-between items-center p-3 bg-white border border-gray-100 rounded-lg shadow-sm border-l-4 ${doc.isExisting ? 'border-l-blue-500' : 'border-l-emerald-500'}`}>

@@ -1,44 +1,49 @@
 "use client";
+import axios from "axios";
+import { RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { Toaster } from "react-hot-toast";
+import { DashboardLayout } from "../../../components/DashboardLayout";
+import EmployeeDashboard from "../../../components/Employee/EmployeeDashboard";
 
-import axios from 'axios';
-import { RefreshCw } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
-import { Toaster } from 'react-hot-toast';
-import { DashboardLayout } from '../../../components/DashboardLayout';
-import EmployeeDashboard from '../../../components/Employee/EmployeeDashboard';
-
-/**
- * EmployeePage (Root Dashboard)
- * This acts as the landing page after login. It fetches the user profile
- * and provides the base context for the dashboard layout.
- */
 export default function EmployeePage({ notifications, onMarkAllRead }) {
     const router = useRouter();
     const [data, setData] = useState({ user: null, loading: true });
+    const [error, setError] = useState(null);
 
     const fetchUser = useCallback(async () => {
-        const token = localStorage.getItem('token');
-        const role = localStorage.getItem('role');
-
-        // 1. Basic Auth Guard
-        if (!token || role?.toLowerCase() !== 'employee') {
-            localStorage.clear();
-            return router.replace('/login');
-        }
-
         try {
-            // 2. Fetch fresh user profile from backend
-            const response = await axios.get('http://localhost:5000/api/auth/me', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+            const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+
+            if (!token || !role || role.toLowerCase() !== "employee") {
+                if (typeof window !== "undefined") {
+                    localStorage.clear();
+                }
+                router.replace("/login");
+                return;
+            }
+
+            const response = await axios.get(
+                "http://localhost:5000/api/auth/me",
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
 
             const userData = response.data?.data || response.data?.user || response.data;
             setData({ user: userData, loading: false });
+            setError(null);
         } catch (err) {
             console.error("Session verification failed:", err);
-            localStorage.clear();
-            router.replace('/login');
+            if (typeof window !== "undefined") {
+                localStorage.clear();
+            }
+            setError(err.message || "Session verification failed");
+            router.replace("/login");
         }
     }, [router]);
 
@@ -46,37 +51,70 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
         fetchUser();
     }, [fetchUser]);
 
-    // Global Loading State (Appears during first boot or refresh)
-    if (data.loading) return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-            <RefreshCw className="animate-spin text-indigo-600" size={48} />
-            <p className="text-slate-500 font-medium animate-pulse">Establishing secure session...</p>
-        </div>
+    const handleNavigate = useCallback(
+        (path) => {
+            if (!path) {
+                console.warn("Navigation path is empty");
+                return;
+            }
+            router.push(path);
+        },
+        [router]
     );
+
+    const handleLogout = useCallback(() => {
+        if (typeof window !== "undefined") {
+            localStorage.clear();
+        }
+        router.push("/login");
+    }, [router]);
+
+    if (data.loading) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+                <RefreshCw className="animate-spin text-indigo-600" size={48} />
+                <p className="text-slate-500 font-medium animate-pulse">
+                    Establishing secure session...
+                </p>
+            </div>
+        );
+    }
+
+    if (error && !data.user) {
+        return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
+                <div className="text-center">
+                    <p className="text-red-600 font-bold text-lg mb-2">
+                        Session Error
+                    </p>
+                    <p className="text-slate-600 mb-6">{error}</p>
+                    <button
+                        onClick={() => router.push("/login")}
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                    >
+                        Return to Login
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
             <Toaster position="top-right" />
-
             <DashboardLayout
                 role="employee"
                 user={data.user}
-                userName={data.user?.fullName}
+                userName={data.user?.fullName || "Employee"}
                 currentPath="/dashboard/employee"
-                onLogout={() => {
-                    localStorage.clear();
-                    router.push('/login');
-                }}
+                onLogout={handleLogout}
             >
-                {/* We pass 'notifications' and 'user' to the inner EmployeeDashboard 
-                  so the "Stats Cards" (e.g., Pending Workers, Active Demands) 
-                  can render immediately.
-                */}
                 <div className="animate-in fade-in duration-500">
                     <EmployeeDashboard
                         data={data}
                         notifications={notifications}
                         onMarkAllRead={onMarkAllRead}
+                        navigateTo={handleNavigate}
                     />
                 </div>
             </DashboardLayout>

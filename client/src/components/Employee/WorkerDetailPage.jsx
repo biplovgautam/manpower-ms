@@ -15,7 +15,8 @@ import {
   Phone,
   ShieldCheck,
   User,
-  Trash2
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -85,6 +86,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
   const handleStatusChange = async (stageIdentifier, newStatus) => {
     setIsUpdating(true);
     
+    // Optimistic UI Update
     const originalTimeline = [...localTimeline];
     setLocalTimeline(prev => 
       prev.map(item => 
@@ -97,21 +99,15 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
     try {
       const token = localStorage.getItem('token');
       
+      // We only need this call now because the Backend handles the global status sync
       await axios.patch(
         `http://localhost:5000/api/workers/${worker._id}/stage/${stageIdentifier}`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (newStatus === 'rejected') {
-        await axios.patch(
-          `http://localhost:5000/api/workers/${worker._id}`,
-          { status: 'rejected' },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      }
-
-      fetchWorkerData();
+      // Refresh data to get the backend-calculated global status (e.g., 'deployed' or 'processing')
+      await fetchWorkerData();
     } catch (err) {
       alert('Update failed');
       setLocalTimeline(originalTimeline); 
@@ -188,7 +184,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                 variant="outline" 
                 onClick={handleDeleteWorker} 
                 disabled={isDeleting}
-                className="bg-rose-600 hover:bg-red-700 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] hover:shadow-[0_0_20px_rgba(225,29,72,0.6)] border-none h-12 w-12 rounded-xl p-0 transition-all duration-300 active:scale-90"
+                className="bg-rose-600 hover:bg-red-700 text-white shadow-[0_0_15px_rgba(225,29,72,0.4)] border-none h-12 w-12 rounded-xl p-0 transition-all active:scale-90"
               >
                 {isDeleting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
               </Button>
@@ -208,8 +204,8 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <CardContent className="pt-6 space-y-5">
                 <InfoRow icon={<ShieldCheck size={16} />} label="Passport No" value={worker.passportNumber} isCopyable />
                 <InfoRow icon={<Fingerprint size={16} />} label="Citizenship No" value={worker.citizenshipNumber || "N/A"} isCopyable />
-                <InfoRow icon={<Calendar size={16} />} label="Date of Birth" value={new Date(worker.createdAt).toLocaleDateString()} />
-                <InfoRow icon={<Phone size={16} />} label="Contact" value={worker.contact || "N/A"} />
+                <InfoRow icon={<Calendar size={16} />} label="Date of Birth" value={worker.dob ? new Date(worker.dob).toLocaleDateString() : 'N/A'} />
+                <InfoRow icon={<Phone size={16} />} label="Contact" value={worker.phoneNumber || worker.contact || "N/A"} />
                 <InfoRow icon={<Mail size={16} />} label="Email" value={worker.email || "No Email"} />
                 <InfoRow icon={<MapPin size={16} />} label="Address" value={worker.address || "N/A"} />
               </CardContent>
@@ -219,9 +215,13 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <CardContent className="pt-8 pb-8 px-8">
                 <div className="flex justify-between items-start mb-8">
                   <div>
-                    <p className="text-[15px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-2">Current Employer</p>
-                    <h3 className="text-xl text-black italic leading-normal">
-                        {worker.employerId?.employerName || worker.employerId?.name || 'Pending Assignment'}
+                    <p className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-2">Employer Assignment</p>
+                    <h3 className="text-xl text-white font-bold leading-tight">
+                        {worker.employerId?.companyName || worker.employerId?.name || (
+                            <span className="text-slate-500 italic flex items-center gap-2">
+                                <AlertCircle size={18} /> Pending
+                            </span>
+                        )}
                     </h3>
                   </div>
                   <div className="p-3 bg-white/10 rounded-2xl">
@@ -230,8 +230,8 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                 </div>
                 <div className="space-y-5">
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-600 font-bold uppercase text-[13px]">Role</span>
-                    <span className="font-bold text-indigo-600 bg-indigo-600/10 px-4 py-1.5 rounded-xl text-xs">
+                    <span className="text-slate-400 font-bold uppercase text-[11px]">Assigned Role</span>
+                    <span className="font-bold text-indigo-300 bg-indigo-500/20 px-4 py-1.5 rounded-xl text-xs">
                       {worker.jobDemandId?.jobTitle || 'General Worker'}
                     </span>
                   </div>
@@ -289,7 +289,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
                             disabled={isUpdating || (firstRejectedIndex !== -1 && idx > firstRejectedIndex)}
                             value={item.status}
                             onChange={(e) => handleStatusChange(item._id || item.stage, e.target.value)}
-                            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 outline-none cursor-pointer"
+                            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-[11px] font-bold text-slate-700 outline-none cursor-pointer hover:border-indigo-300"
                           >
                             <option value="pending">Pending</option>
                             <option value="in-progress">In Progress</option>
@@ -305,7 +305,7 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
             </Card>
 
             <Card className="border-none shadow-sm rounded-[2rem] bg-white ring-1 ring-slate-200 overflow-hidden">
-              <CardHeader className="px-8 py-5 border-b border-slate-100 flex flex-row items-center justify-between">
+              <CardHeader className="px-8 py-5 border-b border-slate-100">
                 <CardTitle className="text-[12px] font-black text-slate-500 flex items-center gap-3 uppercase tracking-[0.1em]">
                   <FileText className="h-4 w-4 text-slate-400" /> Document Repository
                 </CardTitle>
@@ -313,16 +313,25 @@ export function WorkerDetailsPage({ worker: initialWorker, workerId, onNavigate 
               <CardContent className="p-0">
                 <Table>
                   <TableBody>
-                    {worker.documents?.map((doc, index) => (
-                      <TableRow key={index} className="border-slate-100">
-                        <TableCell className="pl-8 font-bold text-sm text-slate-900">{doc.name || 'Document'}</TableCell>
-                        <TableCell className="text-right pr-8">
-                          <Button variant="ghost" size="sm" onClick={() => window.open(doc.url, '_blank')} className="text-indigo-600 font-bold">
-                            View <Eye className="ml-2 h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {worker.documents?.length > 0 ? (
+                      worker.documents.map((doc, index) => (
+                        <TableRow key={index} className="border-slate-100 hover:bg-slate-50">
+                          <TableCell className="pl-8">
+                            <p className="font-bold text-sm text-slate-900">{doc.name || 'Document'}</p>
+                            <p className="text-[10px] text-slate-400 uppercase font-black">{doc.category || 'General'}</p>
+                          </TableCell>
+                          <TableCell className="text-right pr-8">
+                            <Button variant="ghost" size="sm" onClick={() => window.open(doc.url || doc.path, '_blank')} className="text-indigo-600 font-bold hover:bg-indigo-50">
+                              View <Eye className="ml-2 h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                        <TableRow>
+                            <TableCell className="py-10 text-center text-slate-400 italic text-sm">No documents uploaded</TableCell>
+                        </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -341,8 +350,8 @@ function InfoRow({ icon, label, value, isCopyable }) {
         <div className="text-slate-400 group-hover:text-indigo-500 transition-colors">{icon}</div>
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{label}</span>
       </div>
-      <span className={`text-sm font-bold text-slate-800 ${isCopyable ? 'text-indigo-600' : ''}`}>
-        {value}
+      <span className={`text-sm font-bold text-slate-800 ${isCopyable ? 'text-indigo-600 cursor-pointer' : ''}`}>
+        {value || "N/A"}
       </span>
     </div>
   );
@@ -351,14 +360,14 @@ function InfoRow({ icon, label, value, isCopyable }) {
 function StatusBadge({ status }) {
   const s = status?.toLowerCase();
   const variants = {
-    active: "bg-emerald-600 text-white ring-4 ring-emerald-100/50",
+    deployed: "bg-emerald-600 text-white ring-4 ring-emerald-100/50",
     rejected: "bg-rose-600 text-white ring-4 ring-rose-100/50",
     processing: "bg-indigo-600 text-white ring-4 ring-indigo-100/50",
     pending: "bg-slate-200 text-slate-700 ring-4 ring-slate-100/50"
   };
   return (
     <Badge className={`${variants[s] || variants.pending} border-none px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex gap-2 items-center shadow-md`}>
-      {s === 'active' && <CheckCircle2 className="h-3 w-3" />}
+      {s === 'deployed' && <CheckCircle2 className="h-3 w-3" />}
       {status || 'PENDING'}
     </Badge>
   );

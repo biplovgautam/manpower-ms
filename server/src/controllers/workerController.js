@@ -5,9 +5,11 @@ const { createNotification } = require('./notificationController');
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
 
+// Constant for file size limit (5MB in bytes)
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+
 /**
  * HELPER: Sync Job Demand Status
- * Automatically closes or opens a Job Demand based on worker count vs quota
  */
 const syncJobDemandStatus = async (jobDemandId) => {
   if (!jobDemandId || !mongoose.Types.ObjectId.isValid(jobDemandId)) return;
@@ -18,7 +20,6 @@ const syncJobDemandStatus = async (jobDemandId) => {
   const currentCount = demand.workers.length;
   const requiredCount = demand.requiredWorkers || 0;
 
-  // Determine if it should be closed or open
   const newStatus = currentCount >= requiredCount ? 'closed' : 'open';
 
   if (demand.status !== newStatus) {
@@ -121,7 +122,7 @@ exports.getWorkerById = async (req, res) => {
  */
 exports.addWorker = async (req, res) => {
   try {
-    const { jobDemandId, name } = req.body;
+    const { jobDemandId, name, employerId } = req.body;
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
     const io = req.app.get('socketio');
@@ -133,7 +134,6 @@ exports.addWorker = async (req, res) => {
       if (existing) return res.status(400).json({ msg: 'Passport number already exists' });
     }
 
-    // Check if Job Demand is already full
     if (jobDemandId && mongoose.Types.ObjectId.isValid(jobDemandId)) {
       const demand = await JobDemand.findById(jobDemandId);
       if (demand && demand.status === 'closed') {
@@ -143,6 +143,15 @@ exports.addWorker = async (req, res) => {
 
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
+      // --- FILE SIZE VALIDATION ---
+      const largeFile = req.files.find(f => f.size > MAX_FILE_SIZE);
+      if (largeFile) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ 
+          success: false, 
+          msg: `File "${largeFile.originalname}" exceeds the 5MB limit.` 
+        });
+      }
+
       initialDocs = req.files.map((file, index) => {
         const meta = req.body[`docMeta_${index}`] ? JSON.parse(req.body[`docMeta_${index}`]) : {};
         return {
@@ -164,20 +173,21 @@ exports.addWorker = async (req, res) => {
       'pre-departure-orientation', 'deployed'
     ].map(sName => ({ stage: sName, status: 'pending', date: new Date() }));
 
+    const initialStatus = employerId ? 'processing' : 'pending';
+
     const newWorker = new Worker({
       ...sanitizedData,
       documents: initialDocs,
       createdBy: userId,
       companyId: companyId,
       stageTimeline: initialStages,
-      status: 'pending'
+      status: initialStatus
     });
 
     await newWorker.save();
 
     if (jobDemandId && mongoose.Types.ObjectId.isValid(jobDemandId)) {
       await JobDemand.findByIdAndUpdate(jobDemandId, { $addToSet: { workers: newWorker._id } });
-      // SYNC STATUS AFTER ADDING
       await syncJobDemandStatus(jobDemandId);
     }
 
@@ -210,15 +220,25 @@ exports.updateWorker = async (req, res) => {
     const sanitizedData = sanitizeSparseFields({ ...req.body });
     const { jobDemandId: newJobDemandId, existingDocuments, ...otherUpdates } = sanitizedData;
 
-    // Handle Document Logic
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : oldWorker.documents;
+    
     if (req.files && req.files.length > 0) {
+      // --- FILE SIZE VALIDATION ---
+      const largeFile = req.files.find(f => f.size > MAX_FILE_SIZE);
+      if (largeFile) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ 
+          success: false, 
+          msg: `File "${largeFile.originalname}" exceeds the 5MB limit.` 
+        });
+      }
+
       const newDocs = req.files.map((file, index) => {
         const meta = req.body[`docMeta_${index}`] ? JSON.parse(req.body[`docMeta_${index}`]) : {};
         return {
           name: meta.name || file.originalname,
           category: meta.category || 'Other',
           fileName: file.filename,
+          fileSize: (file.size / 1024).toFixed(2) + ' KB',
           path: file.path,
           uploadedAt: new Date()
         };
@@ -228,29 +248,31 @@ exports.updateWorker = async (req, res) => {
     
     const updateData = { ...otherUpdates, jobDemandId: newJobDemandId, documents: updatedDocsList };
 
+    if (updateData.employerId && oldWorker.status === 'pending') {
+        updateData.status = 'processing';
+    } else if (updateData.employerId === null || updateData.employerId === "") {
+        updateData.status = 'pending';
+    }
+
     const updatedWorker = await Worker.findByIdAndUpdate(
       id, 
       { $set: updateData }, 
       { new: true, runValidators: true }
     );
 
-    // SYNC JOB DEMANDS IF CHANGED
     const oldJobId = oldWorker.jobDemandId?.toString();
     const newJobId = newJobDemandId?.toString();
 
     if (oldJobId !== newJobId) {
-      // Remove from old
       if (oldJobId) {
         await JobDemand.findByIdAndUpdate(oldJobId, { $pull: { workers: id } });
         await syncJobDemandStatus(oldJobId);
       }
-      // Add to new
       if (newJobId) {
         await JobDemand.findByIdAndUpdate(newJobId, { $addToSet: { workers: id } });
         await syncJobDemandStatus(newJobId);
       }
     } else if (newJobId) {
-      // If same job, just sync in case requiredWorkers changed
       await syncJobDemandStatus(newJobId);
     }
 
@@ -295,21 +317,24 @@ exports.updateWorkerStage = async (req, res) => {
     if (status === 'rejected') {
       worker.status = 'rejected';
     } else {
+      const totalStages = worker.stageTimeline.length;
       const completedCount = worker.stageTimeline.filter(s => s.status === 'completed').length;
-      if (completedCount >= worker.stageTimeline.length) {
-        worker.status = 'deployed';
-      } else if (completedCount > 0 || status === 'in-progress') {
-        worker.status = 'processing';
+      
+      const isLastStageCompleted = worker.stageTimeline[totalStages - 1].status === 'completed';
+
+      if (isLastStageCompleted) {
+          worker.status = 'deployed';
+      } else if (completedCount > 0 || status === 'in-progress' || worker.employerId) {
+          worker.status = 'processing';
       } else {
-        worker.status = 'pending';
+          worker.status = 'pending';
       }
     }
 
     worker.currentStage = stageEntry.stage;
     await worker.save();
 
-    const stageKey = stageEntry.stage || "Unknown Stage";
-    const readableStage = stageKey
+    const readableStage = stageEntry.stage
       .split('-')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
@@ -328,7 +353,7 @@ exports.updateWorkerStage = async (req, res) => {
 };
 
 /**
- * @desc Delete Worker + Linked Data Cleanup
+ * @desc Delete Worker
  */
 exports.deleteWorker = async (req, res) => {
   try {
@@ -341,7 +366,7 @@ exports.deleteWorker = async (req, res) => {
     if (!worker) {
       return res.status(StatusCodes.NOT_FOUND).json({ 
         success: false, 
-        msg: 'Worker not found or you do not have permission' 
+        msg: 'Worker not found' 
       });
     }
 
@@ -356,7 +381,6 @@ exports.deleteWorker = async (req, res) => {
 
     await Worker.deleteOne({ _id: worker._id });
 
-    // SYNC STATUS AFTER DELETE (RE-OPEN IF NECESSARY)
     if (jobDemandId) {
       await syncJobDemandStatus(jobDemandId);
     }
@@ -375,7 +399,7 @@ exports.deleteWorker = async (req, res) => {
 };
 
 /**
- * @desc Stats functions (unchanged logic)
+ * @desc Deployment Stats (Monthly)
  */
 exports.getDeploymentStats = async (req, res) => {
   try {
@@ -400,6 +424,9 @@ exports.getDeploymentStats = async (req, res) => {
   }
 };
 
+/**
+ * @desc Worker Status Stats (Dashboard)
+ */
 exports.getWorkerStatusStats = async (req, res) => {
   try {
     const { companyId } = req.user;

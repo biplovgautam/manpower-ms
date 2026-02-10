@@ -10,7 +10,6 @@ import { EmployerListPage } from '../../../../components/Employee/EmployerListPa
 function EmployersContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-
     const [view, setView] = useState('list'); // views: 'list', 'add', 'details', 'edit', 'createDemand'
     const [employers, setEmployers] = useState([]);
     const [selectedEmployer, setSelectedEmployer] = useState(null);
@@ -25,11 +24,9 @@ function EmployersContent() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        // FIX: Changed 'userRole' to 'role' to match your login logic
         const role = localStorage.getItem('role');
         const fullName = localStorage.getItem('fullName');
 
-        // Robust check: prevent redirect loop if role exists but key was wrong
         if (!token || role?.toLowerCase() !== 'employee') {
             console.warn("Auth check failed. Token exists:", !!token, "Role:", role);
             handleLogout();
@@ -37,12 +34,15 @@ function EmployersContent() {
         }
 
         setUserData({ fullName: fullName || 'Employee', role });
+
         fetchEmployers(token);
 
-        // CHECK FOR ACTION PARAMETER
+        // Check for action parameter
         const action = searchParams.get('action');
         if (action === 'add') {
             setView('add');
+        } else {
+            setView('list');
         }
     }, [router, searchParams]);
 
@@ -52,14 +52,13 @@ function EmployersContent() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
-
             if (result.success) {
                 setEmployers(result.data);
             } else if (res.status === 401) {
                 handleLogout();
             }
         } catch (error) {
-            console.error("Failed to fetch:", error);
+            console.error("Failed to fetch employers:", error);
         }
     };
 
@@ -89,7 +88,6 @@ function EmployersContent() {
         try {
             const token = localStorage.getItem('token');
             const targetEmployer = employers.find(e => e.employerName === submissionData.employerName);
-
             const res = await fetch('http://localhost:5000/api/demands', {
                 method: 'POST',
                 headers: {
@@ -121,7 +119,7 @@ function EmployersContent() {
         if (res.ok && result.success) {
             fetchEmployers(token);
             setView('list');
-            router.replace('/dashboard/employee/employer');
+            router.replace('/dashboard/employee/employer'); // clean URL
         }
     };
 
@@ -136,6 +134,7 @@ function EmployersContent() {
             fetchEmployers(token);
             setView('list');
             setSelectedEmployer(null);
+            router.replace('/dashboard/employee/employer');
         }
     };
 
@@ -150,10 +149,16 @@ function EmployersContent() {
             if (res.ok) {
                 fetchEmployers(token);
                 setView('list');
+                router.replace('/dashboard/employee/employer');
             }
         } catch (error) {
             console.error(error);
         }
+    };
+
+    const goToList = () => {
+        setView('list');
+        router.replace('/dashboard/employee/employer');
     };
 
     return (
@@ -174,19 +179,18 @@ function EmployersContent() {
                 )}
                 {view === 'add' && (
                     <AddEmployerPage
-                        onNavigate={() => setView('list')}
+                        onNavigate={goToList}
                         onSave={handleSave}
                     />
                 )}
                 {view === 'edit' && (
                     <AddEmployerPage
-                        onNavigate={() => setView('list')}
+                        onNavigate={goToList}
                         onSave={handleUpdate}
                         initialData={selectedEmployer}
                         isEdit={true}
                     />
                 )}
-
                 {view === 'details' && (
                     <EmployerDetailsPage
                         employer={selectedEmployer}
@@ -196,7 +200,6 @@ function EmployersContent() {
                         onCreateDemand={() => setView('createDemand')}
                     />
                 )}
-
                 {view === 'createDemand' && (
                     <CreateJobDemandPage
                         employers={employers}

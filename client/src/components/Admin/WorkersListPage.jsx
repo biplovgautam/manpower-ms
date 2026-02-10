@@ -37,8 +37,8 @@ export function WorkersListPage({ workers = [], isLoading, onSelect }) {
         total: workers.length,
         active: workers.filter(w => w.status?.toLowerCase() === 'active').length,
         processing: workers.filter(w => ['processing', 'pending'].includes(w.status?.toLowerCase())).length,
-        // Logic: Deployed means they have an employer assigned
-        deployed: workers.filter(w => !!w.employerId).length 
+    
+       deployed: workers.filter(w => ['deployed', 'completed'].includes(w.status?.toLowerCase())).length
     };
 
     // --- Filtering Logic ---

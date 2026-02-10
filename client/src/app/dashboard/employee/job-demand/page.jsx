@@ -1,5 +1,4 @@
 "use client";
-
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
@@ -10,7 +9,6 @@ import { JobDemandListPage } from '../../../../components/Employee/JobDemandList
 function JobDemandsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-
     const [view, setView] = useState('list');
     const [isLoading, setIsLoading] = useState(true);
     const [jobDemands, setJobDemands] = useState([]);
@@ -30,7 +28,7 @@ function JobDemandsContent() {
             if (result.success) {
                 setJobDemands(result.data);
             } else if (res.status === 401) {
-                handleLogout(); // Force logout if token is rejected
+                handleLogout();
             }
         } catch (error) {
             console.error("Failed to fetch job demands:", error);
@@ -56,10 +54,8 @@ function JobDemandsContent() {
 
     useEffect(() => {
         const token = localStorage.getItem('token');
-        // FIX: Changed 'userRole' to 'role' to match your Login logic
         const role = localStorage.getItem('role');
 
-        // 1. Robust Auth Check
         if (!token || role?.toLowerCase() !== 'employee') {
             console.warn("Unauthorized: Missing token or incorrect role.");
             router.push('/login');
@@ -73,24 +69,20 @@ function JobDemandsContent() {
 
         const loadInitialData = async () => {
             setIsLoading(true);
-            // Wait for both lists to load
             await Promise.all([fetchJobDemands(token), fetchEmployers(token)]);
 
-            // Handle URL action parameter
             const action = searchParams.get('action');
             if (action === 'add') {
                 setView('create');
             } else {
                 setView('list');
             }
-
             setIsLoading(false);
         };
 
         loadInitialData();
     }, [router, searchParams, fetchJobDemands, fetchEmployers]);
 
-    // Navigation and Action Handlers
     const handleNavigate = (targetView, data = null) => {
         if (targetView === 'details') {
             if (data?._id) fetchSingleJobDemand(data._id);
@@ -115,7 +107,6 @@ function JobDemandsContent() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const result = await res.json();
-
             if (result.success) {
                 setSelectedJobDemand(result.data);
                 setView('details');
@@ -185,10 +176,17 @@ function JobDemandsContent() {
             if (result.success) {
                 fetchJobDemands(token);
                 setView('list');
+                router.replace('/dashboard/employee/job-demand');
             }
         } catch (error) {
             console.error("Delete Error:", error);
         }
+    };
+
+    const goToList = () => {
+        setView('list');
+        setSelectedJobDemand(null);
+        router.replace('/dashboard/employee/job-demand');
     };
 
     return (
@@ -213,25 +211,22 @@ function JobDemandsContent() {
                                 onDelete={handleDelete}
                             />
                         )}
-
                         {view === 'create' && (
                             <CreateJobDemandPage
                                 employers={employers}
-                                onNavigate={handleNavigate}
+                                onNavigate={goToList}
                                 onSave={handleSave}
                             />
                         )}
-
                         {view === 'edit' && (
                             <CreateJobDemandPage
                                 employers={employers}
                                 initialData={selectedJobDemand}
                                 isEditing={true}
-                                onNavigate={handleNavigate}
+                                onNavigate={goToList}
                                 onSave={handleUpdate}
                             />
                         )}
-
                         {view === 'details' && selectedJobDemand && (
                             <JobDemandDetailsPage
                                 jobDemand={selectedJobDemand}
@@ -244,7 +239,6 @@ function JobDemandsContent() {
             </div>
         </DashboardLayout>
     );
-    
 }
 
 export default function JobDemandsPage() {

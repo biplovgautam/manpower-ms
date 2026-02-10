@@ -8,9 +8,9 @@ import {
   Plus,
   Search,
   User,
-  UserCheck,
   X,
-  Trash2 // Added for delete action
+  Trash2,
+  AlertCircle
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '../ui/Badge';
@@ -30,7 +30,7 @@ export function WorkerManagementPage({
   workers = [],
   onNavigate,
   onSelectWorker,
-  onDeleteWorker // Make sure to pass this from the parent
+  onDeleteWorker 
 }) {
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -41,12 +41,13 @@ export function WorkerManagementPage({
     );
   }, [workers, searchTerm]);
 
+  // Updated to match the Backend Status Engine
   const getStatusVariant = (status) => {
     switch (status?.toLowerCase()) {
-      case 'deployed':
-      case 'completed': return 'success';
+      case 'deployed': return 'success';
       case 'processing': return 'warning';
       case 'rejected': return 'destructive';
+      case 'pending': return 'secondary';
       default: return 'secondary';
     }
   };
@@ -57,8 +58,8 @@ export function WorkerManagementPage({
   };
 
   const handleDelete = (e, id) => {
-    e.stopPropagation(); // Prevents onSelectWorker from firing
-    if (onDeleteWorker) {
+    e.stopPropagation();
+    if (window.confirm("Are you sure you want to delete this worker? This will also remove them from any assigned Job Demands.") && onDeleteWorker) {
       onDeleteWorker(id);
     }
   };
@@ -85,7 +86,7 @@ export function WorkerManagementPage({
         {[
           { label: 'Total Workers', value: workers.length, icon: User, color: 'indigo' },
           { label: 'In Processing', value: workers.filter(w => w.status === 'processing').length, icon: FileText, color: 'amber' },
-          { label: 'Deployed', value: workers.filter(w => ['deployed', 'completed'].includes(w.status)).length, icon: CheckCircle2, color: 'emerald' }
+          { label: 'Deployed', value: workers.filter(w => w.status === 'deployed').length, icon: CheckCircle2, color: 'emerald' }
         ].map((stat, i) => (
           <Card key={i} className="border-none shadow-xl shadow-slate-200/50 bg-white rounded-2xl overflow-hidden ring-1 ring-slate-100">
             <CardContent className="p-6">
@@ -114,7 +115,7 @@ export function WorkerManagementPage({
         </div>
         <Input
           placeholder="Search name or passport..."
-          className="pl-11 h-12 bg-white border-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all border-none ring-1 ring-slate-200"
+          className="pl-11 h-12 bg-white border-none ring-1 ring-slate-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-indigo-500 transition-all"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -155,7 +156,7 @@ export function WorkerManagementPage({
                           </div>
                           <div>
                             <p className="font-bold text-slate-900 text-sm group-hover:text-indigo-600 transition-colors">{worker.name}</p>
-                            <p className="text-[11px] text-slate-400 font-medium">{worker.contact || 'No contact'}</p>
+                            <p className="text-[11px] text-slate-400 font-medium">{worker.phoneNumber || worker.contact || 'No contact'}</p>
                           </div>
                         </div>
                       </TableCell>
@@ -183,15 +184,23 @@ export function WorkerManagementPage({
                       </TableCell>
 
                       <TableCell>
-                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
-                          <Briefcase size={14} className="text-slate-300" />
-                          {worker.employerId?.employerName || worker.employerId?.name || <span className="text-slate-300 italic">Deployed</span>}
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          {worker.employerId ? (
+                            <>
+                              <Briefcase size={14} className="text-slate-400" />
+                              <span className="text-slate-600">{worker.employerId.companyName || worker.employerId.name}</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertCircle size={14} className="text-amber-400" />
+                              <span className="text-slate-400 italic">Unassigned</span>
+                            </>
+                          )}
                         </div>
                       </TableCell>
 
                       <TableCell className="text-right pr-8">
                         <div className="flex items-center justify-end gap-2">
-                          {/* Trash Icon for deletion */}
                           <button
                             onClick={(e) => handleDelete(e, worker._id)}
                             className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-full transition-all"
