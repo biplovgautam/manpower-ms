@@ -752,7 +752,7 @@ export default function EmployeeDashboard({ navigateTo = () => { } }) {
                         <div className="absolute z-50 mt-2 w-full bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[60vh] overflow-y-auto">
                             {searchResults.length === 0 ? (
                                 <div className="p-10 text-center text-slate-500">
-                                    No results found for <span className="font-medium">"{searchQuery}"</span>
+                                    No results found for <span className="font-medium">&quot;{searchQuery}&quot;</span>
                                 </div>
                             ) : (
                                 <>

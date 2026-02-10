@@ -1,14 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { EmployerDetailPage } from '../../../../components/Admin/EmployerDetailPage';
 import { EmployersListPage } from '../../../../components/Admin/EmployersListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { apiUrl } from '@/lib/api';
 
-export default function AdminEmployersPage() {
+function AdminEmployersPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const selectedId = searchParams.get('id');
@@ -124,5 +124,13 @@ export default function AdminEmployersPage() {
                 onSelectEmployer={handleSelectEmployer}
             />
         </DashboardLayout>
+    );
+}
+
+export default function AdminEmployersPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminEmployersPageContent />
+        </Suspense>
     );
 }

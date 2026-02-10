@@ -3,14 +3,14 @@
 import axios from 'axios';
 import { RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { WorkerDetailsPage } from '../../../../components/Admin/WorkersDetailsPage';
 import { WorkersListPage } from '../../../../components/Admin/WorkersListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { apiUrl } from '@/lib/api';
 
-export default function AdminWorkersPage() {
+function AdminWorkersPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
@@ -136,5 +136,13 @@ export default function AdminWorkersPage() {
                 />
             </div>
         </DashboardLayout>
+    );
+}
+
+export default function AdminWorkersPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminWorkersPageContent />
+        </Suspense>
     );
 }

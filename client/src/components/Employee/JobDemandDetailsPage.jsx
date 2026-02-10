@@ -193,7 +193,7 @@ export function JobDemandDetailsPage({ jobDemand: initialData, onNavigate, onDel
                                         <FileText className="h-5 w-5 text-primary" /> Job Description
                                     </h3>
                                     <blockquote className="pl-6 border-l-4 border-primary/30 italic text-lg leading-relaxed text-foreground/90">
-                                        "{jobDemand.description}"
+                                        &ldquo;{jobDemand.description}&rdquo;
                                     </blockquote>
                                 </div>
                             )}

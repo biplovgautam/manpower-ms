@@ -207,9 +207,9 @@ export function SubAgentDetailsPage({ subAgent, onBack, onUpdate, onDelete }) {
                                 <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
                                     <Users size={32} className="text-gray-300" />
                                 </div>
-                                <h3 className="text-gray-900 font-semibold italic">"It's quiet in here..."</h3>
+                                <h3 className="text-gray-900 font-semibold italic">&ldquo;It&apos;s quiet in here...&rdquo;</h3>
                                 <p className="text-gray-500 text-sm mt-1 max-w-[250px]">
-                                    This agent hasn't referred any workers to the system yet.
+                                    This agent hasn&apos;t referred any workers to the system yet.
                                 </p>
                             </div>
                         ) : (

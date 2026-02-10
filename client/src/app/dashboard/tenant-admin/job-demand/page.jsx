@@ -1,8 +1,9 @@
 "use client";
 
 import axios from 'axios';
+import { RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { AdminJobDemandDetailsPage } from '../../../../components/Admin/JobDemandDetailPage';
 import { AdminJobDemandListPage } from '../../../../components/Admin/JobDemandListPage';
@@ -18,7 +19,7 @@ const AdminJobDemandForm = ({ onBack, onSuccess }) => (
     </div>
 );
 
-export default function AdminJobDemandPage() {
+function AdminJobDemandPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
@@ -154,5 +155,13 @@ export default function AdminJobDemandPage() {
                 />
             </div>
         </DashboardLayout>
+    );
+}
+
+export default function AdminJobDemandPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminJobDemandPageContent />
+        </Suspense>
     );
 }

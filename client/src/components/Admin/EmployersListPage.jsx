@@ -200,7 +200,7 @@ export function EmployersListPage({ employers = [], onSelectEmployer, onNavigate
                                             </div>
                                             <h3 className="text-gray-900 font-bold text-lg">No matches found</h3>
                                             <p className="text-gray-500 max-w-xs mx-auto mt-2 text-sm">
-                                                We couldn't find any employers matching your current search.
+                                                We couldn&apos;t find any employers matching your current search.
                                             </p>
                                         </TableCell>
                                     </TableRow>

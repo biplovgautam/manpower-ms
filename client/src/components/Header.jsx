@@ -159,7 +159,7 @@ export function Header({
                                             <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
                                                 <CheckCheck className="text-slate-300" size={24} />
                                             </div>
-                                            <p className="text-slate-400 text-sm italic">You're all caught up!</p>
+                                            <p className="text-slate-400 text-sm italic">You&apos;re all caught up!</p>
                                         </div>
                                     )}
                                 </div>

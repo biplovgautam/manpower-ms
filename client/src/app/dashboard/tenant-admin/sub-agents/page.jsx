@@ -3,14 +3,14 @@
 import axios from 'axios';
 import { RefreshCw } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { SubAgentDetailsPage } from '../../../../components/Admin/SubAgentDetailsPage';
 import { SubAgentListPage } from '../../../../components/Admin/SubAgentsListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { apiUrl } from '@/lib/api';
 
-export default function AdminSubAgentsPage() {
+function AdminSubAgentsPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
@@ -217,5 +217,13 @@ export default function AdminSubAgentsPage() {
                 />
             </div>
         </DashboardLayout>
+    );
+}
+
+export default function AdminSubAgentsPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminSubAgentsPageContent />
+        </Suspense>
     );
 }

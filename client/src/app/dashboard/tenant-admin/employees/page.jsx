@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { AddEmployeeForm } from '../../../../components/Admin/AddEmployeeForm';
 import { EmployeeDetailsPage } from '../../../../components/Admin/EmployeeDetailsPage';
@@ -10,7 +10,7 @@ import { EmployeesListPage } from '../../../../components/Admin/EmployeesListPag
 import { DashboardLayout } from '../../../../components/DashboardLayout';
 import { apiUrl } from '@/lib/api';
 
-export default function AdminEmployeesPage() {
+function AdminEmployeesPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const action = searchParams.get('action');
@@ -130,5 +130,13 @@ export default function AdminEmployeesPage() {
                 />
             </div>
         </DashboardLayout>
+    );
+}
+
+export default function AdminEmployeesPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminEmployeesPageContent />
+        </Suspense>
     );
 }
