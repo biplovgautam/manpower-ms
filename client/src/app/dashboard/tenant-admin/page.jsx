@@ -11,9 +11,21 @@ export default function TenantAdminPage() {
     const router = useRouter();
     const [data, setData] = useState({ user: null, loading: true });
 
+    // --- NAVIGATION LOGIC ---
+    // This is the gatekeeper for all route changes
     const handleNavigation = useCallback((path) => {
-        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
-        router.push(`/dashboard/tenant-admin/${cleanPath}`);
+        if (!path) return;
+
+        // If the path already includes the dashboard prefix, don't double it!
+        const targetPath = path.startsWith('/dashboard/tenant-admin') 
+            ? path 
+            : `/dashboard/tenant-admin/${path.startsWith('/') ? path.substring(1) : path}`;
+        
+        // Ensure it always starts with exactly one leading slash
+        const finalPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
+        
+        console.log(`🚀 Navigating to: ${finalPath}`);
+        router.push(finalPath);
     }, [router]);
 
     const fetchAllData = useCallback(async () => {
@@ -29,12 +41,11 @@ export default function TenantAdminPage() {
                 loading: false
             });
         } catch (err) {
+            console.error("Auth error:", err);
             router.replace('/login');
         }
     }, [router]);
 
-    // This is passed to the Layout. When Layout calls it, 
-    // it will trigger its own refresh logic.
     const handleMarkAllAsRead = async () => {
         try {
             const token = localStorage.getItem('token');
@@ -42,12 +53,15 @@ export default function TenantAdminPage() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success("All activities marked as read");
+            // Note: DashboardLayout should handle the local state refresh of notifications
         } catch (err) {
             toast.error("Failed to update notifications");
         }
     };
 
-    useEffect(() => { fetchAllData(); }, [fetchAllData]);
+    useEffect(() => { 
+        fetchAllData(); 
+    }, [fetchAllData]);
 
     if (data.loading) return (
         <div className="h-screen flex items-center justify-center bg-slate-50">
@@ -68,7 +82,9 @@ export default function TenantAdminPage() {
                     router.push('/login');
                 }}
             >
-                {/* DashboardLayout automatically passes 'notifications' to AdminDashboard */}
+                {/* Children receive context from DashboardLayout.
+                  This is where your Redpanda notifications will eventually render 
+                */}
                 <AdminDashboard data={data} onNavigate={handleNavigation} />
             </DashboardLayout>
         </>

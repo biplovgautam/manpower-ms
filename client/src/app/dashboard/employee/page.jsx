@@ -13,36 +13,46 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
     const [data, setData] = useState({ user: null, loading: true });
     const [error, setError] = useState(null);
 
+    // --- NAVIGATION LOGIC (FIXED) ---
+    const handleNavigate = useCallback(
+        (path) => {
+            if (!path) return;
+
+            // Ensure we use an absolute path to prevent "double pathing"
+            // If the path already has the prefix, use it as is, otherwise prepend it
+            const target = path.startsWith('/dashboard/employee') 
+                ? path 
+                : `/dashboard/employee/${path.startsWith('/') ? path.substring(1) : path}`;
+            
+            // Clean up leading slashes to ensure exactly one
+            const finalPath = target.startsWith('/') ? target : `/${target}`;
+            
+            router.push(finalPath);
+        },
+        [router]
+    );
+
     const fetchUser = useCallback(async () => {
         try {
-            const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-            const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+            const token = localStorage.getItem("token");
+            const role = localStorage.getItem("role");
 
             if (!token || !role || role.toLowerCase() !== "employee") {
-                if (typeof window !== "undefined") {
-                    localStorage.clear();
-                }
+                localStorage.clear();
                 router.replace("/login");
                 return;
             }
 
-            const response = await axios.get(
-                apiUrl("/api/auth/me"),
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                }
-            );
+            const response = await axios.get(apiUrl("/api/auth/me"), {
+                headers: { Authorization: `Bearer ${token}` },
+            });
 
             const userData = response.data?.data || response.data?.user || response.data;
             setData({ user: userData, loading: false });
             setError(null);
         } catch (err) {
             console.error("Session verification failed:", err);
-            if (typeof window !== "undefined") {
-                localStorage.clear();
-            }
+            localStorage.clear();
             setError(err.message || "Session verification failed");
             router.replace("/login");
         }
@@ -52,21 +62,8 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
         fetchUser();
     }, [fetchUser]);
 
-    const handleNavigate = useCallback(
-        (path) => {
-            if (!path) {
-                console.warn("Navigation path is empty");
-                return;
-            }
-            router.push(path);
-        },
-        [router]
-    );
-
     const handleLogout = useCallback(() => {
-        if (typeof window !== "undefined") {
-            localStorage.clear();
-        }
+        localStorage.clear();
         router.push("/login");
     }, [router]);
 
@@ -85,9 +82,7 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-6">
                 <div className="text-center">
-                    <p className="text-red-600 font-bold text-lg mb-2">
-                        Session Error
-                    </p>
+                    <p className="text-red-600 font-bold text-lg mb-2">Session Error</p>
                     <p className="text-slate-600 mb-6">{error}</p>
                     <button
                         onClick={() => router.push("/login")}
@@ -109,13 +104,16 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
                 userName={data.user?.fullName || "Employee"}
                 currentPath="/dashboard/employee"
                 onLogout={handleLogout}
+                // Pass the fixed navigation to the layout header/sidebar
+                onNavigate={handleNavigate} 
             >
                 <div className="animate-in fade-in duration-500">
                     <EmployeeDashboard
                         data={data}
                         notifications={notifications}
                         onMarkAllRead={onMarkAllRead}
-                        navigateTo={handleNavigate}
+                        // Ensure dashboard components use the fixed navigator
+                        navigateTo={handleNavigate} 
                     />
                 </div>
             </DashboardLayout>

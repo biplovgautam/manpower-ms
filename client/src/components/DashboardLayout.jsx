@@ -10,7 +10,7 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { apiUrl, API_BASE_URL } from '@/lib/api';
 
-export function DashboardLayout({ children, user: propUser, role, onNavigate }) {
+export function DashboardLayout({ children, user: propUser, role }) {
     const [notifications, setNotifications] = useState([]);
     const [currentUser, setCurrentUser] = useState(null);
     const [socket, setSocket] = useState(null);
@@ -18,6 +18,30 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
     const router = useRouter();
 
     const API_BASE = apiUrl('/api');
+
+    // --- CENTRALIZED SMART NAVIGATION ---
+    // This fixes the "Double Path" and "Other Pages" issue
+    const handleNavigate = useCallback((path) => {
+        if (!path) return;
+
+        // 1. Define the base path based on the user's role
+        // We normalize the role to handle "Admin", "admin", "Employee", etc.
+        const userRole = (currentUser?.role || propUser?.role || role || "").toLowerCase();
+        const base = userRole.includes('admin') ? '/dashboard/tenant-admin' : '/dashboard/employee';
+        
+        // 2. If the path is already absolute (starts with /dashboard), go there directly
+        if (path.startsWith('/dashboard')) {
+            router.push(path);
+            return;
+        }
+
+        // 3. Otherwise, build a clean absolute path
+        const cleanSegment = path.startsWith('/') ? path.substring(1) : path;
+        const finalPath = `${base}/${cleanSegment}`;
+        
+        console.log("📍 Global Navigate to:", finalPath);
+        router.push(finalPath);
+    }, [router, currentUser, propUser, role]);
 
     // 1. Fetch User Profile
     const fetchUserProfile = useCallback(async () => {
@@ -29,14 +53,13 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.data.success) {
-                // Digging into .data or .user depending on your API structure
                 setCurrentUser(res.data.data || res.data.user);
             }
         } catch (err) {
             console.error("Profile Fetch Error:", err);
             if (err.response?.status === 401) handleLogout();
         }
-    }, []);
+    }, [API_BASE]);
 
     // 2. Logout
     const handleLogout = useCallback(() => {
@@ -47,27 +70,14 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         toast.success("Logged out successfully");
     }, [router]);
 
-    // 3. ROBUST USER DATA MAPPING (Matches Header logic)
+    // 3. ROBUST USER DATA MAPPING
     const memoizedUser = useMemo(() => {
         const activeUser = currentUser || propUser;
-        
-        // Deep digging for names and roles to prevent "User" fallback
-        const name = 
-            activeUser?.fullName || 
-            activeUser?.user?.fullName || 
-            activeUser?.data?.fullName || 
-            activeUser?.name || 
-            activeUser?.user?.name || 
-            "User";
-
-        const userRole = 
-            activeUser?.role || 
-            activeUser?.user?.role || 
-            role || 
-            "Member";
+        const name = activeUser?.fullName || activeUser?.user?.fullName || activeUser?.name || "User";
+        const userRole = activeUser?.role || role || "Member";
 
         return {
-            id: String(activeUser?._id || activeUser?.id || activeUser?.user?._id || ""),
+            id: String(activeUser?._id || activeUser?.id || ""),
             companyId: String(activeUser?.companyId || activeUser?.user?.companyId || ""), 
             fullName: name,
             role: userRole,
@@ -87,9 +97,8 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         } catch (err) {
             console.error("Notification Fetch Error:", err);
         }
-    }, []);
+    }, [API_BASE]);
 
-    // Sync user and notifications on path changes
     useEffect(() => {
         fetchUserProfile();
         fetchNotifications();
@@ -111,23 +120,10 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
 
         newSocket.on('newNotification', (notif) => {
             setNotifications(prev => {
-                const exists = prev.find(n => n._id === notif._id);
-                if (exists) return prev;
+                if (prev.find(n => n._id === notif._id)) return prev;
                 return [notif, ...prev];
             });
-            
-            toast.custom((t) => (
-                <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5 border-l-4 border-indigo-500`}>
-                    <div className="flex-1 w-0 p-4">
-                        <div className="flex items-start">
-                            <div className="ml-3 flex-1">
-                                <p className="text-sm font-bold text-gray-900">New {notif.category} Alert</p>
-                                <p className="mt-1 text-sm text-gray-500">{notif.content}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ), { position: 'bottom-right' });
+            toast.success(`New ${notif.category}: ${notif.content}`, { position: 'bottom-right' });
         });
 
         setSocket(newSocket);
@@ -159,7 +155,7 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
             <Sidebar
                 role={memoizedUser.role.toLowerCase()}
                 user={memoizedUser}
-                onNavigate={onNavigate}
+                onNavigate={handleNavigate} // Uses internal smart navigator
                 onLogout={handleLogout}
             />
 
@@ -168,7 +164,7 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
                     user={memoizedUser}
                     notifications={notifications}
                     onMarkAllRead={handleMarkAllRead}
-                    onNavigate={onNavigate}
+                    onNavigate={handleNavigate} // Uses internal smart navigator
                 />
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -178,7 +174,9 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
                                 notifications,
                                 onMarkAllRead: handleMarkAllRead,
                                 user: memoizedUser,
-                                refreshNotifications: fetchNotifications 
+                                refreshNotifications: fetchNotifications,
+                                // Passing the smart navigator down to child pages automatically
+                                onNavigate: handleNavigate 
                             });
                         }
                         return child;
