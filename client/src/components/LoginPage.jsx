@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast, Toaster } from 'react-hot-toast';
+import { apiUrl } from '@/lib/api';
 
 // UI Components
 import { Button } from '../components/ui/Button';
@@ -111,12 +112,12 @@ export function LoginPage({ onLogin }) {
           toast.success(`Welcome back, ${data.user.fullName}!`, { id: toastId, icon: '👋' });
         }
       } else if (view === 'forgot') {
-        await axios.post('http://localhost:5000/api/auth/forgot-password', { identifier: finalId });
+  await axios.post(apiUrl('/api/auth/forgot-password'), { identifier: finalId });
         toast.success('Verification code sent!', { id: toastId });
         resetForm('reset');
         setResendTimer(60);
       } else if (view === 'reset') {
-        await axios.post('http://localhost:5000/api/auth/reset-password', {
+        await axios.post(apiUrl('/api/auth/reset-password'), {
           identifier: finalId,
           otp,
           newPassword
@@ -143,7 +144,7 @@ export function LoginPage({ onLogin }) {
     const tid = toast.loading('Resending OTP...');
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/resend-otp', {
+      const response = await axios.post(apiUrl('/api/auth/resend-otp'), {
         identifier: finalId
       });
       if (response.data.success) {

@@ -32,9 +32,10 @@ import { toast, Toaster } from "react-hot-toast";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
+import { apiUrl, FILE_BASE_URL } from "@/lib/api";
 
-const API_BASE = "http://localhost:5000/api/dashboard";
-const FILE_BASE = "http://localhost:5000";
+const API_BASE = apiUrl("/api/dashboard");
+const FILE_BASE = FILE_BASE_URL;
 
 const NEPALI_MONTHS = [
     "Baisakh", "Jestha", "Ashadh", "Shrawan", "Bhadra", "Ashoj",

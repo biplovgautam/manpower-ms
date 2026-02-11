@@ -17,6 +17,7 @@ import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/Card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { apiUrl } from '@/lib/api';
 
 export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }) {
     const [jobDemand, setJobDemand] = useState(initialData);
@@ -35,7 +36,7 @@ export function AdminJobDemandDetailsPage({ jobDemand: initialData, onNavigate }
                 const token = localStorage.getItem('token');
                 
                 // Pointing to absolute Backend URL + Adding Auth Headers
-                const response = await fetch(`http://localhost:5000/api/job-demands/${id}`, {
+                const response = await fetch(apiUrl(`/api/job-demands/${id}`), {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Toaster } from "react-hot-toast";
 import { DashboardLayout } from "../../../components/DashboardLayout";
 import EmployeeDashboard from "../../../components/Employee/EmployeeDashboard";
+import { apiUrl } from "@/lib/api";
 
 export default function EmployeePage({ notifications, onMarkAllRead }) {
     const router = useRouter();
@@ -26,7 +27,7 @@ export default function EmployeePage({ notifications, onMarkAllRead }) {
             }
 
             const response = await axios.get(
-                "http://localhost:5000/api/auth/me",
+                apiUrl("/api/auth/me"),
                 {
                     headers: {
                         Authorization: `Bearer ${token}`,

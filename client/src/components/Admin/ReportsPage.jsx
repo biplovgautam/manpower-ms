@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Bar, Line } from 'react-chartjs-2';
 import { Card } from '../ui/Card';
+import { apiUrl } from '@/lib/api';
 
 ChartJS.register(
     CategoryScale, LinearScale, BarElement, PointElement,
@@ -37,7 +38,7 @@ export default function AdminReportsView({ initialData }) {
             setLoading(true);
             try {
                 const token = localStorage.getItem('token'); 
-                const response = await axios.get(`http://localhost:5000/api/reports/performance-stats?view=${timeframe.toLowerCase()}`, {
+                const response = await axios.get(apiUrl(`/api/reports/performance-stats?view=${timeframe.toLowerCase()}`), {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 if (response.data.success) {

@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import AdminReportsView from '../../../../components/Admin/ReportsPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 export default function AdminReportsPage() {
     const [reportData, setReportData] = useState(null);
@@ -17,7 +18,7 @@ export default function AdminReportsPage() {
             if (!token) throw new Error("User authentication token not found.");
 
             // Full URL ensures we bypass Next.js local routing and hit the Express backend
-            const response = await fetch(`http://localhost:5000/api/reports/performance-stats?view=month`, {
+            const response = await fetch(apiUrl('/api/reports/performance-stats?view=month'), {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}`,

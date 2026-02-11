@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { EmployerDetailPage } from '../../../../components/Admin/EmployerDetailPage';
 import { EmployersListPage } from '../../../../components/Admin/EmployersListPage';
 import { DashboardLayout } from '../../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
-export default function AdminEmployersPage() {
+function AdminEmployersPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const selectedId = searchParams.get('id');
@@ -32,7 +33,7 @@ export default function AdminEmployersPage() {
 
             try {
                 setIsLoading(true);
-                const response = await fetch('http://localhost:5000/api/employers', {
+                const response = await fetch(apiUrl('/api/employers'), {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
@@ -65,7 +66,7 @@ export default function AdminEmployersPage() {
             const fetchDetail = async () => {
                 const token = localStorage.getItem('token');
                 try {
-                    const response = await fetch(`http://localhost:5000/api/employers/${selectedId}`, {
+                    const response = await fetch(apiUrl(`/api/employers/${selectedId}`), {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 
@@ -123,5 +124,13 @@ export default function AdminEmployersPage() {
                 onSelectEmployer={handleSelectEmployer}
             />
         </DashboardLayout>
+    );
+}
+
+export default function AdminEmployersPage() {
+    return (
+        <Suspense fallback={<div className="p-6 text-sm text-slate-500">Loading...</div>}>
+            <AdminEmployersPageContent />
+        </Suspense>
     );
 }

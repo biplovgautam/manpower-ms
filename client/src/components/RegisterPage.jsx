@@ -62,6 +62,8 @@ const RegisterInput = React.memo(({
     );
 });
 
+RegisterInput.displayName = 'RegisterInput';
+
 export function RegisterPage({ onRegister, onSwitchToLogin }) {
     const [isLoading, setIsLoading] = useState(false);
     const [logoPreview, setLogoPreview] = useState(null);
@@ -163,7 +165,7 @@ export function RegisterPage({ onRegister, onSwitchToLogin }) {
                         </div>
                     </div>
                     <CardTitle className="text-3xl font-black text-slate-900">Agency Registration</CardTitle>
-                    <p className="text-slate-500 font-medium">Join Nepal's digital recruitment ecosystem</p>
+                    <p className="text-slate-500 font-medium">Join Nepal&apos;s digital recruitment ecosystem</p>
                 </CardHeader>
 
                 <CardContent className="px-8 pb-10">

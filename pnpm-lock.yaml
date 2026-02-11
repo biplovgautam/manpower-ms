@@ -128,6 +128,9 @@ importers:
       nodemailer:
         specifier: ^7.0.12
         version: 7.0.12
+      socket.io:
+        specifier: ^4.8.3
+        version: 4.8.3
       twilio:
         specifier: ^5.11.2
         version: 5.11.2

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import AdminDashboard from '../../../components/Admin/AdminDashboard';
 import { DashboardLayout } from '../../../components/DashboardLayout';
+import { apiUrl } from '@/lib/api';
 
 export default function TenantAdminPage() {
     const router = useRouter();
@@ -20,7 +21,7 @@ export default function TenantAdminPage() {
         if (!token) return router.replace('/login');
 
         try {
-            const userRes = await axios.get('http://localhost:5000/api/auth/me', {
+            const userRes = await axios.get(apiUrl('/api/auth/me'), {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setData({
@@ -37,7 +38,7 @@ export default function TenantAdminPage() {
     const handleMarkAllAsRead = async () => {
         try {
             const token = localStorage.getItem('token');
-            await axios.patch('http://localhost:5000/api/notifications/read-all', {}, {
+            await axios.patch(apiUrl('/api/notifications/read-all'), {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             toast.success("All activities marked as read");
