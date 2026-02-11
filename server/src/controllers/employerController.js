@@ -2,7 +2,7 @@ const Employer = require('../models/Employers');
 const JobDemand = require('../models/JobDemand');
 const Worker = require('../models/Worker');
 const User = require('../models/User');
-// Import the specific function from your notification controller
+// This function now handles both DB saving AND Kafka producing
 const { createNotification } = require('./notificationController');
 const { StatusCodes } = require('http-status-codes');
 
@@ -24,7 +24,7 @@ exports.getEmployers = async (req, res) => {
             data: employers,
         });
     } catch (error) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
     }
 };
 
@@ -59,7 +59,7 @@ exports.getEmployerDetails = async (req, res) => {
             },
         });
     } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
     }
 };
 
@@ -80,10 +80,10 @@ exports.createEmployer = async (req, res) => {
             companyId: companyId
         });
 
-        // Trigger Notification via Controller Function
+        // This triggers the Kafka producer automatically
         await createNotification({
             companyId,
-            createdBy: userId, // Match the key name to your schema
+            createdBy: userId,
             category: 'employer',
             content: `added a new employer: ${employerName} (${country})`
         });
@@ -113,7 +113,7 @@ exports.updateEmployer = async (req, res) => {
             { new: true, runValidators: true }
         );
 
-        // Trigger Notification via Controller Function
+        // Notify via Kafka bridge
         await createNotification({
             companyId,
             createdBy: userId,
@@ -141,9 +141,9 @@ exports.deleteEmployer = async (req, res) => {
         }
 
         const employerName = employer.employerName;
-        await employer.deleteOne(); // Trigger middleware if you have any
+        await employer.deleteOne(); 
 
-        // Trigger Notification via Controller Function
+        // Notify via Kafka bridge
         await createNotification({
             companyId,
             createdBy: userId,

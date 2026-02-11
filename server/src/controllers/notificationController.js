@@ -1,31 +1,32 @@
 const Notification = require('../models/Notification'); 
 const { StatusCodes } = require('http-status-codes');
 const mongoose = require('mongoose');
+const { producer } = require('../utils/kafkaClient'); // Import the Kafka Producer
 
-// Internal Helper for category consistency - ensures frontend filters match
+// Internal Helper for category consistency
 const mapCategoryToUI = (cat) => {
     const map = {
         'general': 'System',
         'employer': 'Employer',
         'worker': 'Worker',
-        'job-demand': 'Demand',
-        'sub-agent': 'Agent',
+        'demand': 'Demand',
+        'agent': 'Agent',
         'system': 'System'
     };
     return map[cat?.toLowerCase()] || 'System';
 };
 
 /**
- * Helper to create and emit notification via Socket
- * IMPORTANT: The 'content' string should contain names, not IDs.
+ * Updated Helper: Saves to DB and Produces to Kafka
  */
-const createNotification = async ({ companyId, createdBy, category, content } = {}, io) => {
+const createNotification = async ({ companyId, createdBy, category, content } = {}) => {
     try {
         if (!companyId || !createdBy || !content) {
             console.error("Missing required fields for notification:", { companyId, createdBy, content });
             return;
         }
 
+        // 1. Save to MongoDB (Persistent History)
         const notification = await Notification.create({
             companyId,
             createdBy,
@@ -33,22 +34,30 @@ const createNotification = async ({ companyId, createdBy, category, content } = 
             content: content.trim()
         });
 
-        if (io) {
-            // Populate the user who triggered the action so the UI shows their name
-            const populatedNotif = await notification.populate('createdBy', 'fullName');
-            
-            const uiNotif = {
-                ...populatedNotif.toObject(),
-                isRead: false,
-                category: mapCategoryToUI(populatedNotif.category) 
-            };
-            
-            io.to(String(companyId)).emit('newNotification', uiNotif);
-        }
+        // 2. Prepare Data for Kafka
+        const populatedNotif = await notification.populate('createdBy', 'fullName');
+        
+        const kafkaPayload = {
+            ...populatedNotif.toObject(),
+            isRead: false,
+            category: mapCategoryToUI(populatedNotif.category) 
+        };
+
+        // 3. Produce to Kafka Topic
+        // The Bridge in index.js will pick this up and send it to Socket.io
+        await producer.send({
+            topic: 'notifications-topic',
+            messages: [
+                { 
+                    key: String(companyId), 
+                    value: JSON.stringify(kafkaPayload) 
+                },
+            ],
+        });
 
         return notification;
     } catch (error) {
-        console.error("Notification creation failed:", error);
+        console.error("❌ Kafka Notification Production failed:", error);
     }
 };
 
@@ -66,7 +75,6 @@ const getNotifications = async (req, res) => {
         const updatedNotifications = notifications.map(notif => ({
             ...notif,
             category: mapCategoryToUI(notif.category),
-            // Boolean helper so frontend doesn't have to calculate isReadBy.includes()
             isRead: notif.isReadBy ? notif.isReadBy.map(id => String(id)).includes(userId) : false
         }));
 

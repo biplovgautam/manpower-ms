@@ -118,14 +118,13 @@ exports.getWorkerById = async (req, res) => {
 };
 
 /**
- * @desc Add Worker
+ * @desc Add Worker + Kafka Notification
  */
 exports.addWorker = async (req, res) => {
   try {
     const { jobDemandId, name, employerId } = req.body;
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
-    const io = req.app.get('socketio');
 
     const sanitizedData = sanitizeSparseFields({ ...req.body });
 
@@ -143,7 +142,6 @@ exports.addWorker = async (req, res) => {
 
     let initialDocs = [];
     if (req.files && req.files.length > 0) {
-      // --- FILE SIZE VALIDATION ---
       const largeFile = req.files.find(f => f.size > MAX_FILE_SIZE);
       if (largeFile) {
         return res.status(StatusCodes.BAD_REQUEST).json({ 
@@ -191,12 +189,13 @@ exports.addWorker = async (req, res) => {
       await syncJobDemandStatus(jobDemandId);
     }
 
+    // Trigger Notification via Kafka (Bridge handles Socket.io)
     await createNotification({
       companyId,
       createdBy: userId,
       category: 'worker',
       content: `registered a new worker: ${name}`
-    }, io);
+    });
 
     res.status(StatusCodes.CREATED).json({ success: true, data: newWorker });
   } catch (error) {
@@ -205,14 +204,13 @@ exports.addWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Worker Details
+ * @desc Update Worker Details + Kafka Notification
  */
 exports.updateWorker = async (req, res) => {
   try {
     const { id } = req.params;
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
-    const io = req.app.get('socketio');
 
     const oldWorker = await Worker.findOne({ _id: id, companyId });
     if (!oldWorker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
@@ -223,7 +221,6 @@ exports.updateWorker = async (req, res) => {
     let updatedDocsList = existingDocuments ? JSON.parse(existingDocuments) : oldWorker.documents;
     
     if (req.files && req.files.length > 0) {
-      // --- FILE SIZE VALIDATION ---
       const largeFile = req.files.find(f => f.size > MAX_FILE_SIZE);
       if (largeFile) {
         return res.status(StatusCodes.BAD_REQUEST).json({ 
@@ -281,7 +278,7 @@ exports.updateWorker = async (req, res) => {
       createdBy: userId,
       category: 'worker',
       content: `updated details for worker: ${updatedWorker.name}`
-    }, io);
+    });
 
     res.status(200).json({ success: true, data: updatedWorker });
   } catch (error) {
@@ -290,7 +287,7 @@ exports.updateWorker = async (req, res) => {
 };
 
 /**
- * @desc Update Stage + Automatic Status Logic
+ * @desc Update Stage + Automatic Status Logic + Kafka Notification
  */
 exports.updateWorkerStage = async (req, res) => {
   try {
@@ -298,7 +295,6 @@ exports.updateWorkerStage = async (req, res) => {
     const { status } = req.body; 
     const userId = req.user._id || req.user.userId || req.user.id;
     const companyId = req.user.companyId;
-    const io = req.app.get('socketio');
 
     const worker = await Worker.findOne({ _id: id, companyId });
     if (!worker) return res.status(StatusCodes.NOT_FOUND).json({ msg: 'Worker not found' });
@@ -344,22 +340,21 @@ exports.updateWorkerStage = async (req, res) => {
       createdBy: userId,
       category: 'worker',
       content: `updated ${worker.name}'s stage [${readableStage}] to ${status}`
-    }, io);
+    });
 
     res.status(200).json({ success: true, data: worker });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ success: false, message: message.error });
   }
 };
 
 /**
- * @desc Delete Worker
+ * @desc Delete Worker + Kafka Notification
  */
 exports.deleteWorker = async (req, res) => {
   try {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId || req.user.id;
-    const io = req.app.get('socketio');
 
     const worker = await Worker.findOne({ _id: req.params.id, companyId });
     
@@ -390,7 +385,7 @@ exports.deleteWorker = async (req, res) => {
       createdBy: userId,
       category: 'worker',
       content: `deleted worker: ${workerName}`
-    }, io);
+    });
 
     res.status(200).json({ success: true, msg: 'Worker deleted successfully' });
   } catch (error) {

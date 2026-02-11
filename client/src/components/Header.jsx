@@ -16,8 +16,8 @@ export function Header({
     const dropdownRef = useRef(null);
 
     // 1. ROBUST USER DATA MAPPING
+    // This ensures that even if data is nested or loading, the UI remains stable.
     const userData = useMemo(() => {
-        // Digging deep to find the name in any common API structure
         const name = 
             user?.fullName || 
             user?.user?.fullName || 
@@ -36,7 +36,7 @@ export function Header({
             id: String(user?._id || user?.id || user?.user?._id || ""),
             fullName: name,
             role: role,
-            // Fallback avatar if name is "User" or empty
+            // Only show initials if we have a real name, otherwise "U"
             avatar: name && name !== "User" ? name.charAt(0).toUpperCase() : "U",
         };
     }, [user]);
@@ -45,11 +45,11 @@ export function Header({
     const unreadNotifications = useMemo(() => {
         const list = Array.isArray(notifications) ? notifications : [];
         return list
-            .filter((n) => n.isRead === false)
+            .filter((n) => n && n.isRead === false)
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }, [notifications]);
 
-    // Handle clicking outside to close
+    // 3. CLOSE DROPDOWN ON OUTSIDE CLICK
     useEffect(() => {
         const handleClick = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -60,6 +60,7 @@ export function Header({
         return () => document.removeEventListener("mousedown", handleClick);
     }, []);
 
+    // 4. ACTION HANDLERS
     const handleMarkAllRead = async (e) => {
         if (e) {
             e.preventDefault();
@@ -89,6 +90,7 @@ export function Header({
     return (
         <header className="bg-white border-b border-slate-200 px-6 md:px-8 py-4 relative z-50">
             <div className="flex items-center justify-between max-w-[1600px] mx-auto">
+                
                 {/* Left: Search Bar */}
                 <div className="flex-1 max-w-xl">
                     {showSearch && (
@@ -105,11 +107,13 @@ export function Header({
 
                 {/* Right: Actions & Profile */}
                 <div className="flex items-center gap-4 md:gap-6">
+                    
                     {/* Notification Dropdown */}
                     <div className="relative" ref={dropdownRef}>
                         <button
                             onClick={() => setIsNotifOpen(!isNotifOpen)}
                             className={`p-2.5 rounded-xl relative transition-all ${isNotifOpen ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:bg-slate-100'}`}
+                            aria-label="Toggle Notifications"
                         >
                             <Bell size={20} />
                             {unreadNotifications.length > 0 && (
@@ -141,12 +145,12 @@ export function Header({
                                                 <div className="flex justify-between items-start gap-2">
                                                     <p className="text-sm text-slate-700 leading-relaxed">
                                                         <span className="font-bold text-slate-900">
-                                                            {item.createdBy?.fullName || 'System'}
+                                                            {item.createdBy?.fullName || item.createdBy?.name || 'System'}
                                                         </span>{' '}
                                                         {item.content}
                                                     </p>
                                                     <span className="text-[10px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full font-bold uppercase whitespace-nowrap">
-                                                        {item.category}
+                                                        {item.category || 'Alert'}
                                                     </span>
                                                 </div>
                                                 <span className="text-[11px] text-slate-400 mt-2 block font-medium">

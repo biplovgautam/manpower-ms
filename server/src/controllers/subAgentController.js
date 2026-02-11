@@ -27,11 +27,10 @@ exports.getSubAgents = async (req, res) => {
       {
         $addFields: {
           totalWorkersBrought: { $size: '$workersList' },
-          // This field enables searching for an agent by their worker's name
           workerNames: '$workersList.fullName' 
         }
       },
-      { $project: { workersList: 0 } }, // Keep payload light by removing full worker objects
+      { $project: { workersList: 0 } }, 
       { $sort: { name: 1 } }
     ]);
 
@@ -90,7 +89,7 @@ exports.getSubAgentById = async (req, res) => {
 };
 
 /**
- * @desc    Create a new sub-agent + Notify
+ * @desc    Create a new sub-agent + Kafka Notify
  */
 exports.createSubAgent = async (req, res) => {
   try {
@@ -98,6 +97,7 @@ exports.createSubAgent = async (req, res) => {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
+    // Prevent accidental double-submissions
     const recentAgent = await SubAgent.findOne({
       name,
       companyId,
@@ -117,6 +117,7 @@ exports.createSubAgent = async (req, res) => {
       createdBy: userId
     });
 
+    // Pushes to Kafka Topic via notificationController
     await createNotification({
       companyId,
       createdBy: userId,
@@ -135,15 +136,13 @@ exports.createSubAgent = async (req, res) => {
 };
 
 /**
- * @desc    Update sub-agent (Company-wide: all employees can edit)
+ * @desc    Update sub-agent + Kafka Notify
  */
 exports.updateSubAgent = async (req, res) => {
   try {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    // We only filter by _id and companyId. 
-    // This allows any employee in the company to update any agent.
     const agent = await SubAgent.findOneAndUpdate(
       { _id: req.params.id, companyId },
       req.body,
@@ -157,6 +156,7 @@ exports.updateSubAgent = async (req, res) => {
       });
     }
 
+    // Notify via Kafka
     await createNotification({
       companyId,
       createdBy: userId,
@@ -175,14 +175,13 @@ exports.updateSubAgent = async (req, res) => {
 };
 
 /**
- * @desc    Delete sub-agent (Company-wide: all employees can delete)
+ * @desc    Delete sub-agent + Kafka Notify
  */
 exports.deleteSubAgent = async (req, res) => {
   try {
     const { companyId } = req.user;
     const userId = req.user._id || req.user.userId;
 
-    // Find agent belonging to company, regardless of who created it
     const agentToDelete = await SubAgent.findOne({ _id: req.params.id, companyId });
 
     if (!agentToDelete) {
@@ -195,6 +194,7 @@ exports.deleteSubAgent = async (req, res) => {
     const agentName = agentToDelete.name;
     await agentToDelete.deleteOne();
 
+    // Notify via Kafka
     await createNotification({
       companyId,
       createdBy: userId,

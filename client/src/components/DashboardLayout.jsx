@@ -28,9 +28,11 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (res.data.success) {
-                setCurrentUser(res.data.data);
+                // Digging into .data or .user depending on your API structure
+                setCurrentUser(res.data.data || res.data.user);
             }
         } catch (err) {
+            console.error("Profile Fetch Error:", err);
             if (err.response?.status === 401) handleLogout();
         }
     }, []);
@@ -44,23 +46,39 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         toast.success("Logged out successfully");
     }, [router]);
 
-    // 3. User Data mapping
+    // 3. ROBUST USER DATA MAPPING (Matches Header logic)
     const memoizedUser = useMemo(() => {
         const activeUser = currentUser || propUser;
+        
+        // Deep digging for names and roles to prevent "User" fallback
+        const name = 
+            activeUser?.fullName || 
+            activeUser?.user?.fullName || 
+            activeUser?.data?.fullName || 
+            activeUser?.name || 
+            activeUser?.user?.name || 
+            "User";
+
+        const userRole = 
+            activeUser?.role || 
+            activeUser?.user?.role || 
+            role || 
+            "Member";
+
         return {
-            id: String(activeUser?._id || activeUser?.id || ""),
-            companyId: String(activeUser?.companyId || ""), // Crucial for Socket Rooms
-            fullName: activeUser?.fullName || activeUser?.name || "User",
-            role: activeUser?.role || role || "Member",
+            id: String(activeUser?._id || activeUser?.id || activeUser?.user?._id || ""),
+            companyId: String(activeUser?.companyId || activeUser?.user?.companyId || ""), 
+            fullName: name,
+            role: userRole,
+            avatar: name && name !== "User" ? name.charAt(0).toUpperCase() : "U",
         };
     }, [currentUser, propUser, role]);
 
-    // 4. Fetch Notifications (Corrected Endpoint)
+    // 4. Fetch Notifications
     const fetchNotifications = useCallback(async () => {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            // Using the route we defined in the previous step
             const res = await axios.get(`${API_BASE}/notifications`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -70,12 +88,13 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         }
     }, []);
 
+    // Sync user and notifications on path changes
     useEffect(() => {
         fetchUserProfile();
         fetchNotifications();
     }, [fetchUserProfile, fetchNotifications, pathname]);
 
-    // 5. Socket Logic (Joining Company Room)
+    // 5. Socket Logic
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!memoizedUser.id || !token) return;
@@ -85,26 +104,23 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
             reconnectionAttempts: 5
         });
 
-        // Join the company room so we get team alerts
-        if (memoizedUser.companyId) {
+        if (memoizedUser.companyId && memoizedUser.companyId !== "undefined") {
             newSocket.emit('join', memoizedUser.companyId);
         }
 
         newSocket.on('newNotification', (notif) => {
-            // Check if notif already exists to prevent duplicates
             setNotifications(prev => {
                 const exists = prev.find(n => n._id === notif._id);
                 if (exists) return prev;
                 return [notif, ...prev];
             });
             
-            // Subtle sound or toast
             toast.custom((t) => (
-                <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}>
+                <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5 border-l-4 border-indigo-500`}>
                     <div className="flex-1 w-0 p-4">
                         <div className="flex items-start">
                             <div className="ml-3 flex-1">
-                                <p className="text-sm font-medium text-gray-900">New Alert: {notif.category}</p>
+                                <p className="text-sm font-bold text-gray-900">New {notif.category} Alert</p>
                                 <p className="mt-1 text-sm text-gray-500">{notif.content}</p>
                             </div>
                         </div>
@@ -120,11 +136,10 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
         };
     }, [memoizedUser.id, memoizedUser.companyId]);
 
-    // 6. Mark All Read (Updated Endpoint)
+    // 6. Mark All Read
     const handleMarkAllRead = async () => {
         try {
             const token = localStorage.getItem('token');
-            // Matches the router.patch('/mark-all-read') route
             const res = await axios.patch(`${API_BASE}/notifications/mark-all-read`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -153,7 +168,6 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
                     notifications={notifications}
                     onMarkAllRead={handleMarkAllRead}
                     onNavigate={onNavigate}
-                    onLogout={handleLogout}
                 />
 
                 <main className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -163,7 +177,6 @@ export function DashboardLayout({ children, user: propUser, role, onNavigate }) 
                                 notifications,
                                 onMarkAllRead: handleMarkAllRead,
                                 user: memoizedUser,
-                                // Pass fetch to children in case they trigger actions that need a refresh
                                 refreshNotifications: fetchNotifications 
                             });
                         }
