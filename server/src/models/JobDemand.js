@@ -1,4 +1,3 @@
-// models/JobDemand.js
 const mongoose = require('mongoose');
 
 const JobDemandSchema = new mongoose.Schema({
@@ -20,7 +19,7 @@ const JobDemandSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please specify the contract tenure (e.g., 2 Years)'],
   },
-  // This is the array that stores our "Assigned Candidates"
+  // Array of Assigned Candidates
   workers: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Worker',
@@ -45,6 +44,8 @@ const JobDemandSchema = new mongoose.Schema({
     type: String,
     enum: ['open', 'in-progress', 'closed'],
     default: 'open',
+    lowercase: true, // CRITICAL: Ensures "Open" and "open" are treated the same in reports
+    trim: true
   },
   documents: [{
     name: String,
@@ -63,14 +64,28 @@ const JobDemandSchema = new mongoose.Schema({
     required: true,
   },
 }, {
-  timestamps: true,
+  timestamps: true, // Handles createdAt and updatedAt automatically
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
 
-// VIRTUAL: Get count of assigned workers automatically
+// --- VIRTUALS ---
+
+// Get count of assigned workers automatically
 JobDemandSchema.virtual('assignedCount').get(function() {
   return this.workers ? this.workers.length : 0;
 });
+
+// Calculate remaining vacancies
+JobDemandSchema.virtual('remainingPositions').get(function() {
+  const assigned = this.workers ? this.workers.length : 0;
+  return Math.max(0, this.requiredWorkers - assigned);
+});
+
+// --- INDEXING ---
+// These ensure your Admin Dashboard aggregations run instantly
+JobDemandSchema.index({ companyId: 1, createdAt: -1 });
+JobDemandSchema.index({ status: 1 });
+JobDemandSchema.index({ employerId: 1 });
 
 module.exports = mongoose.model('JobDemand', JobDemandSchema);

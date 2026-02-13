@@ -11,6 +11,7 @@ exports.getPerformanceStats = async (req, res) => {
             return res.status(401).json({ 
                 success: false, 
                 error: "Unauthorized: Company context missing" 
+                // Peer tip: Ensure your auth middleware consistently populates companyId
             });
         }
 
@@ -18,18 +19,30 @@ exports.getPerformanceStats = async (req, res) => {
         const userId = req.user._id || req.user.userId || req.user.id;
         const { view } = req.query;
 
-        // 2. REFINED TIMEFRAME LOGIC
+        // 2. ROBUST TIMEFRAME LOGIC (UTC BASED)
+        const now = new Date();
+        const startDate = new Date();
+        
+        // Normalize to the start of the day in UTC to match MongoDB storage
+        startDate.setUTCHours(0, 0, 0, 0);
+
         let timeframeDays;
         switch(view) {
-            case 'day': timeframeDays = 1; break;
-            case 'week': timeframeDays = 7; break;
-            case 'month': timeframeDays = 30; break;
-            default: timeframeDays = 90; 
+            case 'day': 
+                timeframeDays = 0; // Just today
+                break;
+            case 'week': 
+                timeframeDays = 7; 
+                startDate.setUTCDate(startDate.getUTCDate() - 7);
+                break;
+            case 'month': 
+                timeframeDays = 30; 
+                startDate.setUTCDate(startDate.getUTCDate() - 30);
+                break;
+            default: 
+                timeframeDays = 90; 
+                startDate.setUTCDate(startDate.getUTCDate() - 90);
         }
-
-        const startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
-        startDate.setDate(startDate.getDate() - timeframeDays);
 
         const compId = new mongoose.Types.ObjectId(companyId);
         const aggFilter = { companyId: compId };
@@ -40,7 +53,7 @@ exports.getPerformanceStats = async (req, res) => {
 
         // 3. EXECUTE AGGREGATIONS
         const [workerTrend, demandTrend, deploymentTrend, counts, statusData, topEmployers] = await Promise.all([
-            // New Workers Trend
+            // New Workers Trend (Registration)
             Worker.aggregate([
                 { $match: { ...aggFilter, createdAt: { $gte: startDate } } },
                 { $group: { 
@@ -61,12 +74,15 @@ exports.getPerformanceStats = async (req, res) => {
             ]),
 
             // ACTUAL Deployment Trend
-            // This tracks workers who reached "deployed" status during this period
+            // Cross-checks both 'status' and 'currentStage' per your Schema
             Worker.aggregate([
                 { 
                     $match: { 
                         ...aggFilter, 
-                        status: "deployed", 
+                        $or: [
+                            { status: "deployed" },
+                            { currentStage: "deployed" }
+                        ],
                         updatedAt: { $gte: startDate } 
                     } 
                 },
@@ -85,13 +101,13 @@ exports.getPerformanceStats = async (req, res) => {
                 SubAgent.countDocuments(aggFilter)
             ]),
 
-            // Status Breakdown
+            // Status Breakdown (Normalized to lowercase)
             Worker.aggregate([
                 { $match: aggFilter },
                 { $group: { _id: { $toLower: "$status" }, count: { $sum: 1 } } }
             ]),
 
-            // Top Employers
+            // Top Employers (Ranked by successful deployments)
             Employer.aggregate([
                 { $match: aggFilter },
                 {
@@ -112,7 +128,12 @@ exports.getPerformanceStats = async (req, res) => {
                                 $filter: {
                                     input: "$workerDocs",
                                     as: "w",
-                                    cond: { $eq: ["$$w.status", "deployed"] }
+                                    cond: { 
+                                        $or: [
+                                            { $eq: ["$$w.status", "deployed"] },
+                                            { $eq: ["$$w.currentStage", "deployed"] }
+                                        ]
+                                    }
                                 }
                             }
                         }
@@ -123,16 +144,20 @@ exports.getPerformanceStats = async (req, res) => {
             ])
         ]);
 
-        // 4. CHART DATA FORMATTING
+        // 4. CHART DATA FORMATTING (UTC Safe Loop)
         const dateMap = {};
-        for (let i = 0; i <= timeframeDays; i++) {
-            const d = new Date(startDate);
-            d.setDate(d.getDate() + i);
-            const dateStr = d.toISOString().split('T')[0];
+        const endOfToday = new Date();
+        endOfToday.setUTCHours(23, 59, 59, 999);
+
+        let currentLoopDate = new Date(startDate);
+        
+        while (currentLoopDate <= endOfToday) {
+            const dateStr = currentLoopDate.toISOString().split('T')[0];
             dateMap[dateStr] = { date: dateStr, workers: 0, demands: 0, deployed: 0 };
+            currentLoopDate.setUTCDate(currentLoopDate.getUTCDate() + 1);
         }
 
-        // Fill the map with actual data from MongoDB
+        // Fill mapping
         workerTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].workers = item.count; });
         demandTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].demands = item.count; });
         deploymentTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].deployed = item.count; });
@@ -152,10 +177,10 @@ exports.getPerformanceStats = async (req, res) => {
                 totalJobDemands: counts[2],
                 activeSubAgents: counts[3],
                 deployed: statusMap['deployed'] || 0,
-                processing: statusMap['processing'] || statusMap['in-progress'] || 0,
+                processing: (statusMap['processing'] || 0) + (statusMap['in-progress'] || 0),
                 pending: statusMap['pending'] || 0
             },
-            chartData: Object.values(dateMap), // Using actual DB values 
+            chartData: Object.values(dateMap),
             topEmployers: topEmployers
         });
 
