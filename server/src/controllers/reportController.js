@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Worker = require('../models/Worker');
 const JobDemand = require('../models/JobDemand');
-const Employer = require('../models/Employers');
+const Employer = require('../models/Employers'); 
 const SubAgent = require('../models/SubAgent');
 
 exports.getPerformanceStats = async (req, res) => {
@@ -11,7 +11,6 @@ exports.getPerformanceStats = async (req, res) => {
             return res.status(401).json({ 
                 success: false, 
                 error: "Unauthorized: Company context missing" 
-                // Peer tip: Ensure your auth middleware consistently populates companyId
             });
         }
 
@@ -19,28 +18,20 @@ exports.getPerformanceStats = async (req, res) => {
         const userId = req.user._id || req.user.userId || req.user.id;
         const { view } = req.query;
 
-        // 2. ROBUST TIMEFRAME LOGIC (UTC BASED)
+        // 2. TIMEFRAME LOGIC
         const now = new Date();
         const startDate = new Date();
-        
-        // Normalize to the start of the day in UTC to match MongoDB storage
         startDate.setUTCHours(0, 0, 0, 0);
 
-        let timeframeDays;
         switch(view) {
-            case 'day': 
-                timeframeDays = 0; // Just today
-                break;
+            case 'day': break; 
             case 'week': 
-                timeframeDays = 7; 
                 startDate.setUTCDate(startDate.getUTCDate() - 7);
                 break;
             case 'month': 
-                timeframeDays = 30; 
                 startDate.setUTCDate(startDate.getUTCDate() - 30);
                 break;
             default: 
-                timeframeDays = 90; 
                 startDate.setUTCDate(startDate.getUTCDate() - 90);
         }
 
@@ -52,8 +43,16 @@ exports.getPerformanceStats = async (req, res) => {
         }
 
         // 3. EXECUTE AGGREGATIONS
-        const [workerTrend, demandTrend, deploymentTrend, counts, statusData, topEmployers] = await Promise.all([
-            // New Workers Trend (Registration)
+        const [
+            workerTrend, 
+            demandTrend, 
+            deploymentTrend, 
+            employerTrend, 
+            counts, 
+            statusData, 
+            topEmployers
+        ] = await Promise.all([
+            // Workers Registration Trend
             Worker.aggregate([
                 { $match: { ...aggFilter, createdAt: { $gte: startDate } } },
                 { $group: { 
@@ -63,7 +62,7 @@ exports.getPerformanceStats = async (req, res) => {
                 { $sort: { _id: 1 } }
             ]),
 
-            // New Job Demands Trend
+            // Job Demands Trend
             JobDemand.aggregate([
                 { $match: { ...aggFilter, createdAt: { $gte: startDate } } },
                 { $group: { 
@@ -73,16 +72,12 @@ exports.getPerformanceStats = async (req, res) => {
                 { $sort: { _id: 1 } }
             ]),
 
-            // ACTUAL Deployment Trend
-            // Cross-checks both 'status' and 'currentStage' per your Schema
+            // Deployment Trend (based on updatedAt when status is 'deployed')
             Worker.aggregate([
                 { 
                     $match: { 
                         ...aggFilter, 
-                        $or: [
-                            { status: "deployed" },
-                            { currentStage: "deployed" }
-                        ],
+                        $or: [{ status: "deployed" }, { currentStage: "deployed" }],
                         updatedAt: { $gte: startDate } 
                     } 
                 },
@@ -93,7 +88,17 @@ exports.getPerformanceStats = async (req, res) => {
                 { $sort: { _id: 1 } }
             ]),
 
-            // Global Totals
+            // Employer Acquisition Trend
+            Employer.aggregate([
+                { $match: { ...aggFilter, createdAt: { $gte: startDate } } },
+                { $group: { 
+                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, 
+                    count: { $sum: 1 } 
+                } },
+                { $sort: { _id: 1 } }
+            ]),
+
+            // Global Totals for KPI Cards
             Promise.all([
                 Worker.countDocuments(aggFilter),
                 Employer.countDocuments(aggFilter),
@@ -101,13 +106,13 @@ exports.getPerformanceStats = async (req, res) => {
                 SubAgent.countDocuments(aggFilter)
             ]),
 
-            // Status Breakdown (Normalized to lowercase)
+            // Status Breakdown for Pie/Donut charts
             Worker.aggregate([
                 { $match: aggFilter },
                 { $group: { _id: { $toLower: "$status" }, count: { $sum: 1 } } }
             ]),
 
-            // Top Employers (Ranked by successful deployments)
+            // Top Employers Ranking
             Employer.aggregate([
                 { $match: aggFilter },
                 {
@@ -128,12 +133,7 @@ exports.getPerformanceStats = async (req, res) => {
                                 $filter: {
                                     input: "$workerDocs",
                                     as: "w",
-                                    cond: { 
-                                        $or: [
-                                            { $eq: ["$$w.status", "deployed"] },
-                                            { $eq: ["$$w.currentStage", "deployed"] }
-                                        ]
-                                    }
+                                    cond: { $or: [{ $eq: ["$$w.status", "deployed"] }, { $eq: ["$$w.currentStage", "deployed"] }] }
                                 }
                             }
                         }
@@ -144,23 +144,30 @@ exports.getPerformanceStats = async (req, res) => {
             ])
         ]);
 
-        // 4. CHART DATA FORMATTING (UTC Safe Loop)
+        // 4. CHART DATA FORMATTING (Creating a continuous timeline)
         const dateMap = {};
         const endOfToday = new Date();
         endOfToday.setUTCHours(23, 59, 59, 999);
-
         let currentLoopDate = new Date(startDate);
         
         while (currentLoopDate <= endOfToday) {
             const dateStr = currentLoopDate.toISOString().split('T')[0];
-            dateMap[dateStr] = { date: dateStr, workers: 0, demands: 0, deployed: 0 };
+            // Initialize all metrics to 0 for each date in the range
+            dateMap[dateStr] = { 
+                date: dateStr, 
+                workers: 0, 
+                demands: 0, 
+                deployed: 0, 
+                employers: 0 
+            };
             currentLoopDate.setUTCDate(currentLoopDate.getUTCDate() + 1);
         }
 
-        // Fill mapping
+        // Fill the map with actual data from aggregations
         workerTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].workers = item.count; });
         demandTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].demands = item.count; });
         deploymentTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].deployed = item.count; });
+        employerTrend.forEach(item => { if (dateMap[item._id]) dateMap[item._id].employers = item.count; });
 
         const statusMap = statusData.reduce((acc, curr) => {
             acc[curr._id] = curr.count;
@@ -173,7 +180,7 @@ exports.getPerformanceStats = async (req, res) => {
             viewType: view === 'personal' ? 'Personal Performance' : 'Agency Overview',
             summary: {
                 totalWorkers: counts[0],
-                activeEmployers: counts[1],
+                totalEmployers: counts[1],
                 totalJobDemands: counts[2],
                 activeSubAgents: counts[3],
                 deployed: statusMap['deployed'] || 0,
@@ -188,7 +195,7 @@ exports.getPerformanceStats = async (req, res) => {
         console.error("CRITICAL_STATS_ERROR:", error);
         res.status(500).json({ 
             success: false, 
-            error: "Internal Server Error",
+            error: "Internal Server Error", 
             message: error.message 
         });
     }
