@@ -1,0 +1,27 @@
+name: Deploy backend to Render
+
+on:
+  push:
+    branches:
+      - devops-vercel-test # Keeping it consistent with your testing branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Assuming your backend code is in a 'server' folder
+    # Remove 'defaults' if your backend is in the root directory
+    defaults:
+      run:
+        working-directory: server 
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # We don't strictly need to 'build' locally for Render like we did for Vercel
+      # because Render builds on their own servers. 
+      # We just need to trigger the signal.
+
+      - name: Trigger Render Deployment
+        run: |
+          curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
